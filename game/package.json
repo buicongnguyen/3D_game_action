@@ -1,0 +1,31 @@
+{
+  "name": "marcha-de-ferro",
+  "private": true,
+  "version": "0.5.0",
+  "type": "module",
+  "description": "Marcha de Ferro (Iron March) - controller-first roguelite of defense on the move. Vertical slice.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "build:fast": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "sync-assets": "node scripts/sync-assets.mjs",
+    "validate-assets": "node scripts/validate-assets.mjs",
+    "capture": "node scripts/capture.mjs --out=../docs/captures",
+    "perf": "node scripts/perf.mjs --out=../docs/perf.json",
+    "record": "node scripts/record.mjs --out=../docs/motion",
+    "verify": "npm run validate-assets && npm run typecheck && npm run test && npm run build:fast"
+  },
+  "dependencies": {
+    "three": "0.185.1"
+  },
+  "devDependencies": {
+    "@types/three": "0.185.3",
+    "typescript": "7.0.2",
+    "vite": "8.2.1",
+    "vitest": "4.1.10"
+  }
+}

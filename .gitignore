@@ -1,0 +1,13 @@
+game/node_modules/
+game/dist/
+game/.vite/
+game/coverage/
+game/-/
+docs/motion/
+
+# Local caches and editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log

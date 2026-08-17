@@ -1,0 +1,532 @@
+{
+  "version": 1,
+  "sourceRootEnv": "ASSET_SOURCE_ROOT",
+  "licenses": [
+    "kay_assets/The Complete KayKit Collection v6.1/License.txt",
+    "assets/kenney_factory/License.txt",
+    "assets/kenney_space-kit/License.txt",
+    "assets/kenney_nature/License.txt"
+  ],
+  "assets": {
+    "player.engineer": {
+      "id": "player.engineer",
+      "source": "kay_assets/The Complete KayKit Collection v6.1/KayKit Adventurers 2.0/Characters/gltf/Engineer.glb",
+      "runtime": "/assets/kaykit/characters/Engineer.glb",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": true,
+      "kind": "character",
+      "procedural": true
+    },
+    "player.wrench": {
+      "id": "player.wrench",
+      "source": "kay_assets/The Complete KayKit Collection v6.1/KayKit Adventurers 2.0/Assets/gltf/engineer_Wrench.gltf",
+      "runtime": "/assets/kaykit/equipment/engineer_Wrench.gltf",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": true,
+      "kind": "prop",
+      "procedural": true
+    },
+    "player.shotgun": {
+      "id": "player.shotgun",
+      "source": "kay_assets/The Complete KayKit Collection v6.1/KayKit Adventurers 2.0/Assets/gltf/shotgun.gltf",
+      "runtime": "/assets/kaykit/equipment/shotgun.gltf",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": true,
+      "kind": "prop",
+      "procedural": true
+    },
+    "anim.medium.general": {
+      "id": "anim.medium.general",
+      "source": "kay_assets/The Complete KayKit Collection v6.1/KayKit Character Animations 1.1/Animations/gltf/Rig_Medium/Rig_Medium_General.glb",
+      "runtime": "/assets/kaykit/animations/Rig_Medium_General.glb",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": false,
+      "kind": "animation",
+      "procedural": true
+    },
+    "anim.medium.move": {
+      "id": "anim.medium.move",
+      "source": "kay_assets/The Complete KayKit Collection v6.1/KayKit Character Animations 1.1/Animations/gltf/Rig_Medium/Rig_Medium_MovementBasic.glb",
+      "runtime": "/assets/kaykit/animations/Rig_Medium_MovementBasic.glb",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": false,
+      "kind": "animation",
+      "procedural": true
+    },
+    "anim.medium.moveAdvanced": {
+      "id": "anim.medium.moveAdvanced",
+      "source": "kay_assets/The Complete KayKit Collection v6.1/KayKit Character Animations 1.1/Animations/gltf/Rig_Medium/Rig_Medium_MovementAdvanced.glb",
+      "runtime": "/assets/kaykit/animations/Rig_Medium_MovementAdvanced.glb",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": false,
+      "kind": "animation",
+      "procedural": true
+    },
+    "anim.medium.ranged": {
+      "id": "anim.medium.ranged",
+      "source": "kay_assets/The Complete KayKit Collection v6.1/KayKit Character Animations 1.1/Animations/gltf/Rig_Medium/Rig_Medium_CombatRanged.glb",
+      "runtime": "/assets/kaykit/animations/Rig_Medium_CombatRanged.glb",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": false,
+      "kind": "animation",
+      "procedural": true
+    },
+    "anim.medium.tools": {
+      "id": "anim.medium.tools",
+      "source": "kay_assets/The Complete KayKit Collection v6.1/KayKit Character Animations 1.1/Animations/gltf/Rig_Medium/Rig_Medium_Tools.glb",
+      "runtime": "/assets/kaykit/animations/Rig_Medium_Tools.glb",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": false,
+      "kind": "animation",
+      "procedural": true
+    },
+    "spider.frame": {
+      "id": "spider.frame",
+      "source": "kay_assets/The Complete KayKit Collection v6.1/KayKit Space Base Bits 1.0/Assets/gltf/mobile_base_frame.gltf",
+      "runtime": "/assets/kaykit/spider/mobile_base_frame.gltf",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": true,
+      "kind": "structure",
+      "procedural": true
+    },
+    "spider.command": {
+      "id": "spider.command",
+      "source": "kay_assets/The Complete KayKit Collection v6.1/KayKit Space Base Bits 1.0/Assets/gltf/mobile_base_command.gltf",
+      "runtime": "/assets/kaykit/spider/mobile_base_command.gltf",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": true,
+      "kind": "structure",
+      "procedural": true
+    },
+    "spider.carriage": {
+      "id": "spider.carriage",
+      "source": "kay_assets/The Complete KayKit Collection v6.1/KayKit Space Base Bits 1.0/Assets/gltf/mobile_base_carriage.gltf",
+      "runtime": "/assets/kaykit/spider/mobile_base_carriage.gltf",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": true,
+      "kind": "structure",
+      "procedural": true
+    },
+    "spider.cargo": {
+      "id": "spider.cargo",
+      "source": "kay_assets/The Complete KayKit Collection v6.1/KayKit Space Base Bits 1.0/Assets/gltf/mobile_base_cargo.gltf",
+      "runtime": "/assets/kaykit/spider/mobile_base_cargo.gltf",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": true,
+      "kind": "structure",
+      "procedural": true
+    },
+    "spider.legA": {
+      "id": "spider.legA",
+      "source": "assets/kenney_factory/Models/GLB format/robot-arm-a.glb",
+      "runtime": "/assets/kenney/factory/robot-arm-a.glb",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": true,
+      "kind": "prop",
+      "procedural": true
+    },
+    "spider.legB": {
+      "id": "spider.legB",
+      "source": "assets/kenney_factory/Models/GLB format/robot-arm-b.glb",
+      "runtime": "/assets/kenney/factory/robot-arm-b.glb",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": true,
+      "kind": "prop",
+      "procedural": true
+    },
+    "spider.module.machine": {
+      "id": "spider.module.machine",
+      "source": "assets/kenney_factory/Models/GLB format/machine.glb",
+      "runtime": "/assets/kenney/factory/machine.glb",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": true,
+      "kind": "prop",
+      "procedural": true
+    },
+    "spider.module.valve": {
+      "id": "spider.module.valve",
+      "source": "assets/kenney_factory/Models/GLB format/pipe-large-valve.glb",
+      "runtime": "/assets/kenney/factory/pipe-large-valve.glb",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": true,
+      "kind": "prop",
+      "procedural": true
+    },
+    "structure.rivetTurret": {
+      "id": "structure.rivetTurret",
+      "source": "kay_assets/The Complete KayKit Collection v6.1/KayKit Adventurers 2.0/Assets/gltf/turret_base.gltf",
+      "runtime": "/assets/kaykit/structures/turret_base.gltf",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": true,
+      "kind": "structure",
+      "procedural": true
+    },
+    "structure.supplyCrate": {
+      "id": "structure.supplyCrate",
+      "source": "kay_assets/The Complete KayKit Collection v6.1/KayKit Adventurers 2.0/Assets/gltf/ammo_crate_withLid.gltf",
+      "runtime": "/assets/kaykit/structures/ammo_crate_withLid.gltf",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": true,
+      "kind": "structure",
+      "procedural": true
+    },
+    "structure.barricade": {
+      "id": "structure.barricade",
+      "source": "kay_assets/The Complete KayKit Collection v6.1/KayKit Dungeon Pack 1.1/Assets/gltf/barrier.gltf",
+      "runtime": "/assets/kaykit/structures/barrier.gltf",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": true,
+      "kind": "structure",
+      "procedural": true
+    },
+    "structure.relay": {
+      "id": "structure.relay",
+      "source": "assets/kenney_space-kit/Models/GLTF format/machine_wireless.glb",
+      "runtime": "/assets/kenney/space/machine_wireless.glb",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": true,
+      "kind": "structure",
+      "procedural": true
+    },
+    "structure.generator": {
+      "id": "structure.generator",
+      "source": "assets/kenney_space-kit/Models/GLTF format/machine_generator.glb",
+      "runtime": "/assets/kenney/space/machine_generator.glb",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": true,
+      "kind": "structure",
+      "procedural": true
+    },
+    "resource.fuelCan": {
+      "id": "resource.fuelCan",
+      "source": "kay_assets/The Complete KayKit Collection v6.1/KayKit Resource Bits 1.0/Assets/gltf/Fuel_A_Jerrycan.gltf",
+      "runtime": "/assets/kaykit/resources/Fuel_A_Jerrycan.gltf",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": false,
+      "kind": "prop",
+      "procedural": true
+    },
+    "resource.fuelBarrel": {
+      "id": "resource.fuelBarrel",
+      "source": "kay_assets/The Complete KayKit Collection v6.1/KayKit Resource Bits 1.0/Assets/gltf/Fuel_A_Barrel.gltf",
+      "runtime": "/assets/kaykit/resources/Fuel_A_Barrel.gltf",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": true,
+      "kind": "prop",
+      "procedural": true
+    },
+    "resource.scrapSmall": {
+      "id": "resource.scrapSmall",
+      "source": "kay_assets/The Complete KayKit Collection v6.1/KayKit Resource Bits 1.0/Assets/gltf/Parts_Pile_Small.gltf",
+      "runtime": "/assets/kaykit/resources/Parts_Pile_Small.gltf",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": false,
+      "kind": "prop",
+      "procedural": true
+    },
+    "resource.scrapLarge": {
+      "id": "resource.scrapLarge",
+      "source": "kay_assets/The Complete KayKit Collection v6.1/KayKit Resource Bits 1.0/Assets/gltf/Parts_Pile_Large.gltf",
+      "runtime": "/assets/kaykit/resources/Parts_Pile_Large.gltf",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": true,
+      "kind": "prop",
+      "procedural": true
+    },
+    "resource.scrapAuthored": {
+      "id": "resource.scrapAuthored",
+      "source": "generated/sucata-metal.glb",
+      "runtime": "/assets/game/resources/sucata-metal.glb",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": false,
+      "kind": "prop",
+      "procedural": true
+    },
+    "forest.tree1": {
+      "id": "forest.tree1",
+      "source": "kay_assets/The Complete KayKit Collection v6.1/KayKit Forest Nature Pack 1.0/Assets/gltf/Color1/Tree_1_A_Color1.gltf",
+      "runtime": "/assets/kaykit/nature/Tree_1_A_Color1.gltf",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": true,
+      "kind": "prop",
+      "procedural": true
+    },
+    "forest.tree2": {
+      "id": "forest.tree2",
+      "source": "kay_assets/The Complete KayKit Collection v6.1/KayKit Forest Nature Pack 1.0/Assets/gltf/Color1/Tree_2_B_Color1.gltf",
+      "runtime": "/assets/kaykit/nature/Tree_2_B_Color1.gltf",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": true,
+      "kind": "prop",
+      "procedural": true
+    },
+    "forest.treeBare": {
+      "id": "forest.treeBare",
+      "source": "kay_assets/The Complete KayKit Collection v6.1/KayKit Forest Nature Pack 1.0/Assets/gltf/Color1/Tree_Bare_1_A_Color1.gltf",
+      "runtime": "/assets/kaykit/nature/Tree_Bare_1_A_Color1.gltf",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": true,
+      "kind": "prop",
+      "procedural": true
+    },
+    "forest.bush": {
+      "id": "forest.bush",
+      "source": "kay_assets/The Complete KayKit Collection v6.1/KayKit Forest Nature Pack 1.0/Assets/gltf/Color1/Bush_2_C_Color1.gltf",
+      "runtime": "/assets/kaykit/nature/Bush_2_C_Color1.gltf",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": false,
+      "kind": "prop",
+      "procedural": true
+    },
+    "forest.rock": {
+      "id": "forest.rock",
+      "source": "kay_assets/The Complete KayKit Collection v6.1/KayKit Forest Nature Pack 1.0/Assets/gltf/Color1/Rock_1_A_Color1.gltf",
+      "runtime": "/assets/kaykit/nature/Rock_1_A_Color1.gltf",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": true,
+      "kind": "prop",
+      "procedural": true
+    },
+    "forest.grass": {
+      "id": "forest.grass",
+      "source": "kay_assets/The Complete KayKit Collection v6.1/KayKit Forest Nature Pack 1.0/Assets/gltf/Color1/Grass_1_B_Color1.gltf",
+      "runtime": "/assets/kaykit/nature/Grass_1_B_Color1.gltf",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": false,
+      "kind": "prop",
+      "procedural": true
+    },
+    "terrain.grassTile": {
+      "id": "terrain.grassTile",
+      "source": "assets/kenney_nature/Models/GLTF format/ground_grass.glb",
+      "runtime": "/assets/kenney/nature/ground_grass.glb",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": false,
+      "kind": "prop",
+      "procedural": true
+    },
+    "terrain.pathStraight": {
+      "id": "terrain.pathStraight",
+      "source": "assets/kenney_nature/Models/GLTF format/ground_pathStraight.glb",
+      "runtime": "/assets/kenney/nature/ground_pathStraight.glb",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": false,
+      "kind": "prop",
+      "procedural": true
+    },
+    "terrain.pathBend": {
+      "id": "terrain.pathBend",
+      "source": "assets/kenney_nature/Models/GLTF format/ground_pathBend.glb",
+      "runtime": "/assets/kenney/nature/ground_pathBend.glb",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": false,
+      "kind": "prop",
+      "procedural": true
+    },
+    "terrain.pathSplit": {
+      "id": "terrain.pathSplit",
+      "source": "assets/kenney_nature/Models/GLTF format/ground_pathSplit.glb",
+      "runtime": "/assets/kenney/nature/ground_pathSplit.glb",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": false,
+      "kind": "prop",
+      "procedural": true
+    },
+    "enemy.minion": {
+      "id": "enemy.minion",
+      "source": "kay_assets/The Complete KayKit Collection v6.1/KayKit Skeletons 1.1/characters/gltf/Skeleton_Minion.glb",
+      "runtime": "/assets/kaykit/characters/Skeleton_Minion.glb",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": true,
+      "kind": "character",
+      "procedural": true
+    },
+    "enemy.warrior": {
+      "id": "enemy.warrior",
+      "source": "kay_assets/The Complete KayKit Collection v6.1/KayKit Skeletons 1.1/characters/gltf/Skeleton_Warrior.glb",
+      "runtime": "/assets/kaykit/characters/Skeleton_Warrior.glb",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": true,
+      "kind": "character",
+      "procedural": true
+    },
+    "enemy.golem": {
+      "id": "enemy.golem",
+      "source": "kay_assets/The Complete KayKit Collection v6.1/KayKit Skeletons 1.1/characters/gltf/Skeleton_Golem.glb",
+      "runtime": "/assets/kaykit/characters/Skeleton_Golem.glb",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": true,
+      "kind": "character",
+      "procedural": true
+    },
+    "enemy.necromancer": {
+      "id": "enemy.necromancer",
+      "source": "kay_assets/The Complete KayKit Collection v6.1/KayKit Skeletons 1.1/characters/gltf/Necromancer.glb",
+      "runtime": "/assets/kaykit/characters/Necromancer.glb",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": true,
+      "kind": "character",
+      "procedural": true
+    },
+    "enemy.weapon.axe": {
+      "id": "enemy.weapon.axe",
+      "source": "kay_assets/The Complete KayKit Collection v6.1/KayKit Skeletons 1.1/assets/gltf/Skeleton_Axe.gltf",
+      "runtime": "/assets/kaykit/equipment/Skeleton_Axe.gltf",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": true,
+      "kind": "prop",
+      "procedural": true
+    },
+    "enemy.weapon.golemAxe": {
+      "id": "enemy.weapon.golemAxe",
+      "source": "kay_assets/The Complete KayKit Collection v6.1/KayKit Skeletons 1.1/assets/gltf/Skeleton_Golem_Axe_Large.gltf",
+      "runtime": "/assets/kaykit/equipment/Skeleton_Golem_Axe_Large.gltf",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": true,
+      "kind": "prop",
+      "procedural": true
+    },
+    "enemy.weapon.staff": {
+      "id": "enemy.weapon.staff",
+      "source": "kay_assets/The Complete KayKit Collection v6.1/KayKit Skeletons 1.1/assets/gltf/Skeleton_Staff.gltf",
+      "runtime": "/assets/kaykit/equipment/Skeleton_Staff.gltf",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": true,
+      "kind": "prop",
+      "procedural": true
+    },
+    "anim.medium.melee": {
+      "id": "anim.medium.melee",
+      "source": "kay_assets/The Complete KayKit Collection v6.1/KayKit Character Animations 1.1/Animations/gltf/Rig_Medium/Rig_Medium_CombatMelee.glb",
+      "runtime": "/assets/kaykit/animations/Rig_Medium_CombatMelee.glb",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": false,
+      "kind": "animation",
+      "procedural": true
+    },
+    "anim.medium.skeleton": {
+      "id": "anim.medium.skeleton",
+      "source": "kay_assets/The Complete KayKit Collection v6.1/KayKit Character Animations 1.1/Animations/gltf/Rig_Medium/Rig_Medium_Special.glb",
+      "runtime": "/assets/kaykit/animations/Rig_Medium_Special.glb",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": false,
+      "kind": "animation",
+      "procedural": true
+    },
+    "anim.large.general": {
+      "id": "anim.large.general",
+      "source": "kay_assets/The Complete KayKit Collection v6.1/KayKit Character Animations 1.1/Animations/gltf/Rig_Large/Rig_Large_General.glb",
+      "runtime": "/assets/kaykit/animations/Rig_Large_General.glb",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": false,
+      "kind": "animation",
+      "procedural": true
+    },
+    "anim.large.move": {
+      "id": "anim.large.move",
+      "source": "kay_assets/The Complete KayKit Collection v6.1/KayKit Character Animations 1.1/Animations/gltf/Rig_Large/Rig_Large_MovementBasic.glb",
+      "runtime": "/assets/kaykit/animations/Rig_Large_MovementBasic.glb",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": false,
+      "kind": "animation",
+      "procedural": true
+    },
+    "anim.large.melee": {
+      "id": "anim.large.melee",
+      "source": "kay_assets/The Complete KayKit Collection v6.1/KayKit Character Animations 1.1/Animations/gltf/Rig_Large/Rig_Large_CombatMelee.glb",
+      "runtime": "/assets/kaykit/animations/Rig_Large_CombatMelee.glb",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": false,
+      "kind": "animation",
+      "procedural": true
+    },
+    "vfx.muzzle": {
+      "id": "vfx.muzzle",
+      "source": "kay_assets/The Complete KayKit Collection v6.1/KayKit Mystery Monthly Series 4 (1.1)/6 - December 2023 - Action Figure/assets/gltf/Muzzleflash.gltf",
+      "runtime": "/assets/kaykit/vfx/Muzzleflash.gltf",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": false,
+      "kind": "vfx",
+      "procedural": true
+    },
+    "vfx.muzzleLong": {
+      "id": "vfx.muzzleLong",
+      "source": "kay_assets/The Complete KayKit Collection v6.1/KayKit Mystery Monthly Series 4 (1.1)/6 - December 2023 - Action Figure/assets/gltf/Muzzleflash_Long.gltf",
+      "runtime": "/assets/kaykit/vfx/Muzzleflash_Long.gltf",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": false,
+      "kind": "vfx",
+      "procedural": true
+    },
+    "vfx.impact": {
+      "id": "vfx.impact",
+      "source": "kay_assets/The Complete KayKit Collection v6.1/KayKit Mystery Monthly Series 5 (1.1)/2 - August 2024 - Superhero/assets/gltf/LandingImpact.gltf",
+      "runtime": "/assets/kaykit/vfx/LandingImpact.gltf",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": false,
+      "kind": "vfx",
+      "procedural": true
+    },
+    "projectile.bullet": {
+      "id": "projectile.bullet",
+      "source": "kay_assets/The Complete KayKit Collection v6.1/KayKit Prototype Bits 1.1/Assets/gltf/Bullet.gltf",
+      "runtime": "/assets/kaykit/vfx/Bullet.gltf",
+      "scale": 1,
+      "rotationY": 0,
+      "castShadow": false,
+      "kind": "vfx",
+      "procedural": true
+    }
+  }
+}
