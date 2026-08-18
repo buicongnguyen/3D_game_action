@@ -246,6 +246,93 @@ export function buildGrassTuftGeometry(variant: number, random: Random): BufferG
 // Ruins and scrap
 // ---------------------------------------------------------------------------
 
+/**
+ * Compact ruined workshop used by authored encounters. A missing roof corner,
+ * dark doorway, chimney and side braces keep it readable from the game camera
+ * without turning one building into a high-poly landmark.
+ */
+export function buildRuinedHouseGeometry(variant: number, random: Random): BufferGeometry {
+  void variant;
+  const parts: BufferGeometry[] = [
+    place(chamferedBox(5.4, 0.35, 4.6, 0.1, ENV.ruinStoneDark), 0, 0.18, 0),
+    place(chamferedBox(5.0, 2.8, 0.42, 0.08, ENV.ruinStone), 0, 1.62, -2.05),
+    place(chamferedBox(1.25, 2.8, 0.42, 0.08, ENV.ruinStone), -1.88, 1.62, 2.05),
+    place(chamferedBox(1.25, 2.8, 0.42, 0.08, ENV.ruinStone), 1.88, 1.62, 2.05),
+    place(chamferedBox(0.42, 2.8, 4.2, 0.08, ENV.ruinStone), -2.3, 1.62, 0),
+    place(chamferedBox(0.42, 2.25, 4.2, 0.08, ENV.ruinStone), 2.3, 1.35, 0, 0, 0, -0.08),
+    // Deep doorway reads as the release point for an occupied building.
+    place(chamferedBox(2.2, 2.45, 0.18, 0.04, ENV.ruinStoneDark), 0, 1.25, 2.1),
+    // Broken roof slopes and deliberately leaves the front-right corner open.
+    place(taperedBox(2.85, 2.55, 0.34, 2.85, 2.55, 0.1, ENV.rustMetalDark), -1.25, 3.25, -0.15, 0, 0, 0.28),
+    place(taperedBox(2.35, 2.05, 0.3, 2.35, 2.05, 0.1, ENV.rustMetal), 1.35, 3.18, -0.35, 0, 0, -0.3),
+    place(chamferedBox(0.72, 2.4, 0.72, 0.08, ENV.rustMetalDark), -1.45, 4.15, -0.9, 0, random.signed(0.04), 0.04),
+    place(chamferedBox(0.22, 3.0, 0.22, 0.04, ENV.rustMetal), 2.38, 1.7, -1.8, 0, 0, -0.12),
+  ];
+  return tint(merge(parts), 0.055, 510);
+}
+
+/**
+ * Repeating maze wall: one strong silhouette built from readable courses,
+ * buttresses and a rusted diagonal brace. It is intentionally asymmetric so
+ * alternating instances do not look like a copied grey box from above.
+ */
+export function buildMazeWallGeometry(variant: number, random: Random): BufferGeometry {
+  void variant;
+  const lean = random.signed(0.035);
+  const parts: BufferGeometry[] = [
+    place(chamferedBox(0.95, 0.28, 6.0, 0.08, ENV.ruinStoneDark), 0, 0.14, 0),
+    place(taperedBox(0.78, 0.68, 1.05, 5.6, 5.35, 0.12, ENV.ruinStone), 0, 0.78, 0, 0, 0, lean),
+    place(chamferedBox(0.9, 0.22, 5.75, 0.06, ENV.ruinStoneDark), 0, 1.42, 0),
+    place(chamferedBox(0.18, 1.65, 0.42, 0.04, ENV.rustMetalDark), 0.47, 0.86, -1.95, 0, 0, 0.12),
+    place(chamferedBox(0.18, 1.65, 0.42, 0.04, ENV.rustMetalDark), 0.47, 0.86, 1.95, 0, 0, -0.12),
+    place(chamferedBox(0.22, 0.18, 4.5, 0.04, ENV.rustMetal), 0.5, 0.88, 0, 0, 0, 0.38),
+  ];
+  // Broken cap stones give the top edge a deliberate rhythm.
+  for (let i = -2; i <= 2; i++) {
+    if (i === 1) continue;
+    parts.push(
+      place(
+        chamferedBox(0.88, 0.34 + (i & 1) * 0.1, 0.86, 0.07, i & 1 ? ENV.ruinStoneDark : ENV.ruinStone),
+        random.signed(0.04),
+        1.62 + (i & 1) * 0.04,
+        i * 1.12,
+        random.signed(0.04),
+        random.signed(0.06),
+        random.signed(0.04),
+      ),
+    );
+  }
+  return tint(merge(parts), 0.075, 430);
+}
+
+/** Corner/watch tower used as punctuation between runs of maze wall. */
+export function buildMazeTowerGeometry(variant: number, random: Random): BufferGeometry {
+  void variant;
+  const parts: BufferGeometry[] = [
+    place(taperedBox(2.8, 2.5, 0.45, 2.8, 2.5, 0.1, ENV.ruinStoneDark), 0, 0.22, 0),
+    place(taperedBox(2.15, 1.9, 3.7, 1.72, 1.55, 0.16, ENV.ruinStone), 0, 2.05, 0),
+    place(chamferedBox(2.45, 0.38, 2.25, 0.09, ENV.ruinStoneDark), 0, 3.78, 0),
+    place(chamferedBox(0.34, 3.0, 0.34, 0.06, ENV.rustMetalDark), 1.02, 1.92, 0.88, 0, 0, -0.08),
+    place(chamferedBox(1.35, 0.24, 0.22, 0.04, ENV.rustMetal), 0, 2.75, 1.03),
+    place(chamferedBox(1.35, 0.24, 0.22, 0.04, ENV.rustMetal), 0, 1.35, 1.03),
+  ];
+  for (let i = 0; i < 4; i++) {
+    const angle = i * Math.PI * 0.5 + Math.PI * 0.25;
+    parts.push(
+      place(
+        taperedBox(0.56, 0.5, 0.9, 0.48, 0.44, 0.06, ENV.ruinStone),
+        Math.cos(angle) * 0.78,
+        4.25 + random.signed(0.08),
+        Math.sin(angle) * 0.78,
+        0,
+        -angle,
+        random.signed(0.04),
+      ),
+    );
+  }
+  return tint(merge(parts), 0.075, 431);
+}
+
 export function buildRuinPillarGeometry(variant: number, random: Random): BufferGeometry {
   const parts: BufferGeometry[] = [];
   const drums = 2 + (variant % 3);

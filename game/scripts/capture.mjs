@@ -27,6 +27,7 @@ const run = promisify(execFile);
 
 const CAPTURE_IDS = [
   "march",
+  "houses",
   "placement",
   "horde",
   "lastshot",
@@ -43,7 +44,7 @@ const CAPTURE_IDS = [
  * The budget is virtual time, so a generous value costs nothing on light scenes
  * but is the difference between an image and a timeout on a 130-enemy one.
  */
-const HEAVY_CAPTURES = new Set(["horde", "pursuit", "lastshot", "upgrade"]);
+const HEAVY_CAPTURES = new Set(["houses", "horde", "pursuit", "lastshot", "upgrade"]);
 
 const EDGE_CANDIDATES = [
   "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",

@@ -121,7 +121,9 @@ export class TerrainBuilder {
     this.root.add(this.ground);
 
     this.scatterProps(world, segment, random);
-    this.buildCorridorMarkers(world, segment, random);
+    this.buildEncounterSites(world, segment);
+    if (segment.modifiers.includes("maze")) this.buildMazePattern(world, segment, random);
+    else this.buildCorridorMarkers(world, segment, random);
   }
 
   /**
@@ -298,6 +300,7 @@ export class TerrainBuilder {
   private scatterProps(world: GameWorld, segment: RouteSegmentDefinition, random: Random): void {
     const spline = world.route.spline!;
     const length = spline.length;
+    const maze = segment.modifiers.includes("maze");
     const point = { x: 0, z: 0 };
     const tangent = { x: 0, z: 0 };
 
@@ -307,12 +310,35 @@ export class TerrainBuilder {
     const occupiedZ: number[] = [];
     const occupiedR: number[] = [];
 
+    // Reserve authored building footprints before scattering decorative props.
+    // Otherwise a deterministic but unlucky tree can grow through a doorway
+    // and hide the warning/release beat the building exists to communicate.
+    const encounters = segment.encounters ?? [];
+    for (let i = 0; i < encounters.length; i++) {
+      const encounter = encounters[i];
+      spline.positionAt(point, encounter.distance);
+      spline.tangentAt(tangent, encounter.distance);
+      occupiedX.push(point.x - tangent.z * encounter.lateral);
+      occupiedZ.push(point.z + tangent.x * encounter.lateral);
+      occupiedR.push(encounter.kind === "workshopNest" ? 5.4 : 4.8);
+    }
+
     for (let typeIndex = 0; typeIndex < PROP_TYPES.length; typeIndex++) {
       const type = PROP_TYPES[typeIndex];
       const geometry = this.tryPropGeometry(type.name);
       if (!geometry) continue;
 
-      const mesh = new InstancedMesh(geometry, this.forge.materials.surface, type.count);
+      // Rust Yard is architecture-led. Keep some distant natural dressing, but
+      // do not let hundreds of unrelated trees and boulders overwhelm the two
+      // modular shapes that define the maze.
+      const heavyNatural =
+        type.name.startsWith("tree") ||
+        type.name.startsWith("bareTree") ||
+        type.name.startsWith("rock") ||
+        type.name.startsWith("ruinPillar");
+      const targetCount = maze && heavyNatural ? Math.ceil(type.count * 0.22) : type.count;
+
+      const mesh = new InstancedMesh(geometry, this.forge.materials.surface, targetCount);
       // Only silhouette-scale props cast. A grass tuft's shadow is invisible at
       // this camera height but still costs a full extra pass over its instances.
       mesh.castShadow = type.blocks >= 1;
@@ -322,9 +348,9 @@ export class TerrainBuilder {
 
       let placed = 0;
       let attempts = 0;
-      const maxAttempts = type.count * 12;
+      const maxAttempts = targetCount * 12;
 
-      while (placed < type.count && attempts < maxAttempts) {
+      while (placed < targetCount && attempts < maxAttempts) {
         attempts++;
         const distance = random.range(-8, length + 8);
         spline.positionAt(point, clamp(distance, 0, length));
@@ -335,6 +361,15 @@ export class TerrainBuilder {
           side * random.range(Math.max(type.minLateral, segment.corridorHalfWidth * 0.9), type.maxLateral);
         const x = point.x + -tangent.z * lateral;
         const z = point.z + tangent.x * lateral;
+
+        // A prop generated outside one switchback can still land inside the
+        // neighbouring lane. Clear against the globally nearest lane so the
+        // maze remains navigable and its repeated path is visually legible.
+        if (
+          maze &&
+          Math.abs(spline.lateralOffset(x, z)) <
+            segment.corridorHalfWidth + Math.max(1, type.blocks)
+        ) continue;
 
         let rejected = false;
         for (let i = 0; i < occupiedX.length; i++) {
@@ -378,6 +413,109 @@ export class TerrainBuilder {
     }
   }
 
+  /** Builds every authored house from the same data that drives its squad. */
+  private buildEncounterSites(world: GameWorld, segment: RouteSegmentDefinition): void {
+    const encounters = segment.encounters ?? [];
+    if (encounters.length === 0) return;
+    const geometry = this.tryPropGeometry("ruinedHouse");
+    if (!geometry) return;
+    const spline = world.route.spline!;
+    const mesh = new InstancedMesh(geometry, this.forge.materials.surface, encounters.length);
+    mesh.name = "prop.ruinedHouse";
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.frustumCulled = false;
+    const point = { x: 0, z: 0 };
+    const tangent = { x: 0, z: 1 };
+    for (let i = 0; i < encounters.length; i++) {
+      const encounter = encounters[i];
+      spline.positionAt(point, encounter.distance);
+      spline.tangentAt(tangent, encounter.distance);
+      const x = point.x - tangent.z * encounter.lateral;
+      const z = point.z + tangent.x * encounter.lateral;
+      // The front doorway faces the route centreline.
+      const towardRoute = encounter.lateral > 0 ? Math.PI * 0.5 : -Math.PI * 0.5;
+      const heading = Math.atan2(tangent.x, tangent.z) + towardRoute;
+      this.position.set(x, 0, z);
+      this.quaternion.setFromAxisAngle(UP, heading);
+      const scale = encounter.kind === "workshopNest" ? 1.12 : 1;
+      this.scaleVector.setScalar(scale);
+      this.matrix.compose(this.position, this.quaternion, this.scaleVector);
+      mesh.setMatrixAt(i, this.matrix);
+      world.navigation.setStatic(x, z, 2.55 * scale);
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+    this.instanced.push(mesh);
+    this.root.add(mesh);
+  }
+
+  /**
+   * Authored wall-gap-tower rhythm for Rust Yard. Two reusable geometries make
+   * the maze read as one designed place while remaining two instanced draws.
+   */
+  private buildMazePattern(
+    world: GameWorld,
+    segment: RouteSegmentDefinition,
+    random: Random,
+  ): void {
+    const wallGeometry = this.tryPropGeometry("mazeWall");
+    const towerGeometry = this.tryPropGeometry("mazeTower");
+    if (!wallGeometry || !towerGeometry) return;
+
+    const spline = world.route.spline!;
+    const spacing = 6.4;
+    const stations = Math.floor(spline.length / spacing);
+    const wallCapacity = stations * 2;
+    const towerCapacity = Math.ceil(stations / 8) * 2;
+    const walls = new InstancedMesh(wallGeometry, this.forge.materials.surface, wallCapacity);
+    const towers = new InstancedMesh(towerGeometry, this.forge.materials.surface, towerCapacity);
+    walls.name = "prop.mazeWall";
+    towers.name = "prop.mazeTower";
+    walls.castShadow = towers.castShadow = true;
+    walls.receiveShadow = towers.receiveShadow = true;
+    walls.frustumCulled = towers.frustumCulled = false;
+
+    const point = { x: 0, z: 0 };
+    const tangent = { x: 0, z: 0 };
+    let wallCount = 0;
+    let towerCount = 0;
+    for (let station = 0; station < stations; station++) {
+      const distance = station * spacing + spacing * 0.5;
+      spline.positionAt(point, distance);
+      spline.tangentAt(tangent, distance);
+      const heading = Math.atan2(tangent.x, tangent.z);
+
+      for (const side of SIDES) {
+        const lateral = side * (segment.corridorHalfWidth + 1.1);
+        this.position.set(point.x + -tangent.z * lateral, 0, point.z + tangent.x * lateral);
+        this.quaternion.setFromAxisAngle(UP, heading + (side < 0 ? Math.PI : 0));
+
+        // Every eighth station is a tower; every fourth leaves a deliberate
+        // breach where enemies and the engineer can cross the wall line.
+        if (station % 8 === 0) {
+          this.scaleVector.setScalar(random.range(0.94, 1.07));
+          this.matrix.compose(this.position, this.quaternion, this.scaleVector);
+          towers.setMatrixAt(towerCount++, this.matrix);
+          world.navigation.setStatic(this.position.x, this.position.z, 1.35);
+        } else if (station % 4 !== 0) {
+          this.scaleVector.set(1, random.range(0.94, 1.08), 1);
+          this.matrix.compose(this.position, this.quaternion, this.scaleVector);
+          walls.setMatrixAt(wallCount++, this.matrix);
+          // A circle approximates the long segment while leaving narrow seams
+          // plus the deliberate fourth-station breach for navigation.
+          world.navigation.setStatic(this.position.x, this.position.z, 2.45);
+        }
+      }
+    }
+
+    walls.count = wallCount;
+    towers.count = towerCount;
+    walls.instanceMatrix.needsUpdate = true;
+    towers.instanceMatrix.needsUpdate = true;
+    this.instanced.push(walls, towers);
+    this.root.add(walls, towers);
+  }
+
   /**
    * Low posts along the corridor edge. They are the one piece of explicit
    * wayfinding in the environment: at a glance they answer "which way is
@@ -391,7 +529,8 @@ export class TerrainBuilder {
     const geometry = this.tryPropGeometry(MARKER_PROP);
     if (!geometry) return;
     const spline = world.route.spline!;
-    const spacing = 14;
+    const maze = segment.modifiers.includes("maze");
+    const spacing = maze ? 8 : 14;
     const count = Math.floor(spline.length / spacing) * 2;
     if (count <= 0) return;
 
@@ -413,7 +552,7 @@ export class TerrainBuilder {
         const lateral = side * (segment.corridorHalfWidth + 0.8);
         this.position.set(point.x + -tangent.z * lateral, 0, point.z + tangent.x * lateral);
         this.quaternion.setFromAxisAngle(UP, random.range(-0.2, 0.2));
-        this.scaleVector.setScalar(random.range(0.9, 1.1));
+        this.scaleVector.setScalar(random.range(maze ? 1.05 : 0.9, maze ? 1.25 : 1.1));
         this.matrix.compose(this.position, this.quaternion, this.scaleVector);
         mesh.setMatrixAt(placed++, this.matrix);
       }

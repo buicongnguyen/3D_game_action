@@ -81,6 +81,18 @@ export const CAPTURES: CaptureScenario[] = [
     },
   },
   {
+    id: "houses",
+    label: "Occupied workshop releasing a visible finite squad",
+    settle: 1.65,
+    setup: (game, world) => {
+      game.debugApi.enterSegment("seg.mine");
+      game.debugApi.teleportSpider(34);
+      game.advance(0.05);
+      stationPlayer(world, 9, -2);
+      world.trail = 24;
+    },
+  },
+  {
     id: "gearshift",
     label: "Spider drops out of overdrive, then halts at the checkpoint",
     settle: 0.1,

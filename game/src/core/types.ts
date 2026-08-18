@@ -128,6 +128,7 @@ export interface PlayerState {
 export type ContextualActionKind =
   | "repair"
   | "refuel"
+  | "collect"
   | "fold"
   | "install"
   | "recharge"
@@ -446,6 +447,18 @@ export interface ResourceZoneDefinition {
   maxLateral: number;
 }
 
+export interface RouteEncounterDefinition {
+  id: string;
+  kind: "emptyHouse" | "occupiedHouse" | "workshopNest";
+  /** Position along the route and signed offset from its centreline. */
+  distance: number;
+  lateral: number;
+  /** Spider distance before activation. Occupied sites warn before releasing. */
+  triggerLead: number;
+  warningSeconds: number;
+  occupants: Array<{ archetype: string; count: number }>;
+}
+
 export type RouteObjectiveKind = "recover" | "pressure" | "salvage" | "pursuit";
 
 export interface RouteObjectiveDefinition {
@@ -465,9 +478,13 @@ export interface RouteSegmentDefinition {
   points: Array<[number, number, number]>;
   lengthMeters: number;
   recommendedDuration: number;
+  /** Multiplies ambient horde pressure; authored encounter squads are unaffected. */
+  ambientThreatScale?: number;
   pursuitStartSeconds: number;
   spawnZones: SpawnZoneDefinition[];
   resourceZones: ResourceZoneDefinition[];
+  /** Finite authored beats, rendered and simulated from the same route data. */
+  encounters?: RouteEncounterDefinition[];
   modifiers: string[];
   rewardTable: string;
   destinationId: string;

@@ -46,6 +46,12 @@ const SPAWN_MIN_DISTANCE_SQ = DIRECTOR.spawnMinDistance * DIRECTOR.spawnMinDista
 
 const spawnPoint: Vec2 = { x: 0, z: 0 };
 const jitter: Vec2 = { x: 0, z: 0 };
+const clearSpawnPoint: Vec2 = { x: 0, z: 0 };
+
+/** Rings searched when authored spawn ground happens to contain a solid prop. */
+const CLEARANCE_RINGS = 5;
+const CLEARANCE_SAMPLES = 12;
+const CLEARANCE_STEP = 1.5;
 
 export class HordeDirector {
   readonly stats = { budget: 0, spawnedTotal: 0, active: 0, deniedByCap: 0 };
@@ -249,6 +255,35 @@ export class HordeDirector {
   }
 
   /**
+   * Releases a finite authored squad from a visible world location. Unlike the
+   * ambient director this ignores Trail and budget, but still respects pool
+   * capacity, collision clearance, and the normal enemy initialization path.
+   */
+  spawnEncounterGroup(
+    world: GameWorld,
+    archetypeId: string,
+    count: number,
+    x: number,
+    z: number,
+  ): number {
+    let spawned = 0;
+    for (let i = 0; i < count; i++) {
+      const angle = i * GOLDEN_ANGLE;
+      const radius = 1.4 + (i % 3) * 0.7;
+      if (!this.spawn(
+        world,
+        archetypeId,
+        x + Math.cos(angle) * radius,
+        z + Math.sin(angle) * radius,
+        true,
+      )) continue;
+      spawned++;
+    }
+    this.stats.active = world.enemies.active;
+    return spawned;
+  }
+
+  /**
    * Acquires a pool slot and writes a complete enemy into it.
    *
    * Every mutable field is assigned here. `ObjectPool.acquire` already ran
@@ -264,6 +299,9 @@ export class HordeDirector {
     z: number,
     visible: boolean,
   ): Enemy | null {
+    const archetype = getArchetype(archetypeId);
+    if (!this.findClearSpawn(world, x, z, archetype.radius)) return null;
+
     // Checked before acquiring so a full pool is a counted denial rather than a
     // recorded exhaustion; `pool.exhaustions` stays a pure bug signal.
     if (world.enemies.available <= 0) {
@@ -277,8 +315,9 @@ export class HordeDirector {
       return null;
     }
 
-    const archetype = getArchetype(archetypeId);
     const spider = world.spider;
+    x = clearSpawnPoint.x;
+    z = clearSpawnPoint.z;
     const heading = headingFromDirection(spider.x - x, spider.z - z);
 
     enemy.id = world.allocateId();
@@ -319,6 +358,41 @@ export class HordeDirector {
       z,
     });
     return enemy;
+  }
+
+  /**
+   * Props and enemy spawn zones intentionally share the threatening outer
+   * corridor. Find a nearby open point before acquiring a body; otherwise an
+   * enemy born inside a tree cannot take its first integration step and looks
+   * like part of a motionless crowd. The first sample on every ring faces the
+   * spider, so relocation tends to bring the attacker out of cover.
+   */
+  private findClearSpawn(world: GameWorld, x: number, z: number, radius: number): boolean {
+    const navigation = world.navigation;
+    // The director runs before enemy navigation in the fixed-step order. A
+    // segment transition can therefore reach its first spawn evaluation before
+    // the normal navigation pass recentres the sliding window.
+    navigation.recenter(world.spider.x, world.spider.z);
+    if (!navigation.isBlockedCircle(x, z, radius)) {
+      clearSpawnPoint.x = x;
+      clearSpawnPoint.z = z;
+      return true;
+    }
+
+    const towardSpider = Math.atan2(world.spider.z - z, world.spider.x - x);
+    for (let ring = 1; ring <= CLEARANCE_RINGS; ring++) {
+      const distance = ring * CLEARANCE_STEP;
+      for (let sample = 0; sample < CLEARANCE_SAMPLES; sample++) {
+        const angle = towardSpider + (sample / CLEARANCE_SAMPLES) * Math.PI * 2;
+        const candidateX = x + Math.cos(angle) * distance;
+        const candidateZ = z + Math.sin(angle) * distance;
+        if (navigation.isBlockedCircle(candidateX, candidateZ, radius)) continue;
+        clearSpawnPoint.x = candidateX;
+        clearSpawnPoint.z = candidateZ;
+        return true;
+      }
+    }
+    return false;
   }
 
   /** Resets the director between runs. */

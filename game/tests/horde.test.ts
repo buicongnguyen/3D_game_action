@@ -234,6 +234,39 @@ describe("HordeDirector budget", () => {
       expect(Math.sqrt(dx * dx + dz * dz)).toBeGreaterThan(DIRECTOR.spawnMinDistance - 4);
     }
   });
+
+  it("relocates enemies born inside terrain blockers so they can join the attack", () => {
+    const world = marchingWorld(0xb10c);
+    const director = new HordeDirector();
+    const spider = world.spider;
+
+    // Match forceSpawn's first ring positions and deliberately block them.
+    for (let i = 0; i < 7; i++) {
+      const angle = i * 2.399963229728653;
+      const radius = 14 + (i % 7) * 1.3;
+      world.navigation.addObstacle(
+        spider.x + Math.sin(angle) * radius,
+        spider.z + Math.cos(angle) * radius,
+        1.2,
+        10_000 + i,
+      );
+    }
+
+    expect(director.forceSpawn(world, "minion", 7)).toBe(7);
+    const enemies = world.enemies.backing.filter((enemy) => enemy.active);
+    expect(enemies).toHaveLength(7);
+    for (const enemy of enemies) {
+      expect(world.navigation.isBlockedCircle(enemy.x, enemy.z, enemy.radius)).toBe(false);
+    }
+
+    const navigation = new EnemyNavigationSystem();
+    const before = enemies.map((enemy) => ({ x: enemy.x, z: enemy.z }));
+    for (let i = 0; i < 120; i++) navigation.update(world, STEP);
+    const joinedAttack = enemies.filter(
+      (enemy, i) => Math.hypot(enemy.x - before[i].x, enemy.z - before[i].z) > 0.5,
+    );
+    expect(joinedAttack.length).toBeGreaterThanOrEqual(6);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -554,8 +587,9 @@ describe("enemy target scoring", () => {
     navigation.update(world, STEP);
 
     expect(enemy.targetId).toBe(-1);
-    // A hunter whose structure target vanished answers the nearby engineer.
-    expect(enemy.targetKind).toBe("player");
+    // At the outer edge it rallies toward the Spider rather than wandering
+    // after the distant engineer; local hunter scoring resumes inside 18 m.
+    expect(enemy.targetKind).toBe("core");
   });
 });
 

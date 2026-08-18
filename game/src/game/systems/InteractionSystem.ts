@@ -177,6 +177,19 @@ export class InteractionSystem {
       return;
     }
 
+    // Field salvage is already folded and inert. Treat it like loot: one tap
+    // collects it, while installed machines retain the deliberate recovery
+    // hold that makes leapfrogging risky under pressure.
+    if (player.carry.kind === "none") {
+      const dropped = this.nearestDroppedStructure(world, rangeSq);
+      if (dropped) {
+        this.availableAction = "collect";
+        this.availableTargetId = dropped.id;
+        this.availableLabel = `Collect ${getBlueprint(dropped.kind).name}`;
+        return;
+      }
+    }
+
     // Near the spider with a cylinder: hand it over as fuel is not the point;
     // the cylinder charges machines, so the spider offers a swap instead.
     const spiderInRange =
@@ -319,6 +332,23 @@ export class InteractionSystem {
       if (fraction < bestFraction) {
         bestFraction = fraction;
         best = structure;
+      }
+    }
+    return best;
+  }
+
+  private nearestDroppedStructure(world: GameWorld, rangeSq: number): Structure | null {
+    const player = world.player;
+    let best: Structure | null = null;
+    let bestDistance = Number.POSITIVE_INFINITY;
+    for (let i = 0; i < world.structures.length; i++) {
+      const structure = world.structures[i];
+      if (structure.state !== "dropped" || structure.category !== "foldable") continue;
+      const radius = getBlueprint(structure.kind).radius;
+      const d = distSq(player.x, player.z, structure.x, structure.z);
+      if (d <= rangeSq + radius * radius && d < bestDistance) {
+        best = structure;
+        bestDistance = d;
       }
     }
     return best;
@@ -539,6 +569,12 @@ export class InteractionSystem {
       player.carry = { kind: "cylinder" };
       player.animState = "interact";
       player.animLock = 0.4;
+      return;
+    }
+
+    if (this.availableAction === "collect" && this.availableTargetId >= 0) {
+      const structure = world.findStructure(this.availableTargetId);
+      if (structure?.state === "dropped") this.completeFold(world, structure);
       return;
     }
 

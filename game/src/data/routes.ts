@@ -3,10 +3,11 @@ import type { RouteSegmentDefinition } from "../core/types.ts";
 /**
  * Authored route for the vertical slice.
  *
- * Layout: opening stretch -> safe stop -> two-way fork -> final escape.
+ * Layout: simple opening road -> safe stop -> two-way stage fork -> final escape.
  * At the spider's 1.25 m/s march speed the total is roughly 8.5-9.5 minutes,
- * which is the Stage 5 target. Splines stay a compact corridor with short side
- * pockets; nothing here invites the player to leave the spider behind.
+ * which is the Stage 5 target. Most splines stay compact corridors with short
+ * side pockets. Rust Yard uses repeated switchbacks as the optional mode's
+ * maze-like salvage lane without lengthening every branch of the expedition.
  *
  * Points are control points for a CatmullRom curve. They are deliberately
  * sparse and smooth - the arc-length table does the rest.
@@ -21,25 +22,29 @@ export const ROUTE_SEGMENTS: Record<string, RouteSegmentDefinition> = {
     points: [
       [0, 0, 0],
       [0, 0, 26],
-      [6, 0, 52],
-      [10, 0, 78],
-      [4, 0, 104],
-      [-6, 0, 128],
-      [-4, 0, 152],
+      [1, 0, 52],
+      [0, 0, 78],
+      [0, 0, 104],
+      [0, 0, 128],
+      [2, 0, 152],
       [4, 0, 172],
     ],
     lengthMeters: 176,
     recommendedDuration: 140,
+    ambientThreatScale: 0.55,
     pursuitStartSeconds: 999,
     corridorHalfWidth: 15,
     spawnZones: [
-      { fromDistance: 20, toDistance: 176, minLateral: 16, maxLateral: 34, weight: 1, minTrail: 0 },
-      { fromDistance: 70, toDistance: 176, minLateral: 12, maxLateral: 28, weight: 1.4, minTrail: 25 },
+      { fromDistance: 28, toDistance: 176, minLateral: 18, maxLateral: 34, weight: 0.62, minTrail: 0 },
+      { fromDistance: 112, toDistance: 176, minLateral: 15, maxLateral: 28, weight: 0.85, minTrail: 28 },
     ],
     resourceZones: [
       { kind: "scrap", fromDistance: 14, toDistance: 170, count: 16, maxLateral: 12 },
       { kind: "scrapLarge", fromDistance: 40, toDistance: 160, count: 3, maxLateral: 11 },
       { kind: "fuel", fromDistance: 30, toDistance: 165, count: 4, maxLateral: 11 },
+    ],
+    encounters: [
+      { id: "house.departure-cache", kind: "emptyHouse", distance: 78, lateral: -11, triggerLead: 0, warningSeconds: 0, occupants: [] },
     ],
     modifiers: [],
     rewardTable: "basic",
@@ -70,6 +75,7 @@ export const ROUTE_SEGMENTS: Record<string, RouteSegmentDefinition> = {
     ],
     lengthMeters: 208,
     recommendedDuration: 170,
+    ambientThreatScale: 0.9,
     pursuitStartSeconds: 999,
     // The cut is genuinely tight: less room to reposition, more forced contact.
     corridorHalfWidth: 10,
@@ -81,6 +87,11 @@ export const ROUTE_SEGMENTS: Record<string, RouteSegmentDefinition> = {
       { kind: "fuel", fromDistance: 12, toDistance: 200, count: 11, maxLateral: 8 },
       { kind: "fuelBarrel", fromDistance: 30, toDistance: 190, count: 3, maxLateral: 8 },
       { kind: "scrap", fromDistance: 12, toDistance: 200, count: 12, maxLateral: 8 },
+    ],
+    encounters: [
+      { id: "house.mine-1", kind: "occupiedHouse", distance: 48, lateral: 9, triggerLead: 15, warningSeconds: 1.4, occupants: [{ archetype: "minion", count: 5 }] },
+      { id: "house.mine-2", kind: "occupiedHouse", distance: 112, lateral: -9, triggerLead: 15, warningSeconds: 1.4, occupants: [{ archetype: "minion", count: 5 }, { archetype: "warrior", count: 1 }] },
+      { id: "house.mine-3", kind: "occupiedHouse", distance: 174, lateral: 9, triggerLead: 16, warningSeconds: 1.5, occupants: [{ archetype: "minion", count: 6 }, { archetype: "warrior", count: 2 }] },
     ],
     modifiers: ["narrow"],
     rewardTable: "fuel",
@@ -100,29 +111,34 @@ export const ROUTE_SEGMENTS: Record<string, RouteSegmentDefinition> = {
     danger: "More swarms - the noise carries across open ground",
     points: [
       [4, 0, 172],
-      [-8, 0, 196],
-      [-20, 0, 222],
-      [-24, 0, 250],
-      [-16, 0, 276],
-      [-4, 0, 300],
-      [2, 0, 326],
-      [10, 0, 348],
+      [-22, 0, 196],
+      [20, 0, 224],
+      [-24, 0, 252],
+      [22, 0, 280],
+      [-22, 0, 308],
+      [20, 0, 336],
       [22, 0, 368],
     ],
-    lengthMeters: 214,
-    recommendedDuration: 172,
+    lengthMeters: 330,
+    recommendedDuration: 264,
+    ambientThreatScale: 1.05,
     pursuitStartSeconds: 999,
-    corridorHalfWidth: 18,
+    corridorHalfWidth: 12,
     spawnZones: [
-      { fromDistance: 10, toDistance: 214, minLateral: 18, maxLateral: 36, weight: 1.6, minTrail: 0 },
-      { fromDistance: 30, toDistance: 214, minLateral: 14, maxLateral: 30, weight: 2.2, minTrail: 40 },
+      { fromDistance: 10, toDistance: 330, minLateral: 14, maxLateral: 17, weight: 1.6, minTrail: 0 },
+      { fromDistance: 30, toDistance: 330, minLateral: 13, maxLateral: 17, weight: 2.2, minTrail: 40 },
     ],
     resourceZones: [
-      { kind: "scrap", fromDistance: 12, toDistance: 206, count: 26, maxLateral: 14 },
-      { kind: "scrapLarge", fromDistance: 30, toDistance: 200, count: 6, maxLateral: 13 },
-      { kind: "fuel", fromDistance: 40, toDistance: 190, count: 3, maxLateral: 12 },
+      { kind: "scrap", fromDistance: 12, toDistance: 320, count: 26, maxLateral: 10 },
+      { kind: "scrapLarge", fromDistance: 30, toDistance: 315, count: 6, maxLateral: 9 },
+      { kind: "fuel", fromDistance: 40, toDistance: 305, count: 3, maxLateral: 9 },
     ],
-    modifiers: ["swarm"],
+    encounters: [
+      { id: "nest.rust-1", kind: "workshopNest", distance: 82, lateral: -9, triggerLead: 18, warningSeconds: 1.5, occupants: [{ archetype: "minion", count: 8 }, { archetype: "warrior", count: 1 }] },
+      { id: "nest.rust-2", kind: "workshopNest", distance: 176, lateral: 9, triggerLead: 18, warningSeconds: 1.5, occupants: [{ archetype: "minion", count: 9 }, { archetype: "warrior", count: 2 }] },
+      { id: "nest.rust-3", kind: "workshopNest", distance: 272, lateral: -9, triggerLead: 20, warningSeconds: 1.6, occupants: [{ archetype: "minion", count: 10 }, { archetype: "warrior", count: 2 }, { archetype: "golem", count: 1 }] },
+    ],
+    modifiers: ["swarm", "maze"],
     rewardTable: "scrap",
     destinationId: "checkpoint.gate",
     objective: {
@@ -148,6 +164,7 @@ export const ROUTE_SEGMENTS: Record<string, RouteSegmentDefinition> = {
     ],
     lengthMeters: 118,
     recommendedDuration: 100,
+    ambientThreatScale: 1.2,
     // Pursuit is forced on this segment regardless of Trail; it is the climax.
     pursuitStartSeconds: 12,
     corridorHalfWidth: 13,

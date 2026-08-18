@@ -770,6 +770,27 @@ describe("route objectives", () => {
 });
 
 describe("Salvage Rush", () => {
+  it("collects a dropped field machine with one confirm tap", () => {
+    const harness = new Harness(9000, { spawns: false, mode: "salvageRush" });
+    const turret = harness.construction.spawnStructure(
+      harness.world,
+      "rivetTurret",
+      harness.world.player.x + 1,
+      harness.world.player.z,
+      0,
+      0.8,
+      12,
+    );
+    turret.state = "dropped";
+
+    harness.press("confirm");
+    harness.step(2);
+
+    expect(harness.world.player.carry.kind).toBe("structure");
+    expect(harness.world.structures).toHaveLength(0);
+    expect(harness.world.stats.structuresRecovered).toBe(1);
+  });
+
   it("ends the fixed shift successfully when its timer reaches zero", () => {
     const harness = new Harness(9001, { spawns: false, mode: "salvageRush" });
     harness.runState.departCheckpoint(harness.world, "seg.scrapyard");

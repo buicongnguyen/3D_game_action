@@ -83,6 +83,42 @@ describe("RouteSpline arc length", () => {
 });
 
 describe("RouteSpline continuity", () => {
+  it("uses a simple, low-threat opening before escalating later stages", () => {
+    const opening = ROUTE_SEGMENTS["seg.approach"];
+    const xs = opening.points.map((point) => point[0]);
+    expect(Math.max(...xs) - Math.min(...xs)).toBeLessThanOrEqual(4);
+    expect(opening.ambientThreatScale).toBeLessThan(ROUTE_SEGMENTS["seg.mine"].ambientThreatScale!);
+    expect(ROUTE_SEGMENTS["seg.mine"].ambientThreatScale).toBeLessThan(
+      ROUTE_SEGMENTS["seg.escape"].ambientThreatScale!,
+    );
+    expect(opening.encounters?.every((encounter) => encounter.occupants.length === 0)).toBe(true);
+  });
+
+  it("authors finite occupied sites only after the opening stage", () => {
+    for (const id of ["seg.mine", "seg.scrapyard"]) {
+      const encounters = ROUTE_SEGMENTS[id].encounters ?? [];
+      expect(encounters.length).toBeGreaterThan(0);
+      for (const encounter of encounters) {
+        expect(encounter.warningSeconds).toBeGreaterThanOrEqual(1);
+        expect(encounter.occupants.reduce((sum, group) => sum + group.count, 0)).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("gives Rust Yard repeated maze-like switchbacks instead of one shallow bend", () => {
+    const points = ROUTE_SEGMENTS["seg.scrapyard"].points;
+    let directionChanges = 0;
+    let previousSign = 0;
+    for (let i = 1; i < points.length; i++) {
+      const dx = points[i][0] - points[i - 1][0];
+      const sign = Math.sign(dx);
+      if (sign !== 0 && previousSign !== 0 && sign !== previousSign) directionChanges++;
+      if (sign !== 0) previousSign = sign;
+    }
+    expect(directionChanges).toBeGreaterThanOrEqual(4);
+    expect(ROUTE_SEGMENTS["seg.scrapyard"].corridorHalfWidth).toBeLessThanOrEqual(12);
+  });
+
   it("moves and turns continuously along the whole route", () => {
     const spline = new RouteGraph().getSpline("seg.scrapyard");
     const a = v();
@@ -169,8 +205,11 @@ describe("RouteSpline lateral offset", () => {
       const right = spline.lateralOffset(centre.x - tangent.z * 5, centre.z + tangent.x * 5);
       expect(left).toBeGreaterThan(0);
       expect(right).toBeLessThan(0);
-      expect(Math.abs(left)).toBeCloseTo(5, 1);
-      expect(Math.abs(right)).toBeCloseTo(5, 1);
+      // At a hard maze bend, the globally closest point is slightly around the
+      // corner rather than the exact authored normal. Preserve sign and stay
+      // within the bend's local interpolation error of the requested offset.
+      expect(Math.abs(Math.abs(left) - 5)).toBeLessThan(1.2);
+      expect(Math.abs(Math.abs(right) - 5)).toBeLessThan(1.2);
     }
   });
 });
@@ -287,7 +326,10 @@ describe("RouteDirector spawn placement", () => {
   it("places spawns in the zone's lateral band at the director's range", () => {
     const director = new RouteDirector(new Random(5));
     director.start();
-    director.enterSegment("seg.scrapyard");
+    // Use the ordinary corridor for this local-lateral contract. Rust Yard's
+    // maze has adjacent lanes, so a point outside one lane may correctly be
+    // nearest to the next lane and cannot be described by one global offset.
+    director.enterSegment("seg.approach");
     const spline = director.spline!;
     const spawn = v();
     const spider = v();

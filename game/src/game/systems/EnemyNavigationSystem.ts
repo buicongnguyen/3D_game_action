@@ -61,6 +61,8 @@ const PLAYER_WEIGHT = 0.8;
 /** Extra weight the engineer gains at zero range, falling off linearly. */
 const PLAYER_CLOSE_BONUS = 1.6;
 const PLAYER_THREAT_DISTANCE = 7;
+/** Distant enemies rally on the encounter before choosing a tactical target. */
+const OUTER_RALLY_DISTANCE = 18;
 
 /** Inside this range an enemy seeks its target directly, unquantised by cells. */
 const DIRECT_SEEK_DISTANCE = 7;
@@ -479,12 +481,15 @@ export class EnemyNavigationSystem {
     bestScore = coreScore;
     if (enemy.targetKind === "core") heldScore = coreScore;
 
+    const outerRally = coreDistance > OUTER_RALLY_DISTANCE;
+
     const structures = world.structures;
     for (let i = 0; i < structures.length; i++) {
       const structure = structures[i];
       if (structure.state === "destroyed" || structure.state === "dropped") continue;
 
       const distance = Math.sqrt(distSq(enemy.x, enemy.z, structure.x, structure.z));
+      if (outerRally && distance > PLAYER_THREAT_DISTANCE) continue;
       const decoy = structure.kind === "barricade";
       let roleWeight = 1;
       if (archetype.targetRole === "saboteur") {
@@ -507,16 +512,18 @@ export class EnemyNavigationSystem {
 
     if (!player.downed) {
       const distance = Math.sqrt(distSq(enemy.x, enemy.z, player.x, player.z));
-      let weight = archetype.targetRole === "hunter" ? 1.15 : PLAYER_WEIGHT;
-      if (distance < PLAYER_THREAT_DISTANCE) {
-        weight += PLAYER_CLOSE_BONUS * (1 - distance / PLAYER_THREAT_DISTANCE);
-      }
-      const score = (PROXIMITY_REFERENCE / (PROXIMITY_REFERENCE + distance)) * weight;
-      if (enemy.targetKind === "player") heldScore = score;
-      if (score > bestScore) {
-        bestScore = score;
-        bestKind = "player";
-        bestId = -1;
+      if (!outerRally || distance <= PLAYER_THREAT_DISTANCE) {
+        let weight = archetype.targetRole === "hunter" ? 1.15 : PLAYER_WEIGHT;
+        if (distance < PLAYER_THREAT_DISTANCE) {
+          weight += PLAYER_CLOSE_BONUS * (1 - distance / PLAYER_THREAT_DISTANCE);
+        }
+        const score = (PROXIMITY_REFERENCE / (PROXIMITY_REFERENCE + distance)) * weight;
+        if (enemy.targetKind === "player") heldScore = score;
+        if (score > bestScore) {
+          bestScore = score;
+          bestKind = "player";
+          bestId = -1;
+        }
       }
     }
 

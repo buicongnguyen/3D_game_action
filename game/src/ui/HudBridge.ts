@@ -251,7 +251,11 @@ export class HudBridge {
     // a recovery, and the player should be able to see both without discovering
     // the second by accident.
     this.model.promptSecondary = null;
-    if (interaction.foldTargetId >= 0 && interaction.availableAction !== "fold") {
+    if (
+      interaction.foldTargetId >= 0 &&
+      interaction.availableAction !== "fold" &&
+      interaction.availableAction !== "collect"
+    ) {
       const target = world.findStructure(interaction.foldTargetId);
       if (target) {
         this.altSlot.text = `Recover ${getBlueprint(target.kind).name}`;

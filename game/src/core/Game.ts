@@ -10,6 +10,7 @@ import { InteractionSystem } from "../game/systems/InteractionSystem.ts";
 import { PressureNetworkSystem } from "../game/systems/PressureNetworkSystem.ts";
 import { RunStateSystem } from "../game/systems/RunStateSystem.ts";
 import { HordeDirector } from "../game/systems/HordeDirector.ts";
+import { EncounterSystem } from "../game/systems/EncounterSystem.ts";
 import {
   EnemyNavigationSystem,
   setEnemyDamageSink,
@@ -98,6 +99,7 @@ export class Game {
   private readonly pressure = new PressureNetworkSystem();
   private readonly runState = new RunStateSystem();
   private readonly director = new HordeDirector();
+  private readonly encounters = new EncounterSystem(this.director);
   private readonly enemyNavigation = new EnemyNavigationSystem();
   private readonly weapons = new WeaponSystem();
   private readonly structureCombat = new StructureCombatSystem();
@@ -200,6 +202,9 @@ export class Game {
 
     events.on("run.ended", (event) => this.onRunEnded(event.outcome));
     events.on("camera.shake", (event) => this.camera.shake(event.intensity, event.duration));
+    events.on("vfx.request", (event) => {
+      if (event.effect === "spawnDust") this.vfx.deathPoof(event.x, event.z, event.scale);
+    });
 
     events.on("weapon.fired", (event) => {
       this.vfx.muzzleFlash(event.muzzleX, event.muzzleY, event.muzzleZ, event.heading, false);
@@ -358,8 +363,11 @@ export class Game {
     this.spawnSegmentResources();
     if (world.mode === "salvageRush") this.spawnSalvageMachines();
 
-    world.player.x = world.spider.x + 2;
-    world.player.z = world.spider.z + 6;
+    // Start beside the hull rather than well behind it: close enough to read as
+    // one expedition, but outside the body footprint so the engineer remains
+    // visible instead of spawning underneath the Spider.
+    world.player.x = world.spider.x + SPIDER.bodyWidth * 0.5 + 1;
+    world.player.z = world.spider.z + 1.5;
     world.player.prevX = world.player.x;
     world.player.prevZ = world.player.z;
 
@@ -522,7 +530,12 @@ export class Game {
     this.pressure.update(world, scaled);
 
     // 7. director and spawning
-    this.director.update(world, scaled, this.runState.budgetPerSecond(world));
+    this.encounters.update(world, scaled);
+    this.director.update(
+      world,
+      scaled,
+      this.runState.budgetPerSecond(world) * (world.route.segment?.ambientThreatScale ?? 1),
+    );
 
     // 8. enemy navigation
     this.enemyNavigation.setFocus(this.camera.focusX, this.camera.focusZ);
@@ -962,6 +975,11 @@ export class Game {
       },
       teleportSpider: (distance: number) => {
         this.world.spider.distanceAlongRoute = distance;
+      },
+      enterSegment: (segmentId: string) => {
+        this.runState.departCheckpoint(this.world, segmentId);
+        this.view.buildSegment(this.world);
+        this.spawnSegmentResources();
       },
       /**
        * Places live machines around the spider. The performance scenarios need
