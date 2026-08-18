@@ -139,7 +139,29 @@ The first campaign pass now establishes the systems needed for the larger progre
 - **Performance discipline:** every house on a segment shares one instanced geometry and material, adding one draw call rather than one draw call per building.
 - **Visual regression coverage:** the deterministic capture harness includes a `houses` scenario alongside the normal opening march.
 
-This foundation intentionally does not yet claim the weapon progression described above. The Rivet Rifle, Steam Flamer, Magnetic Launcher, consumable items, water, and bridges remain subsequent phases; they should be added one at a time with the stage encounter that demonstrates their role.
+The subsequent phases are now implemented. The campaign unlocks the Rivet Rifle, Steam Flamer, and Magnetic Launcher in the stages authored to demonstrate them. Flooded Works supplies water funnels and bridges; route caches now contain repair kits, pressure canisters, shock mines, armor plates, and weapon parts; and Rust Maze's nests are destructible reinforcement sources rather than scenery.
+
+## Full Campaign Execution Status
+
+- **Stage 1 — Departure Road:** straight readable route, low threat scale, minions only, starting scattergun/turret kit, guaranteed first checkpoint upgrade.
+- **Stage 2 — Broken Settlement:** warned finite house releases, warriors, Rivet Rifle and relay unlocks, occupied/resource/empty building roles.
+- **Stage 3 — Flooded Works:** two-route fork, shallow-water slowdown, bridge-safe movement, Steam Flamer and barricade unlocks, richer but harder spillway shortcut.
+- **Stage 4 — Rust Maze:** switchback route, rectangular wall collision, corner towers and arch variants, three destructible finite nests, golem climax, Magnetic Launcher and mine unlocks, automatic field-machine banking.
+- **Stage 5 — The Last Gate:** stationary opening defense, prepared resources and repairs, guaranteed final upgrade, three mutually exclusive weapon/blueprint loadout kits, water funnel, occupied house, nest, escalating Pursuit, and a short final escape.
+- **Side mode:** Salvage Rush remains separately selectable and retains the full sandbox loadout.
+
+### Completed combat and item progression
+
+- Four switchable weapons have separate cadence, reach, crowd-control, heat, piercing, and explosive behavior. The HUD shows the equipped weapon and flamer heat state.
+- Weapon upgrades now add behavior as well as modest numbers: Armor-Punch gives rifle rounds an additional pierce; Autoloader reduces Steam Flamer heat generation.
+- Repair kits make a contextual engineer-versus-machine repair choice. Shock mines place an emergency device without scrap cost. Armor plates must be banked beside the Spider. Every three weapon parts grants a persistent run damage improvement.
+- Consumables use distinct proportions and color-coded ground glows so their silhouettes remain readable from the gameplay camera.
+
+### Performance and regression coverage
+
+- The deterministic performance suite now contains a dedicated authored profile for each of the five campaign stages, plus 100- and 200-enemy synthetic stress profiles and a full Pursuit profile.
+- Water and bridges are instanced by family; houses share one instanced draw; maze walls, towers, and arches are batched by type; distant enemies use impostors and the articulated-rig budget remains capped at 96.
+- Headless coverage includes campaign topology, water/bridge movement, weapon unlocks and switching, flamer overheat, launcher area damage, destructible nests, finite reinforcements, field-item use, automatic salvage banking, and finale preparation gating.
 
 ## Current Evaluation
 
@@ -205,7 +227,7 @@ This foundation intentionally does not yet claim the weapon progression describe
 
 ## Verification Results
 
-- Automated tests: **253/253 passed** across 12 files after all follow-up phases and review fixes.
+- Automated tests: **273/273 passed** across 15 files after the completed campaign phases and review fixes.
 - Production TypeScript/Vite build: **passed**.
 - Representative 60-second hold: **26.4% engineer / 73.6% structures** with three turrets; adding turrets consistently reduces the personal damage share.
 - Hardware-independent triangle count fell from **635,220 to 537,760** in `combat100` (-15.3%), **777,826 to 703,620** in `stress200` (-9.5%), and **787,838 to 693,874** in `pursuit` (-11.9%).

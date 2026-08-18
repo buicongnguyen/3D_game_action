@@ -796,6 +796,53 @@ export function buildScattergun(materials: MaterialLibrary): Object3D {
   return group;
 }
 
+export function buildRivetRifle(materials: MaterialLibrary): Object3D {
+  const P = PLAYER_COLORS;
+  const geometry = cacheSingle("rivetRifle", () => tint(merge([
+    place(taperedBox(0.12, 0.075, 0.38, 0.09, 0.065, 0.025, ENV.treeTrunk), 0, -0.02, -0.2, Math.PI * 0.5),
+    place(chamferedBox(0.09, 0.12, 0.3, 0.02, P.steelDark), 0, 0.01, 0.08),
+    place(cylinderish(0.032, 0.025, 0.72, 8, P.steel), 0, 0.035, 0.5, Math.PI * 0.5),
+    place(cylinderish(0.055, 0.06, 0.09, 8, P.brass), 0, 0.035, 0.86, Math.PI * 0.5),
+    place(chamferedBox(0.16, 0.05, 0.22, 0.015, P.brassDark), 0, 0.13, 0.1),
+    place(taperedBox(0.08, 0.06, 0.18, 0.1, 0.075, 0.02, ENV.treeTrunkDark), 0, -0.11, 0.02, -0.28),
+  ]), 0.045, 61));
+  return weaponGroup("rivetRifle", geometry, materials);
+}
+
+export function buildSteamFlamer(materials: MaterialLibrary): Object3D {
+  const P = PLAYER_COLORS;
+  const geometry = cacheSingle("steamFlamer", () => tint(merge([
+    place(cylinderish(0.13, 0.15, 0.38, 10, P.brassDark), 0, 0.02, -0.12, Math.PI * 0.5),
+    place(chamferedBox(0.13, 0.16, 0.32, 0.025, P.steelDark), 0, 0.02, 0.19),
+    place(cylinderish(0.07, 0.045, 0.42, 8, P.brass), 0, 0.02, 0.54, Math.PI * 0.5),
+    place(coneish(0.13, 0.22, 8, P.steel), 0, 0.02, 0.78, Math.PI * 0.5),
+    place(chamferedBox(0.07, 0.18, 0.15, 0.018, ENV.treeTrunkDark), 0, -0.11, 0.1, -0.2),
+    place(sphereish(0.05, 6, P.brass), 0.13, 0.08, -0.1),
+  ]), 0.05, 62));
+  return weaponGroup("steamFlamer", geometry, materials);
+}
+
+export function buildMagneticLauncher(materials: MaterialLibrary): Object3D {
+  const P = PLAYER_COLORS;
+  const geometry = cacheSingle("magneticLauncher", () => tint(merge([
+    place(chamferedBox(0.2, 0.18, 0.42, 0.035, P.steelDark), 0, 0.02, 0.03),
+    place(cylinderish(0.12, 0.1, 0.62, 10, P.steel), 0, 0.04, 0.48, Math.PI * 0.5),
+    place(rivetRing(0.15, 8, 0.022, P.brass), 0, 0.04, 0.55, Math.PI * 0.5),
+    place(cylinderish(0.18, 0.2, 0.16, 10, P.brassDark), 0, 0.04, 0.82, Math.PI * 0.5),
+    place(taperedBox(0.1, 0.08, 0.2, 0.13, 0.1, 0.02, ENV.treeTrunkDark), 0, -0.13, 0.02, -0.25),
+  ]), 0.045, 63));
+  return weaponGroup("magneticLauncher", geometry, materials);
+}
+
+function weaponGroup(name: string, geometry: BufferGeometry, materials: MaterialLibrary): Object3D {
+  const group = new Group();
+  group.name = name;
+  const mesh = new Mesh(geometry, materials.surface);
+  mesh.castShadow = true;
+  group.add(mesh);
+  return group;
+}
+
 export function buildSkeletonAxe(materials: MaterialLibrary): Object3D {
   const E = ENEMY_COLORS;
   const geometry = cacheSingle("skeletonAxe", () =>

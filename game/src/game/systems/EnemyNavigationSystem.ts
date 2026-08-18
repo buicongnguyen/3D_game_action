@@ -20,6 +20,7 @@ import {
   separation,
 } from "../navigation/Steering.ts";
 import type { GameWorld } from "../GameWorld.ts";
+import { terrainSpeedMultiplier } from "../route/RouteHazards.ts";
 
 /**
  * Horde navigation, target selection, the enemy state machine and LOD.
@@ -638,7 +639,7 @@ export class EnemyNavigationSystem {
       return;
     }
 
-    const maxSpeed = enemy.speed * enemy.speedScale;
+    const maxSpeed = enemy.speed * enemy.speedScale * terrainSpeedMultiplier(world, enemy.x, enemy.z);
     const goalX = valid ? target.x : world.spider.x;
     const goalZ = valid ? target.z : world.spider.z;
 

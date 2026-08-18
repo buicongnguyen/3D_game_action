@@ -14,6 +14,7 @@ export const GAMEPLAY_ACTIONS = [
   "buildRadial", // L1 (hold) - open build radial
   "overlay", // L2 (hold) - maintenance/network/resource overlay
   "tool", // R1 - active engineering tool
+  "weaponNext", // D-pad down / B - cycle unlocked personal weapons
   "focusFire", // R2 - focus auto-fire in the right-stick direction
   "overdrive", // D-pad up - toggle overdrive
   "blueprintPrev", // D-pad left

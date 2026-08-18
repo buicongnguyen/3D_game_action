@@ -28,6 +28,18 @@ export class EncounterSystem {
       this.started.clear();
       this.completed.clear();
       this.pending.length = 0;
+      world.encounterSites.length = 0;
+      const authored = segment.encounters ?? [];
+      for (let i = 0; i < authored.length; i++) {
+        const encounter = authored[i];
+        if (encounter.kind !== "workshopNest") continue;
+        const position = encounterPosition(world, encounter);
+        world.encounterSites.push({
+          id: world.allocateId(), definitionId: encounter.id, ...position,
+          health: 180, maxHealth: 180, radius: 2.7, active: true,
+          triggered: false, wavesReleased: 0, reinforcementTimer: 0,
+        });
+      }
     }
 
     const encounters = segment.encounters ?? [];
@@ -38,6 +50,8 @@ export class EncounterSystem {
 
       const position = encounterPosition(world, encounter);
       this.started.add(encounter.id);
+      const site = world.encounterSites.find((candidate) => candidate.definitionId === encounter.id);
+      if (site) site.triggered = true;
       this.pending.push({ definition: encounter, timer: encounter.warningSeconds, ...position });
       world.events.emit({
         type: "ui.toast",
@@ -63,6 +77,7 @@ export class EncounterSystem {
       this.release(world, pending);
       this.pending.splice(i, 1);
     }
+    this.updateReinforcements(world, dt);
   }
 
   private release(world: GameWorld, pending: PendingEncounter): void {
@@ -73,6 +88,11 @@ export class EncounterSystem {
       spawned += this.director.spawnEncounterGroup(world, group.archetype, group.count, pending.x, pending.z);
     }
     this.completed.add(encounter.id);
+    const site = world.encounterSites.find((candidate) => candidate.definitionId === encounter.id);
+    if (site) {
+      site.wavesReleased = 1;
+      site.reinforcementTimer = 8;
+    }
     world.events.emit({
       type: "ui.toast",
       message: `${spawned} enemies emerged`,
@@ -84,6 +104,20 @@ export class EncounterSystem {
       intensity: encounter.kind === "workshopNest" ? 0.28 : 0.18,
       duration: 0.3,
     });
+  }
+
+  private updateReinforcements(world: GameWorld, dt: number): void {
+    for (let i = 0; i < world.encounterSites.length; i++) {
+      const site = world.encounterSites[i];
+      if (!site.active || !site.triggered || site.wavesReleased <= 0 || site.wavesReleased >= 3) continue;
+      site.reinforcementTimer -= dt;
+      if (site.reinforcementTimer > 0) continue;
+      const count = 3 + site.wavesReleased;
+      this.director.spawnEncounterGroup(world, "minion", count, site.x, site.z);
+      site.wavesReleased++;
+      site.reinforcementTimer = 8;
+      world.events.emit({ type: "ui.toast", message: "Nest released reinforcements", tone: "warning", duration: 1.5 });
+    }
   }
 
   get pendingCount(): number {

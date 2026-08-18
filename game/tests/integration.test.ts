@@ -300,6 +300,7 @@ describe("the engineering loop", () => {
 
   it("selects blueprint slots directly from the keyboard number row", () => {
     const harness = new Harness(2025, { spawns: false });
+    harness.world.loadout.push("relay", "barricade");
     harness.input.blueprintSlot = 2;
     harness.step();
     expect(harness.world.build.selectedBlueprint).toBe(2);
@@ -720,16 +721,36 @@ describe("trail and pursuit", () => {
     expect(harness.world.trail).toBeGreaterThan(0);
     expect(transitions).toContain("QUIET");
   });
+
+  it("guarantees campaign upgrade beats and requires a finale loadout", () => {
+    const harness = new Harness(81818, { spawns: false });
+    harness.world.spider.distanceAlongRoute = harness.world.route.spline!.length;
+    harness.runState.update(harness.world, STEP);
+    expect(harness.world.phase).toBe("CHECKPOINT_PREP");
+    expect(harness.world.progress.pendingLevelUps).toBe(1);
+
+    harness.runState.departCheckpoint(harness.world, "seg.mine");
+    harness.runState.departCheckpoint(harness.world, "seg.flooded");
+    harness.runState.departCheckpoint(harness.world, "seg.scrapyard");
+    harness.world.spider.distanceAlongRoute = harness.world.route.spline!.length;
+    harness.runState.update(harness.world, STEP);
+
+    expect(harness.runState.pendingLoadout).toBe(true);
+    expect(harness.world.progress.pendingLevelUps).toBe(2);
+    harness.runState.checkpointTimer = -1;
+    harness.runState.update(harness.world, STEP);
+    expect(harness.world.phase).toBe("CHECKPOINT_PREP");
+  });
 });
 
 describe("route objectives", () => {
   it("tracks and rewards the distinct objective authored for each route", () => {
-    const recover = new Harness(6101, { spawns: false });
-    const recoverScrap = recover.world.resources.scrap;
-    recover.world.stats.structuresRecovered++;
-    recover.runState.update(recover.world, STEP);
-    expect(recover.runState.objective?.complete).toBe(true);
-    expect(recover.world.resources.scrap).toBe(recoverScrap + 12);
+    const opening = new Harness(6101, { spawns: false });
+    const openingScrap = opening.world.resources.scrap;
+    opening.world.stats.scrapCollected += 18;
+    opening.runState.update(opening.world, STEP);
+    expect(opening.runState.objective?.complete).toBe(true);
+    expect(opening.world.resources.scrap).toBe(openingScrap + 12);
 
     const mine = new Harness(6102, { spawns: false });
     mine.runState.departCheckpoint(mine.world, "seg.mine");
@@ -752,7 +773,7 @@ describe("route objectives", () => {
 
     const yard = new Harness(6103, { spawns: false });
     yard.runState.departCheckpoint(yard.world, "seg.scrapyard");
-    yard.world.stats.scrapCollected += 30;
+    yard.world.stats.nestsDestroyed += 3;
     const yardScrap = yard.world.resources.scrap;
     yard.runState.update(yard.world, STEP);
     expect(yard.runState.objective?.complete).toBe(true);
@@ -786,7 +807,7 @@ describe("Salvage Rush", () => {
     harness.press("confirm");
     harness.step(2);
 
-    expect(harness.world.player.carry.kind).toBe("structure");
+    expect(harness.world.player.carry.kind).toBe("none");
     expect(harness.world.structures).toHaveLength(0);
     expect(harness.world.stats.structuresRecovered).toBe(1);
   });

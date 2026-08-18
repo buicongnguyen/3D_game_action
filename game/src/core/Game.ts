@@ -16,6 +16,7 @@ import {
   setEnemyDamageSink,
 } from "../game/systems/EnemyNavigationSystem.ts";
 import { WeaponSystem } from "../game/systems/WeaponSystem.ts";
+import { FieldItemSystem } from "../game/systems/FieldItemSystem.ts";
 import { StructureCombatSystem } from "../game/systems/StructureCombatSystem.ts";
 import { CollisionSystem } from "../game/systems/CollisionSystem.ts";
 import { DamageSystem } from "../game/systems/DamageSystem.ts";
@@ -94,6 +95,7 @@ export class Game {
 
   private readonly construction = new ConstructionSystem();
   private readonly playerMovement = new PlayerMovementSystem(this.construction);
+  private readonly fieldItems = new FieldItemSystem(this.construction);
   private readonly spiderMovement = new SpiderMovementSystem();
   private readonly interaction: InteractionSystem;
   private readonly pressure = new PressureNetworkSystem();
@@ -204,6 +206,7 @@ export class Game {
     events.on("camera.shake", (event) => this.camera.shake(event.intensity, event.duration));
     events.on("vfx.request", (event) => {
       if (event.effect === "spawnDust") this.vfx.deathPoof(event.x, event.z, event.scale);
+      else if (event.effect === "magneticBlast") this.vfx.explosion(event.x, event.z, event.scale);
     });
 
     events.on("weapon.fired", (event) => {
@@ -525,6 +528,7 @@ export class Game {
     this.construction.update(world, scaled, input);
     this.interaction.update(world, scaled, input);
     this.interaction.collectPickups(world, scaled);
+    this.fieldItems.update(world, input);
 
     // 6. pressure network
     this.pressure.update(world, scaled);
@@ -543,6 +547,7 @@ export class Game {
 
     // 9. weapons and projectiles
     this.weapons.setFocusFire(input.buttons.focusFire.held);
+    this.weapons.requestCycle(input.buttons.weaponNext.pressed);
     this.weapons.update(world, scaled);
     this.structureCombat.update(world, scaled);
 
@@ -613,6 +618,11 @@ export class Game {
       return;
     }
 
+    if (this.runState.pendingLoadout) {
+      this.openModal("loadout");
+      return;
+    }
+
     if (this.runState.pendingRoutes.length > 1) {
       this.openModal("route");
     }
@@ -672,6 +682,19 @@ export class Game {
               glyph: "⚙",
             };
           }),
+        });
+        break;
+
+      case "loadout":
+        this.screens.show("loadout", {
+          eyebrow: "Last Gate · choose two blueprints",
+          subtitle: "Your weapon and construction kit are locked for the final escape.",
+          layout: "cards",
+          options: [
+            { id: "assault", label: "Assault Kit", reward: "Magnetic Launcher · Turret + Mine", danger: "High burst, little sustain", glyph: "✹" },
+            { id: "control", label: "Control Kit", reward: "Steam Flamer · Barricade + Relay", danger: "Strong lanes, short reach", glyph: "≋" },
+            { id: "precision", label: "Precision Kit", reward: "Rivet Rifle · Turret + Relay", danger: "Long reach, fewer panic tools", glyph: "⌁" },
+          ],
         });
         break;
 
@@ -748,6 +771,20 @@ export class Game {
         // A checkpoint offer is single-use. Clearing it lets the next tick
         // advance to the route decision instead of reopening this modal.
         this.runState.pendingModules = [];
+        this.closeModal();
+        break;
+      }
+      case "loadout": {
+        const kits = {
+          assault: { weapon: "launcher", blueprints: ["rivetTurret", "mine"] },
+          control: { weapon: "flamer", blueprints: ["barricade", "relay"] },
+          precision: { weapon: "rifle", blueprints: ["rivetTurret", "relay"] },
+        } as const;
+        const kit = kits[value as keyof typeof kits] ?? kits.precision;
+        world.player.currentWeapon = kit.weapon;
+        world.loadout.splice(0, world.loadout.length, ...kit.blueprints);
+        world.build.selectedBlueprint = 0;
+        this.runState.pendingLoadout = false;
         this.closeModal();
         break;
       }

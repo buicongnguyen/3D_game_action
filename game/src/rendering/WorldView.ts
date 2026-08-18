@@ -21,7 +21,7 @@ import { DIRECTOR, PERFORMANCE, PLAYER, SPIDER, STRUCTURES } from "../data/balan
 import { ENEMY_COLORS, FEEDBACK, PLAYER_COLORS } from "../art/palette.ts";
 import { getArchetype } from "../data/enemies.ts";
 import { getBlueprint, getStructureConfig } from "../data/structures.ts";
-import type { Enemy, Structure, StructureKind } from "../core/types.ts";
+import type { Enemy, PickupKind, Structure, StructureKind } from "../core/types.ts";
 import type { MeshForge } from "../art/MeshForge.ts";
 import type { PuppetRig } from "../art/characters.ts";
 import type { TurretRig } from "../art/machines.ts";
@@ -183,6 +183,8 @@ export class WorldView {
   private playerCarryNode: Object3D | null = null;
   private carriedVisual: Object3D | null = null;
   private carriedKind: string | null = null;
+  private readonly weaponVisuals: Object3D[] = [];
+  private weaponKind = "";
 
   private spiderRig: ReturnType<MeshForge["createSpider"]> | null = null;
 
@@ -269,8 +271,13 @@ export class WorldView {
     this.root.add(this.playerRig.root);
     this.playerCarryNode = this.playerRig.handL;
 
-    const weapon = this.forge.createScattergun();
-    this.playerRig.handR.add(weapon);
+    this.weaponVisuals.push(
+      this.forge.createScattergun(),
+      this.forge.createRivetRifle(),
+      this.forge.createSteamFlamer(),
+      this.forge.createMagneticLauncher(),
+    );
+    for (let i = 0; i < this.weaponVisuals.length; i++) this.playerRig.handR.add(this.weaponVisuals[i]);
 
     this.spiderRig = this.forge.createSpider();
     captureSpiderRest(this.spiderRig);
@@ -465,7 +472,10 @@ export class WorldView {
   }
 
   private buildPickups(): void {
-    for (const kind of ["scrap", "fuel", "cylinder"]) {
+    for (const kind of [
+      "scrap", "fuel", "cylinder", "repairKit", "pressureCanister",
+      "shockMine", "armorPlate", "weaponPart",
+    ]) {
       const geometry = this.forge.pickupGeometry(kind);
       if (!geometry) continue;
       const mesh = new InstancedMesh(
@@ -694,6 +704,11 @@ export class WorldView {
 
     const speed = Math.hypot(player.velocityX, player.velocityZ);
     const carrying = player.carry.kind !== "none";
+    if (this.weaponKind !== player.currentWeapon) {
+      this.weaponKind = player.currentWeapon;
+      const index = player.currentWeapon === "shotgun" ? 0 : player.currentWeapon === "rifle" ? 1 : player.currentWeapon === "flamer" ? 2 : 3;
+      for (let i = 0; i < this.weaponVisuals.length; i++) this.weaponVisuals[i].visible = i === index;
+    }
 
     if (player.animState === "dodge" && this.playerState.action !== "dodge") {
       playAction(this.playerState, "dodge", 0.28);
@@ -1392,7 +1407,10 @@ export class WorldView {
       this.position.set(pickup.x, 0.32 + bob, pickup.z);
       this.quaternion.setFromAxisAngle(UP, this.clock * 0.8 + pickup.phase * 6.283);
       const pop = pickup.attracted ? 1.18 : 1;
-      this.scale.setScalar(pop);
+      // Consumables deliberately keep different profiles even at gameplay
+      // camera height: low/wide plate, squat mine, tall parts, boxed kit.
+      const profile = pickupProfile(pickup.kind);
+      this.scale.set(profile[0] * pop, profile[1] * pop, profile[2] * pop);
       this.matrix.compose(this.position, this.quaternion, this.scale);
       mesh.setMatrixAt(index, this.matrix);
       counts.set(pickup.kind, index + 1);
@@ -1407,7 +1425,7 @@ export class WorldView {
         this.scale.set(size, 1, size);
         this.matrix.compose(this.position, this.quaternion, this.scale);
         glow.setMatrixAt(glowCount, this.matrix);
-        this.tempColor.setHex(pickup.kind === "fuel" ? FEEDBACK.fuel : FEEDBACK.scrap);
+        this.tempColor.setHex(pickupGlowColor(pickup.kind));
         const gain = pickup.attracted ? 1.6 : 1;
         glowColors[glowCount * 3] = this.tempColor.r * gain;
         glowColors[glowCount * 3 + 1] = this.tempColor.g * gain;
@@ -1621,6 +1639,29 @@ function applyGaugeColor(gauge: Object3D, color: Color, brightness: number): voi
     const material = (gauge.children[i] as unknown as { material?: { color?: Color } }).material;
     if (!material?.color) continue;
     material.color.copy(color).multiplyScalar(brightness);
+  }
+}
+
+function pickupProfile(kind: PickupKind): readonly [number, number, number] {
+  switch (kind) {
+    case "repairKit": return [1.25, 0.72, 0.9];
+    case "pressureCanister": return [0.9, 1.35, 0.9];
+    case "shockMine": return [1.4, 0.48, 1.4];
+    case "armorPlate": return [1.45, 0.42, 0.78];
+    case "weaponPart": return [0.7, 1.55, 0.7];
+    default: return [1, 1, 1];
+  }
+}
+
+function pickupGlowColor(kind: PickupKind): number {
+  switch (kind) {
+    case "fuel":
+    case "pressureCanister": return FEEDBACK.fuel;
+    case "repairKit": return 0x65e87b;
+    case "shockMine": return 0x72cfff;
+    case "armorPlate": return 0x8db4d8;
+    case "weaponPart": return 0xd879ff;
+    default: return FEEDBACK.scrap;
   }
 }
 

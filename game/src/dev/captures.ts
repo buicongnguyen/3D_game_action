@@ -93,6 +93,20 @@ export const CAPTURES: CaptureScenario[] = [
     },
   },
   {
+    id: "flooded",
+    label: "Flooded Works bridge funnel with the Steam Flamer equipped",
+    settle: 1.1,
+    setup: (game, world) => {
+      game.debugApi.enterSegment("seg.flooded");
+      game.debugApi.teleportSpider(38);
+      game.advance(0.05);
+      stationPlayer(world, 7, 1.5);
+      world.trail = 42;
+      game.debugApi.forceSpawn("minion", 18);
+      game.debugApi.forceSpawn("warrior", 3);
+    },
+  },
+  {
     id: "gearshift",
     label: "Spider drops out of overdrive, then halts at the checkpoint",
     settle: 0.1,

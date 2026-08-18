@@ -64,7 +64,7 @@ export const STANDARD_PROFILE: GamepadProfile = {
     10: null,
     11: "recenter",
     12: "overdrive",
-    13: "menuDown",
+    13: "weaponNext",
     14: "blueprintPrev",
     15: "blueprintNext",
     16: null,

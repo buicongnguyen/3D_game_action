@@ -50,6 +50,9 @@ export interface HudModel {
   xp: number;
   xpToNext: number;
   carried: string | null;
+  currentWeapon: string;
+  weaponHeat: number;
+  fieldItems: string;
   distanceToCheckpoint: number;
   etaSeconds: number;
   objectiveLabel: string | null;
@@ -338,6 +341,8 @@ export class HudController {
   private readonly burn: HTMLElement;
   private readonly carry: HTMLElement;
   private readonly carryText: HTMLElement;
+  private readonly weapon: HTMLElement;
+  private readonly fieldItems: HTMLElement;
   private readonly trailPanel: HTMLElement;
   private readonly trailState: HTMLElement;
   private readonly distanceValue: HTMLElement;
@@ -383,6 +388,9 @@ export class HudController {
   private prevTrailState = "";
   private prevSpeedMode = "";
   private prevCarried: string | null = "";
+  private prevWeapon = "";
+  private prevWeaponHeat = -1;
+  private prevFieldItems = "";
   private prevDistance = Number.NaN;
   private prevEta = Number.NaN;
   private prevScrap = Number.NaN;
@@ -428,6 +436,8 @@ export class HudController {
     const playerTitle = el("span", "hud__title", playerHead);
     playerTitle.textContent = "Engineer";
     this.healthBar = new Bar(player, "health", "Health", false);
+    this.weapon = el("div", "hud__weapon", player);
+    this.fieldItems = el("div", "hud__field-items", player);
     this.carry = el("div", "hud__carry", player);
     const carryIcon = el("span", "hud__carry-icon", this.carry);
     carryIcon.textContent = "✦";
@@ -517,6 +527,18 @@ export class HudController {
 
   update(model: HudModel): void {
     this.healthBar.update(model.playerHealth, model.playerMaxHealth, TEXT_VALUE_OF_MAX);
+    const heat = Math.round(model.weaponHeat * 100);
+    if (model.currentWeapon !== this.prevWeapon || heat !== this.prevWeaponHeat) {
+      this.prevWeapon = model.currentWeapon;
+      this.prevWeaponHeat = heat;
+      this.weapon.textContent = heat > 0 ? `${model.currentWeapon} · HEAT ${heat}%` : `${model.currentWeapon} · ↓ / B`;
+      this.weapon.classList.toggle("is-hot", heat >= 75);
+    }
+    if (model.fieldItems !== this.prevFieldItems) {
+      this.prevFieldItems = model.fieldItems;
+      this.fieldItems.textContent = model.fieldItems;
+      this.fieldItems.classList.toggle("is-on", model.fieldItems.length > 0);
+    }
     // The engineer's own health had no low state at all, so a full bar and a
     // nearly-empty one were the same colour: the spider's fuel gauge warned the
     // player about the machine more loudly than anything warned them about

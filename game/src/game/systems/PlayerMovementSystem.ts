@@ -3,6 +3,7 @@ import type { InputSnapshot } from "../../input/InputActions.ts";
 import { PLAYER } from "../../data/balance.ts";
 import type { GameWorld } from "../GameWorld.ts";
 import { ConstructionSystem } from "./ConstructionSystem.ts";
+import { terrainSpeedMultiplier } from "../route/RouteHazards.ts";
 
 /**
  * Camera-relative movement, dodge, and the safety tether.
@@ -82,7 +83,8 @@ export class PlayerMovementSystem {
 
     const carrying = player.carry.kind !== "none";
     const baseSpeed = carrying ? PLAYER.carrySpeed : PLAYER.speed;
-    const maxSpeed = baseSpeed * world.modifiers.playerSpeed * moveScale;
+    const terrainScale = terrainSpeedMultiplier(world, player.x, player.z);
+    const maxSpeed = baseSpeed * world.modifiers.playerSpeed * moveScale * terrainScale;
 
     // A held contextual action roots the engineer; that cost is what makes
     // choosing to service a turret under pressure a real decision.

@@ -2,7 +2,7 @@ import type { Game } from "../core/Game.ts";
 import { PERFORMANCE, SIM } from "../data/balance.ts";
 
 /**
- * The four performance scenarios §12 of the implementation plan requires.
+ * Campaign-stage profiles plus the two synthetic stress profiles.
  *
  * Each one is measured by stepping the real fixed update and the real render at
  * a known enemy count, so the numbers describe the shipping code path rather
@@ -114,11 +114,64 @@ interface Scenario {
 
 const SCENARIOS: Scenario[] = [
   {
-    id: "quiet-march",
-    label: "Quiet march baseline",
+    id: "stage-1-departure",
+    label: "Stage 1 · Departure Road",
     setup: (game) => {
+      game.debugApi.enterSegment("seg.approach");
       game.debugApi.teleportSpider(40);
       game.debugApi.setTrail(6);
+      game.debugApi.forceSpawn("minion", 16);
+    },
+  },
+  {
+    id: "stage-2-settlement",
+    label: "Stage 2 · Broken Settlement",
+    setup: (game) => {
+      game.debugApi.enterSegment("seg.mine");
+      game.debugApi.teleportSpider(88);
+      game.debugApi.setTrail(48);
+      game.debugApi.placeStructures("rivetTurret", 2);
+      game.debugApi.forceSpawn("minion", 28);
+      game.debugApi.forceSpawn("warrior", 8);
+    },
+  },
+  {
+    id: "stage-3-flooded",
+    label: "Stage 3 · Flooded Works",
+    setup: (game) => {
+      game.debugApi.enterSegment("seg.flooded");
+      game.debugApi.teleportSpider(82);
+      game.debugApi.setTrail(64);
+      game.debugApi.placeStructures("barricade", 2);
+      game.debugApi.forceSpawn("minion", 46);
+      game.debugApi.forceSpawn("warrior", 14);
+    },
+  },
+  {
+    id: "stage-4-maze",
+    label: "Stage 4 · Rust Maze",
+    setup: (game) => {
+      game.debugApi.enterSegment("seg.scrapyard");
+      game.debugApi.teleportSpider(104);
+      game.debugApi.setTrail(82);
+      game.debugApi.placeStructures("rivetTurret", 3);
+      game.debugApi.forceSpawn("minion", 70);
+      game.debugApi.forceSpawn("warrior", 26);
+      game.debugApi.forceSpawn("golem", 4);
+    },
+  },
+  {
+    id: "stage-5-gate",
+    label: "Stage 5 · The Last Gate",
+    setup: (game) => {
+      game.debugApi.enterSegment("seg.escape");
+      game.debugApi.teleportSpider(76);
+      game.debugApi.setTrail(100);
+      game.debugApi.placeStructures("rivetTurret", 4, 7);
+      game.debugApi.placeStructures("relay", 2, 11);
+      game.debugApi.forceSpawn("minion", 112);
+      game.debugApi.forceSpawn("warrior", 36);
+      game.debugApi.forceSpawn("golem", 8);
     },
   },
   {
@@ -160,7 +213,9 @@ const SCENARIOS: Scenario[] = [
   },
 ];
 
-const SAMPLES = 90;
+// Eight profiles under SwiftShader are intentionally broad; twelve frames per
+// profile keeps the full suite useful in CI without turning it into a soak test.
+const SAMPLES = 12;
 /** Fixed updates per timed chunk in the simulation-only batch. */
 const SIM_CHUNK = 10;
 
@@ -231,6 +286,11 @@ export function runPerformanceSuite(game: Game): PerformanceReport {
 
   for (const scenario of SCENARIOS) {
     const world = game.world;
+    world.enemies.releaseAll();
+    world.projectiles.releaseAll();
+    world.pickups.releaseAll();
+    world.structures.length = 0;
+    world.encounterSites.length = 0;
     scenario.setup(game);
     // Pool statistics accumulate from construction and all four scenarios share
     // one world, so without this reset every peak after the first would really
@@ -239,7 +299,7 @@ export function runPerformanceSuite(game: Game): PerformanceReport {
     for (const probe of probes) probe.counters?.resetStats();
     // Let the horde form up and the pools fill before measuring; a spawn ring
     // is not the load the scenario is meant to describe.
-    game.advance(2.5);
+    game.advance(0.75);
     game.debugApi.resetFrameStats();
 
     const frameSamples: number[] = [];

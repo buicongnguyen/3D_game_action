@@ -44,6 +44,8 @@ export class WeaponSystem {
    * than pulled from the snapshot here.
    */
   focusFire = false;
+  private cycleRequested = false;
+  private lastSegmentId = "";
 
   private readonly candidates: number[] = [];
   private lastTargetId = -1;
@@ -52,8 +54,23 @@ export class WeaponSystem {
     this.focusFire = held;
   }
 
+  requestCycle(requested: boolean): void {
+    this.cycleRequested = requested;
+  }
+
   update(world: GameWorld, dt: number): void {
     const player = world.player;
+
+    this.applyStageUnlock(world);
+    if (this.cycleRequested) this.cycleWeapon(world);
+    this.cycleRequested = false;
+
+    const config = WEAPONS[player.currentWeapon];
+    player.weaponHeat = Math.max(0, player.weaponHeat - config.heatCoolRate * dt);
+    if (player.weaponOverheated && player.weaponHeat <= 0.35) {
+      player.weaponOverheated = false;
+      world.events.emit({ type: "ui.toast", message: `${config.name} cooled`, tone: "info", duration: 1.2 });
+    }
 
     if (player.weaponCooldown > 0) player.weaponCooldown -= dt;
 
@@ -61,6 +78,7 @@ export class WeaponSystem {
     // their hands. Everything else fires.
     if (player.downed || world.build.ghostActive || world.build.radialOpen) return;
     if (player.dodgeTimer > 0) return;
+    if (player.weaponOverheated) return;
     if (player.weaponCooldown > 0) return;
 
     const target = this.acquireTarget(world);
@@ -78,9 +96,9 @@ export class WeaponSystem {
   // Target selection
   // -------------------------------------------------------------------------
 
-  private acquireTarget(world: GameWorld): Enemy | null {
+  private acquireTarget(world: GameWorld): Enemy | { id: number; x: number; z: number } | null {
     const player = world.player;
-    const config = WEAPONS.shotgun;
+    const config = WEAPONS[player.currentWeapon];
     const range = config.range;
 
     refreshEnemyHash(world);
@@ -90,7 +108,7 @@ export class WeaponSystem {
       player.z,
       range + MAX_TARGET_RADIUS,
     );
-    if (count === 0) return null;
+    if (count === 0) return this.acquireSite(world, range);
 
     const aimLengthSq = player.aimX * player.aimX + player.aimZ * player.aimZ;
     const aiming = aimLengthSq > 1e-6;
@@ -143,6 +161,22 @@ export class WeaponSystem {
       }
     }
 
+    return best ?? this.acquireSite(world, range);
+  }
+
+  private acquireSite(world: GameWorld, range: number): { id: number; x: number; z: number } | null {
+    const player = world.player;
+    let best = null as { id: number; x: number; z: number } | null;
+    let bestDistance = range * range;
+    for (let i = 0; i < world.encounterSites.length; i++) {
+      const site = world.encounterSites[i];
+      if (!site.active || !site.triggered) continue;
+      const distance = distSq(player.x, player.z, site.x, site.z);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = site;
+      }
+    }
     return best;
   }
 
@@ -150,9 +184,9 @@ export class WeaponSystem {
   // Firing
   // -------------------------------------------------------------------------
 
-  private fire(world: GameWorld, target: Enemy): void {
+  private fire(world: GameWorld, target: { id: number; x: number; z: number }): void {
     const player = world.player;
-    const config = WEAPONS.shotgun;
+    const config = WEAPONS[player.currentWeapon];
 
     const fireRate = Math.max(0.05, world.modifiers.playerFireRate);
     player.weaponCooldown = config.fireInterval / fireRate;
@@ -186,11 +220,15 @@ export class WeaponSystem {
       projectile.velocityZ = Math.cos(angle) * config.projectileSpeed;
       projectile.speed = config.projectileSpeed;
       projectile.damage = critical ? baseDamage * config.critMultiplier : baseDamage;
+      projectile.radius = config.projectileRadius;
       projectile.lifetime = lifetime;
       projectile.source = "player.weapon" as DamageSource;
-      projectile.pierceLeft = config.pierce;
+      projectile.pierceLeft = config.pierce +
+        (player.currentWeapon === "rifle" ? world.modifiers.riflePierceBonus : 0);
       projectile.lastHitId = -1;
       projectile.variant = critical ? PROJECTILE_VARIANT_CRIT : 0;
+      projectile.knockback = config.knockback;
+      projectile.explosionRadius = config.explosionRadius;
       projectile.active = true;
     }
 
@@ -205,6 +243,57 @@ export class WeaponSystem {
       heading,
     });
     emitNoise(world, TRAIL.noiseShot, player.x, player.z, "playerShot");
+
+    if (config.heatPerShot > 0) {
+      const heatScale = player.currentWeapon === "flamer" ? world.modifiers.flamerHeatMultiplier : 1;
+      player.weaponHeat = Math.min(1, player.weaponHeat + config.heatPerShot * heatScale);
+      if (player.weaponHeat >= 1) {
+        player.weaponOverheated = true;
+        world.events.emit({ type: "ui.toast", message: `${config.name} overheated`, tone: "warning", duration: 1.8 });
+      }
+    }
+  }
+
+  private applyStageUnlock(world: GameWorld): void {
+    const segment = world.route.segment;
+    if (!segment || segment.id === this.lastSegmentId) return;
+    this.lastSegmentId = segment.id;
+    const unlock = segment.weaponUnlock;
+    if (unlock && !world.player.unlockedWeapons.includes(unlock)) {
+      world.player.unlockedWeapons.push(unlock);
+      world.player.currentWeapon = unlock;
+      world.player.weaponCooldown = 0;
+      world.events.emit({
+        type: "ui.toast",
+        message: `Weapon unlocked: ${WEAPONS[unlock].name} · D-pad down / B to switch`,
+        tone: "success",
+        duration: 4,
+      });
+    }
+    const blueprints = segment.blueprintUnlocks ?? [];
+    for (let i = 0; i < blueprints.length; i++) {
+      const blueprint = blueprints[i];
+      if (world.loadout.includes(blueprint)) continue;
+      world.loadout.push(blueprint);
+      world.events.emit({
+        type: "ui.toast", message: `Blueprint unlocked: ${blueprint}`, tone: "success", duration: 3,
+      });
+    }
+  }
+
+  private cycleWeapon(world: GameWorld): void {
+    const player = world.player;
+    if (player.unlockedWeapons.length <= 1) return;
+    const current = player.unlockedWeapons.indexOf(player.currentWeapon);
+    player.currentWeapon = player.unlockedWeapons[(current + 1) % player.unlockedWeapons.length];
+    player.weaponCooldown = Math.min(player.weaponCooldown, 0.18);
+    player.weaponOverheated = false;
+    world.events.emit({
+      type: "ui.toast",
+      message: `Equipped ${WEAPONS[player.currentWeapon].name}`,
+      tone: "info",
+      duration: 1.4,
+    });
   }
 }
 

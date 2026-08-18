@@ -6,7 +6,7 @@ import type { GameWorld } from "../game/GameWorld.ts";
 import type { InteractionSystem } from "../game/systems/InteractionSystem.ts";
 import type { RunStateSystem } from "../game/systems/RunStateSystem.ts";
 import { getBlueprint } from "../data/structures.ts";
-import { PLAYER, SPIDER, STRUCTURES } from "../data/balance.ts";
+import { PLAYER, SPIDER, STRUCTURES, WEAPONS } from "../data/balance.ts";
 import type { HudController, HudModel } from "./HudController.ts";
 import type { RadialMenu } from "./RadialMenu.ts";
 
@@ -38,6 +38,9 @@ export class HudBridge {
     xp: 0,
     xpToNext: 1,
     carried: null,
+    currentWeapon: "Rivet Scattergun",
+    weaponHeat: 0,
+    fieldItems: "",
     distanceToCheckpoint: 0,
     etaSeconds: 0,
     objectiveLabel: null,
@@ -152,6 +155,14 @@ export class HudBridge {
     model.emergencyBurn = spider.emergencyBurn;
     model.cylinders = world.cylindersReady;
     model.lastDevice = input.lastDevice;
+    model.currentWeapon = WEAPONS[player.currentWeapon].name;
+    model.weaponHeat = player.weaponHeat;
+    const items = world.fieldItems;
+    model.fieldItems = [
+      items.repairKits > 0 ? `KIT×${items.repairKits}` : "",
+      items.shockMines > 0 ? `MINE×${items.shockMines}` : "",
+      items.armorPlates > 0 ? `PLATE×${items.armorPlates}` : "",
+    ].filter(Boolean).join(" · ");
 
     model.carried =
       player.carry.kind === "structure"

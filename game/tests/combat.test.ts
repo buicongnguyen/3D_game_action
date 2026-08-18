@@ -470,6 +470,79 @@ describe("personal weapon", () => {
     for (let i = 0; i < 20; i++) rig.collision.update(world, STEP);
     expect(warrior.health).toBeLessThan(health);
   });
+
+  it("unlocks a stage weapon and cycles between genuine sidegrades", () => {
+    const rig = createRig();
+    rig.world.route.enterSegment("seg.mine");
+    rig.weapons.update(rig.world, STEP);
+    expect(rig.world.player.unlockedWeapons).toEqual(["shotgun", "rifle"]);
+    expect(rig.world.player.currentWeapon).toBe("rifle");
+
+    rig.weapons.requestCycle(true);
+    rig.weapons.update(rig.world, STEP);
+    expect(rig.world.player.currentWeapon).toBe("shotgun");
+  });
+
+  it("gives the rifle longer range and piercing instead of shotgun crowd spread", () => {
+    const rig = createRig();
+    const world = rig.world;
+    world.player.currentWeapon = "rifle";
+    world.player.unlockedWeapons.push("rifle");
+    spawnEnemy(world, "warrior", 0, 19);
+    rig.weapons.update(world, STEP);
+    expect(countActiveProjectiles(world)).toBe(1);
+    const shot = world.projectiles.backing.find((projectile) => projectile.active)!;
+    expect(shot.pierceLeft).toBe(WEAPONS.rifle.pierce);
+    expect(shot.speed).toBe(WEAPONS.rifle.projectileSpeed);
+  });
+
+  it("forces the flamer to cool after sustained crowd control", () => {
+    const rig = createRig();
+    const world = rig.world;
+    world.player.currentWeapon = "flamer";
+    world.player.unlockedWeapons.push("flamer");
+    spawnEnemy(world, "golem", 0, 5);
+    for (let i = 0; i < 60 * 8 && !world.player.weaponOverheated; i++) {
+      rig.weapons.update(world, STEP);
+      rig.collision.update(world, STEP);
+    }
+    expect(world.player.weaponOverheated).toBe(true);
+    const shotsAtHeat = rig.weapons.stats.shotsFired;
+    for (let i = 0; i < 30; i++) rig.weapons.update(world, STEP);
+    expect(rig.weapons.stats.shotsFired).toBe(shotsAtHeat);
+  });
+
+  it("makes the magnetic launcher damage a clustered group", () => {
+    const rig = createRig();
+    const world = rig.world;
+    world.player.currentWeapon = "launcher";
+    world.player.unlockedWeapons.push("launcher");
+    const target = spawnEnemy(world, "golem", 0, 5);
+    const neighbour = spawnEnemy(world, "golem", 2.2, 5);
+    const outside = spawnEnemy(world, "golem", 7, 5);
+    rig.weapons.update(world, STEP);
+    for (let i = 0; i < 30; i++) rig.collision.update(world, STEP);
+    const full = getArchetype("golem").health;
+    expect(target.health).toBeLessThan(full);
+    expect(neighbour.health).toBeLessThan(full);
+    expect(outside.health).toBe(full);
+  });
+
+  it("targets and permanently destroys an awakened enemy nest", () => {
+    const rig = createRig();
+    const world = rig.world;
+    world.player.currentWeapon = "rifle";
+    world.encounterSites.push({
+      id: world.allocateId(), definitionId: "test.nest", x: 0, z: 5,
+      health: 10, maxHealth: 10, radius: 2, active: true, triggered: true,
+      wavesReleased: 1, reinforcementTimer: 8,
+    });
+    const scrap = world.resources.scrap;
+    rig.weapons.update(world, STEP);
+    for (let i = 0; i < 20; i++) rig.collision.update(world, STEP);
+    expect(world.encounterSites[0].active).toBe(false);
+    expect(world.resources.scrap).toBe(scrap + 25);
+  });
 });
 
 // ---------------------------------------------------------------------------

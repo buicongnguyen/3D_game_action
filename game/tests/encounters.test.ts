@@ -63,4 +63,20 @@ describe("authored house encounters", () => {
     encounters.update(world, SIM.fixedStep);
     expect(encounters.pendingCount).toBe(0);
   });
+
+  it("bounds nest reinforcements and stops them permanently after destruction", () => {
+    const world = new GameWorld(4);
+    enter(world, "seg.scrapyard", 65);
+    const director = new HordeDirector();
+    const encounters = new EncounterSystem(director);
+    for (let i = 0; i < 120; i++) encounters.update(world, SIM.fixedStep);
+    const site = world.encounterSites[0];
+    expect(site.triggered).toBe(true);
+    expect(site.wavesReleased).toBe(1);
+    const afterInitial = world.enemies.active;
+    site.active = false;
+    for (let i = 0; i < 60 * 30; i++) encounters.update(world, SIM.fixedStep);
+    expect(world.enemies.active).toBe(afterInitial);
+    expect(site.wavesReleased).toBe(1);
+  });
 });

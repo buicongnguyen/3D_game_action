@@ -306,7 +306,7 @@ export class ScreenManager {
     if (buttons.menuLeft.held) dx -= 1;
     if (buttons.menuRight.held) dx += 1;
     if (buttons.menuUp.held) dy -= 1;
-    if (buttons.menuDown.held) dy += 1;
+    if (buttons.menuDown.held || buttons.weaponNext.held) dy += 1;
 
     const stick = snapshot.leftStick;
     if (dx === 0 && dy === 0 && stick.active) {

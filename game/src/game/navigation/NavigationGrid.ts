@@ -55,6 +55,11 @@ export class NavigationGrid {
   private readonly staticX: number[] = [];
   private readonly staticZ: number[] = [];
   private readonly staticR: number[] = [];
+  private readonly staticBoxX: number[] = [];
+  private readonly staticBoxZ: number[] = [];
+  private readonly staticBoxHalfX: number[] = [];
+  private readonly staticBoxHalfZ: number[] = [];
+  private readonly staticBoxHeading: number[] = [];
 
   private originCellX = 0;
   private originCellZ = 0;
@@ -105,6 +110,12 @@ export class NavigationGrid {
 
     for (let i = 0; i < this.staticX.length; i++) {
       this.stampCircle(this.staticX[i], this.staticZ[i], this.staticR[i], false, 1);
+    }
+    for (let i = 0; i < this.staticBoxX.length; i++) {
+      this.stampStaticBox(
+        this.staticBoxX[i], this.staticBoxZ[i], this.staticBoxHalfX[i],
+        this.staticBoxHalfZ[i], this.staticBoxHeading[i],
+      );
     }
     for (let i = 0; i < this.obstacleIds.length; i++) {
       this.stampCircle(this.obstacleX[i], this.obstacleZ[i], this.obstacleR[i], true, 1);
@@ -235,12 +246,33 @@ export class NavigationGrid {
     this.stampCircle(worldX, worldZ, radius, false, 1);
   }
 
+  /** Marks an oriented rectangular blocker matching long walls and buildings. */
+  setStaticBox(
+    worldX: number,
+    worldZ: number,
+    halfWidth: number,
+    halfDepth: number,
+    heading: number,
+  ): void {
+    this.staticBoxX.push(worldX);
+    this.staticBoxZ.push(worldZ);
+    this.staticBoxHalfX.push(halfWidth);
+    this.staticBoxHalfZ.push(halfDepth);
+    this.staticBoxHeading.push(heading);
+    this.stampStaticBox(worldX, worldZ, halfWidth, halfDepth, heading);
+  }
+
   clearStatic(): void {
     this.staticBlocked.fill(0);
     this.nearStatic.fill(0);
     this.staticX.length = 0;
     this.staticZ.length = 0;
     this.staticR.length = 0;
+    this.staticBoxX.length = 0;
+    this.staticBoxZ.length = 0;
+    this.staticBoxHalfX.length = 0;
+    this.staticBoxHalfZ.length = 0;
+    this.staticBoxHeading.length = 0;
   }
 
   inBounds(worldX: number, worldZ: number): boolean {
@@ -299,6 +331,41 @@ export class NavigationGrid {
         } else if (this.nearDynamic[index] > 0) {
           this.nearDynamic[index]--;
         }
+      }
+    }
+  }
+
+  private stampStaticBox(
+    worldX: number,
+    worldZ: number,
+    halfWidth: number,
+    halfDepth: number,
+    heading: number,
+  ): void {
+    const extent = Math.hypot(halfWidth, halfDepth) + SOFT_MARGIN + BLOCK_INFLATE;
+    let minCX = Math.floor((worldX - extent - this.minX) / CELL_SIZE);
+    let maxCX = Math.floor((worldX + extent - this.minX) / CELL_SIZE);
+    let minCZ = Math.floor((worldZ - extent - this.minZ) / CELL_SIZE);
+    let maxCZ = Math.floor((worldZ + extent - this.minZ) / CELL_SIZE);
+    if (maxCX < 0 || maxCZ < 0 || minCX >= DIM || minCZ >= DIM) return;
+    minCX = Math.max(0, minCX); minCZ = Math.max(0, minCZ);
+    maxCX = Math.min(DIM - 1, maxCX); maxCZ = Math.min(DIM - 1, maxCZ);
+    const sin = Math.sin(heading);
+    const cos = Math.cos(heading);
+    const blockX = halfWidth + BLOCK_INFLATE;
+    const blockZ = halfDepth + BLOCK_INFLATE;
+    const softX = blockX + SOFT_MARGIN;
+    const softZ = blockZ + SOFT_MARGIN;
+    for (let cz = minCZ; cz <= maxCZ; cz++) {
+      const pz = this.minZ + (cz + 0.5) * CELL_SIZE - worldZ;
+      for (let cx = minCX; cx <= maxCX; cx++) {
+        const px = this.minX + (cx + 0.5) * CELL_SIZE - worldX;
+        const localX = px * cos - pz * sin;
+        const localZ = px * sin + pz * cos;
+        if (Math.abs(localX) > softX || Math.abs(localZ) > softZ) continue;
+        const index = cz * DIM + cx;
+        if (Math.abs(localX) <= blockX && Math.abs(localZ) <= blockZ) this.staticBlocked[index] = 1;
+        else this.nearStatic[index]++;
       }
     }
   }

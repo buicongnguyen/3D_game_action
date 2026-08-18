@@ -271,6 +271,25 @@ export function buildRuinedHouseGeometry(variant: number, random: Random): Buffe
   return tint(merge(parts), 0.055, 510);
 }
 
+/** Wide timber-and-steel crossing used to make shallow channels readable. */
+export function buildBridgeGeometry(variant: number, random: Random): BufferGeometry {
+  void variant;
+  const parts: BufferGeometry[] = [];
+  for (let i = -5; i <= 5; i++) {
+    parts.push(place(
+      chamferedBox(6.8, 0.22, 1.05, 0.05, i % 2 === 0 ? ENV.treeTrunk : ENV.treeTrunkDark),
+      random.signed(0.025), 0.22, i * 1.05, 0, random.signed(0.018), 0,
+    ));
+  }
+  for (const side of [-1, 1]) {
+    parts.push(place(chamferedBox(0.28, 0.38, 12.2, 0.06, ENV.rustMetalDark), side * 3.2, 0.12, 0));
+    for (let i = -5; i <= 5; i += 2) {
+      parts.push(place(chamferedBox(0.16, 1.0, 0.16, 0.04, ENV.rustMetal), side * 3.2, 0.65, i * 1.05));
+    }
+  }
+  return tint(merge(parts), 0.045, 520);
+}
+
 /**
  * Repeating maze wall: one strong silhouette built from readable courses,
  * buttresses and a rusted diagonal brace. It is intentionally asymmetric so
@@ -331,6 +350,19 @@ export function buildMazeTowerGeometry(variant: number, random: Random): BufferG
     );
   }
   return tint(merge(parts), 0.075, 431);
+}
+
+/** Broken arch that preserves a readable crossing through the maze wall. */
+export function buildMazeArchGeometry(variant: number, random: Random): BufferGeometry {
+  void variant;
+  const parts: BufferGeometry[] = [
+    place(taperedBox(0.9, 0.76, 3.1, 0.76, 0.62, 0.12, ENV.ruinStone), 0, 1.55, -2.15, 0, 0, random.signed(0.025)),
+    place(taperedBox(0.9, 0.76, 3.1, 0.76, 0.62, 0.12, ENV.ruinStone), 0, 1.55, 2.15, 0, 0, random.signed(0.025)),
+    place(chamferedBox(0.92, 0.52, 5.2, 0.1, ENV.ruinStoneDark), 0, 3.25, 0),
+    place(chamferedBox(0.2, 2.4, 0.25, 0.04, ENV.rustMetal), 0.5, 1.45, -2.15),
+    place(chamferedBox(0.2, 2.4, 0.25, 0.04, ENV.rustMetal), 0.5, 1.45, 2.15),
+  ];
+  return tint(merge(parts), 0.06, 432);
 }
 
 export function buildRuinPillarGeometry(variant: number, random: Random): BufferGeometry {

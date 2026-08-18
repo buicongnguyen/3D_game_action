@@ -4,6 +4,7 @@ import { Random } from "../core/Random.ts";
 import type {
   BuildState,
   Enemy,
+  EncounterSite,
   Pickup,
   PlayerState,
   Projectile,
@@ -57,12 +58,14 @@ export class GameWorld {
   readonly pickups: ObjectPool<Pickup>;
   /** Structures are few and long-lived, so a plain array is the right shape. */
   readonly structures: Structure[] = [];
+  readonly encounterSites: EncounterSite[] = [];
 
   readonly navigation: NavigationGrid;
   readonly flowField: FlowField;
   readonly enemyHash: SpatialHash;
   readonly route: RouteDirector;
   readonly mode: RunMode;
+  readonly fieldItems = { repairKits: 0, shockMines: 0, armorPlates: 0, weaponParts: 0 };
   salvageTimeRemaining = 0;
   salvageScore = 0;
 
@@ -82,7 +85,7 @@ export class GameWorld {
   paused = false;
 
   /** Blueprints available in the radial, in radial order. */
-  loadout: BuildState["ghostKind"][] = [...SLICE_LOADOUT];
+  loadout: BuildState["ghostKind"][] = ["rivetTurret"];
 
   /** Monotonic id source for every entity kind. */
   private nextId = 1;
@@ -98,6 +101,7 @@ export class GameWorld {
 
   constructor(seed: number, mode: RunMode = "expedition") {
     this.mode = mode;
+    if (mode === "salvageRush") this.loadout = [...SLICE_LOADOUT];
     this.random = new Random(seed);
     this.directorRandom = this.random.fork(0x51ed);
     this.cosmeticRandom = this.random.fork(0xc05a);
@@ -131,6 +135,10 @@ export class GameWorld {
       aimX: 0,
       aimZ: 0,
       weaponCooldown: 0,
+      currentWeapon: "shotgun",
+      unlockedWeapons: ["shotgun"],
+      weaponHeat: 0,
+      weaponOverheated: false,
       tetherStrain: 0,
       tethered: false,
     };
@@ -193,6 +201,7 @@ export class GameWorld {
       peakTrail: 0,
       timeInPursuit: 0,
       objectivesCompleted: 0,
+      nestsDestroyed: 0,
     };
 
     this.enemies = new ObjectPool<Enemy>(
@@ -347,6 +356,8 @@ export function createProjectile(_index: number): Projectile {
     lastHitId: -1,
     active: false,
     variant: 0,
+    knockback: 0,
+    explosionRadius: 0,
   };
 }
 
@@ -369,6 +380,8 @@ export function resetProjectile(projectile: Projectile): void {
   projectile.lastHitId = -1;
   projectile.active = false;
   projectile.variant = 0;
+  projectile.knockback = 0;
+  projectile.explosionRadius = 0;
 }
 
 export function createPickup(_index: number): Pickup {

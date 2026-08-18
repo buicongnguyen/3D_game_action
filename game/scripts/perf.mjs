@@ -102,7 +102,7 @@ async function main() {
 
   console.log(`browser: ${browser}`);
   console.log(`server:  ${args.url}`);
-  console.log("running four scenarios under SwiftShader; this takes a few minutes\n");
+  console.log("running campaign and stress scenarios under SwiftShader; this takes a few minutes\n");
 
   const child = spawn(browser, flags, { windowsHide: true, stdio: "ignore" });
   let payload;

@@ -47,6 +47,8 @@ export const ENV = {
   /** The trodden route surface; warmer and brighter so the corridor reads. */
   path: 0x6b5f4a,
   pathEdge: 0x554a39,
+  shallowWater: 0x315866,
+  waterEdge: 0x28444d,
 
   rock: 0x4b5058,
   rockDark: 0x353a41,

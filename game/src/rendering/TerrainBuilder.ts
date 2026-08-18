@@ -12,7 +12,7 @@ import {
   Vector3,
 } from "three";
 import { Random } from "../core/Random.ts";
-import { clamp, smoothstep } from "../core/math.ts";
+import { angleDelta, clamp, smoothstep } from "../core/math.ts";
 import { ENV } from "../art/palette.ts";
 import { NAVIGATION } from "../data/balance.ts";
 import type { MeshForge } from "../art/MeshForge.ts";
@@ -90,6 +90,7 @@ export class TerrainBuilder {
   private ground: Mesh | null = null;
   private backdrop: Mesh | null = null;
   private readonly instanced: InstancedMesh[] = [];
+  private readonly ownedGeometries: BufferGeometry[] = [];
   private readonly matrix = new Matrix4();
   private readonly position = new Vector3();
   private readonly quaternion = new Quaternion();
@@ -121,6 +122,7 @@ export class TerrainBuilder {
     this.root.add(this.ground);
 
     this.scatterProps(world, segment, random);
+    this.buildWaterAndBridges(world, segment);
     this.buildEncounterSites(world, segment);
     if (segment.modifiers.includes("maze")) this.buildMazePattern(world, segment, random);
     else this.buildCorridorMarkers(world, segment, random);
@@ -413,6 +415,65 @@ export class TerrainBuilder {
     }
   }
 
+  private buildWaterAndBridges(world: GameWorld, segment: RouteSegmentDefinition): void {
+    const zones = segment.waterZones ?? [];
+    if (zones.length === 0) return;
+    const spline = world.route.spline!;
+    const waterGeometry = new PlaneGeometry(1, 1, 1, 1);
+    waterGeometry.rotateX(-Math.PI / 2);
+    const waterColor = new Color(ENV.shallowWater);
+    const colors = new Float32Array(12);
+    for (let i = 0; i < 4; i++) {
+      colors[i * 3] = waterColor.r;
+      colors[i * 3 + 1] = waterColor.g;
+      colors[i * 3 + 2] = waterColor.b;
+    }
+    waterGeometry.setAttribute("color", new BufferAttribute(colors, 3));
+    this.ownedGeometries.push(waterGeometry);
+    const water = new InstancedMesh(waterGeometry, this.forge.materials.surface, zones.length);
+    const bridgeGeometry = this.tryPropGeometry("bridge");
+    const bridges = bridgeGeometry
+      ? new InstancedMesh(bridgeGeometry, this.forge.materials.surface, zones.length)
+      : null;
+    water.name = "terrain.shallowWater";
+    water.receiveShadow = true;
+    water.frustumCulled = false;
+    if (bridges) {
+      bridges.name = "prop.bridge";
+      bridges.castShadow = true;
+      bridges.receiveShadow = true;
+      bridges.frustumCulled = false;
+    }
+    const point = { x: 0, z: 0 };
+    const tangent = { x: 0, z: 1 };
+    for (let i = 0; i < zones.length; i++) {
+      const zone = zones[i];
+      const middle = (zone.fromDistance + zone.toDistance) * 0.5;
+      spline.positionAt(point, middle);
+      spline.tangentAt(tangent, middle);
+      const heading = Math.atan2(tangent.x, tangent.z);
+      this.position.set(point.x, 0.025, point.z);
+      this.quaternion.setFromAxisAngle(UP, heading);
+      this.scaleVector.set(zone.channelHalfWidth * 2, 1, zone.toDistance - zone.fromDistance);
+      this.matrix.compose(this.position, this.quaternion, this.scaleVector);
+      water.setMatrixAt(i, this.matrix);
+      if (bridges) {
+        this.position.y = 0.035;
+        this.scaleVector.set(zone.bridgeHalfWidth / 3.2, 1, (zone.toDistance - zone.fromDistance) / 12);
+        this.matrix.compose(this.position, this.quaternion, this.scaleVector);
+        bridges.setMatrixAt(i, this.matrix);
+      }
+    }
+    water.instanceMatrix.needsUpdate = true;
+    this.instanced.push(water);
+    this.root.add(water);
+    if (bridges) {
+      bridges.instanceMatrix.needsUpdate = true;
+      this.instanced.push(bridges);
+      this.root.add(bridges);
+    }
+  }
+
   /** Builds every authored house from the same data that drives its squad. */
   private buildEncounterSites(world: GameWorld, segment: RouteSegmentDefinition): void {
     const encounters = segment.encounters ?? [];
@@ -442,7 +503,7 @@ export class TerrainBuilder {
       this.scaleVector.setScalar(scale);
       this.matrix.compose(this.position, this.quaternion, this.scaleVector);
       mesh.setMatrixAt(i, this.matrix);
-      world.navigation.setStatic(x, z, 2.55 * scale);
+      world.navigation.setStaticBox(x, z, 2.5 * scale, 2.2 * scale, heading);
     }
     mesh.instanceMatrix.needsUpdate = true;
     this.instanced.push(mesh);
@@ -460,7 +521,8 @@ export class TerrainBuilder {
   ): void {
     const wallGeometry = this.tryPropGeometry("mazeWall");
     const towerGeometry = this.tryPropGeometry("mazeTower");
-    if (!wallGeometry || !towerGeometry) return;
+    const archGeometry = this.tryPropGeometry("mazeArch");
+    if (!wallGeometry || !towerGeometry || !archGeometry) return;
 
     const spline = world.route.spline!;
     const spacing = 6.4;
@@ -469,21 +531,29 @@ export class TerrainBuilder {
     const towerCapacity = Math.ceil(stations / 8) * 2;
     const walls = new InstancedMesh(wallGeometry, this.forge.materials.surface, wallCapacity);
     const towers = new InstancedMesh(towerGeometry, this.forge.materials.surface, towerCapacity);
+    const arches = new InstancedMesh(archGeometry, this.forge.materials.surface, Math.ceil(stations / 4) * 2);
     walls.name = "prop.mazeWall";
     towers.name = "prop.mazeTower";
+    arches.name = "prop.mazeArch";
     walls.castShadow = towers.castShadow = true;
+    arches.castShadow = true;
     walls.receiveShadow = towers.receiveShadow = true;
+    arches.receiveShadow = true;
     walls.frustumCulled = towers.frustumCulled = false;
+    arches.frustumCulled = false;
 
     const point = { x: 0, z: 0 };
     const tangent = { x: 0, z: 0 };
     let wallCount = 0;
     let towerCount = 0;
+    let archCount = 0;
     for (let station = 0; station < stations; station++) {
       const distance = station * spacing + spacing * 0.5;
       spline.positionAt(point, distance);
       spline.tangentAt(tangent, distance);
       const heading = Math.atan2(tangent.x, tangent.z);
+      const nextHeading = spline.headingAt(Math.min(spline.length, distance + spacing));
+      const corner = Math.abs(angleDelta(heading, nextHeading)) > 0.22;
 
       for (const side of SIDES) {
         const lateral = side * (segment.corridorHalfWidth + 1.1);
@@ -492,28 +562,42 @@ export class TerrainBuilder {
 
         // Every eighth station is a tower; every fourth leaves a deliberate
         // breach where enemies and the engineer can cross the wall line.
-        if (station % 8 === 0) {
+        if (corner || station % 8 === 0) {
           this.scaleVector.setScalar(random.range(0.94, 1.07));
           this.matrix.compose(this.position, this.quaternion, this.scaleVector);
           towers.setMatrixAt(towerCount++, this.matrix);
           world.navigation.setStatic(this.position.x, this.position.z, 1.35);
-        } else if (station % 4 !== 0) {
+        } else if (station % 4 === 0) {
+          this.scaleVector.setScalar(1);
+          this.matrix.compose(this.position, this.quaternion, this.scaleVector);
+          arches.setMatrixAt(archCount++, this.matrix);
+          world.navigation.setStatic(
+            this.position.x + tangent.x * 2.15,
+            this.position.z + tangent.z * 2.15,
+            0.72,
+          );
+          world.navigation.setStatic(
+            this.position.x - tangent.x * 2.15,
+            this.position.z - tangent.z * 2.15,
+            0.72,
+          );
+        } else {
           this.scaleVector.set(1, random.range(0.94, 1.08), 1);
           this.matrix.compose(this.position, this.quaternion, this.scaleVector);
           walls.setMatrixAt(wallCount++, this.matrix);
-          // A circle approximates the long segment while leaving narrow seams
-          // plus the deliberate fourth-station breach for navigation.
-          world.navigation.setStatic(this.position.x, this.position.z, 2.45);
+          world.navigation.setStaticBox(this.position.x, this.position.z, 0.58, 2.85, heading);
         }
       }
     }
 
     walls.count = wallCount;
     towers.count = towerCount;
+    arches.count = archCount;
     walls.instanceMatrix.needsUpdate = true;
     towers.instanceMatrix.needsUpdate = true;
-    this.instanced.push(walls, towers);
-    this.root.add(walls, towers);
+    arches.instanceMatrix.needsUpdate = true;
+    this.instanced.push(walls, towers, arches);
+    this.root.add(walls, towers, arches);
   }
 
   /**
@@ -598,6 +682,8 @@ export class TerrainBuilder {
       mesh.dispose();
     }
     this.instanced.length = 0;
+    for (const geometry of this.ownedGeometries) geometry.dispose();
+    this.ownedGeometries.length = 0;
   }
 
   dispose(): void {

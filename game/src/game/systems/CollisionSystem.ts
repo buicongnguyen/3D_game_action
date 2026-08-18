@@ -1,5 +1,5 @@
-import type { DamageInfo, Projectile } from "../../core/types.ts";
-import { PLAYER, SPIDER, WEAPONS } from "../../data/balance.ts";
+import type { DamageInfo, EncounterSite, Projectile } from "../../core/types.ts";
+import { PLAYER, SPIDER } from "../../data/balance.ts";
 import { getBlueprint } from "../../data/structures.ts";
 import type { GameWorld } from "../GameWorld.ts";
 import type { DamageSystem } from "./DamageSystem.ts";
@@ -95,7 +95,7 @@ export class CollisionSystem {
       midZ,
       half + MAX_TARGET_RADIUS + projectile.radius,
     );
-    if (count === 0) return false;
+    if (count === 0) return this.sweepEncounterSites(world, projectile, ax, az, bx, bz);
 
     const backing = world.enemies.backing;
     this.struck.length = 0;
@@ -124,7 +124,7 @@ export class CollisionSystem {
         }
       }
 
-      if (victim < 0) return false;
+      if (victim < 0) return this.sweepEncounterSites(world, projectile, ax, az, bx, bz);
 
       const enemy = backing[victim];
       this.struck.push(enemy.id);
@@ -144,9 +144,12 @@ export class CollisionSystem {
       hitInfo.source = projectile.source;
       hitInfo.originX = ax;
       hitInfo.originZ = az;
-      hitInfo.knockback =
-        projectile.source === "player.weapon" ? WEAPONS.shotgun.knockback : TURRET_KNOCKBACK;
+      hitInfo.knockback = projectile.knockback || TURRET_KNOCKBACK;
       hitInfo.critical = projectile.variant === PROJECTILE_VARIANT_CRIT;
+      if (projectile.explosionRadius > 0) {
+        this.applyExplosion(world, projectile, hitX, hitZ);
+        return true;
+      }
       this.damage.applyToEnemy(world, enemy, hitInfo);
 
       projectile.lastHitId = enemy.id;
@@ -155,6 +158,80 @@ export class CollisionSystem {
     }
 
     return true;
+  }
+
+  private sweepEncounterSites(
+    world: GameWorld,
+    projectile: Projectile,
+    ax: number,
+    az: number,
+    bx: number,
+    bz: number,
+  ): boolean {
+    for (let i = 0; i < world.encounterSites.length; i++) {
+      const site = world.encounterSites[i];
+      if (!site.active || !site.triggered) continue;
+      closestApproach(ax, az, bx, bz, site.x, site.z);
+      const reach = site.radius + projectile.radius;
+      if (sweep.distSq > reach * reach) continue;
+      this.damageEncounterSite(world, site, projectile.damage);
+      world.events.emit({ type: "projectile.hit", x: site.x, z: site.z, y: projectile.y, source: projectile.source });
+      return true;
+    }
+    return false;
+  }
+
+  private applyExplosion(world: GameWorld, projectile: Projectile, x: number, z: number): void {
+    const radius = projectile.explosionRadius;
+    const radiusSq = radius * radius;
+    const backing = world.enemies.backing;
+    for (let i = 0; i < backing.length; i++) {
+      const enemy = backing[i];
+      if (!enemy.active || enemy.health <= 0) continue;
+      const dx = enemy.x - x;
+      const dz = enemy.z - z;
+      const d2 = dx * dx + dz * dz;
+      if (d2 > radiusSq) continue;
+      const falloff = 1 - Math.sqrt(d2) / radius;
+      hitInfo.amount = projectile.damage * (0.35 + falloff * 0.65);
+      hitInfo.source = projectile.source;
+      hitInfo.originX = x;
+      hitInfo.originZ = z;
+      hitInfo.knockback = projectile.knockback * (0.4 + falloff * 0.6);
+      hitInfo.critical = projectile.variant === PROJECTILE_VARIANT_CRIT;
+      this.damage.applyToEnemy(world, enemy, hitInfo);
+    }
+    for (let i = 0; i < world.encounterSites.length; i++) {
+      const site = world.encounterSites[i];
+      if (!site.active) continue;
+      const distance = Math.hypot(site.x - x, site.z - z);
+      if (distance > radius + site.radius) continue;
+      this.damageEncounterSite(world, site, projectile.damage * 0.8);
+    }
+    world.events.emit({
+      type: "vfx.request",
+      effect: "magneticBlast",
+      x,
+      y: projectile.y,
+      z,
+      heading: 0,
+      scale: radius,
+    });
+    world.events.emit({ type: "camera.shake", intensity: 0.22, duration: 0.18 });
+  }
+
+  private damageEncounterSite(world: GameWorld, site: EncounterSite, amount: number): void {
+    if (!site.active) return;
+    const applied = Math.min(site.health, amount);
+    site.health -= applied;
+    world.stats.damageByPlayer += applied;
+    if (site.health > 0) return;
+    site.active = false;
+    world.resources.scrap += 25;
+    world.stats.scrapCollected += 25;
+    world.stats.nestsDestroyed++;
+    world.events.emit({ type: "vfx.request", effect: "magneticBlast", x: site.x, y: 1, z: site.z, heading: 0, scale: 4.5 });
+    world.events.emit({ type: "ui.toast", message: "Enemy nest destroyed · +25 scrap", tone: "success", duration: 2.5 });
   }
 
   /** Hostile projectiles: the engineer first, then the spider, then structures. */

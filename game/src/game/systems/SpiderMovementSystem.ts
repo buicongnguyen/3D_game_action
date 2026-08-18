@@ -35,6 +35,14 @@ export class SpiderMovementSystem {
       return;
     }
 
+    const hold = world.route.segment?.departureHoldSeconds ?? 0;
+    if (hold > 0 && world.phaseTime < hold) {
+      spider.speed = 0;
+      spider.emergencyBurn = false;
+      this.syncTransform(world, dt, true);
+      return;
+    }
+
     const speed = this.resolveSpeed(world, dt);
     spider.speed = speed;
     spider.distanceAlongRoute += speed * dt;

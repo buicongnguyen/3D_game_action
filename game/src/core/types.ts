@@ -27,6 +27,7 @@ export type RunPhase =
 
 export type TrailState = "QUIET" | "PROBING" | "SWARM" | "HEAVY" | "PURSUIT";
 export type RunMode = "expedition" | "salvageRush";
+export type WeaponKind = "shotgun" | "rifle" | "flamer" | "launcher";
 
 export type SpeedMode = "fallback" | "march" | "overdrive";
 
@@ -114,6 +115,11 @@ export interface PlayerState {
   aimX: number;
   aimZ: number;
   weaponCooldown: number;
+  currentWeapon: WeaponKind;
+  unlockedWeapons: WeaponKind[];
+  /** Normalized heat used by heat-limited weapons. */
+  weaponHeat: number;
+  weaponOverheated: boolean;
   /** Set by the tether system when the engineer has strayed too far. */
   tetherStrain: number;
   /**
@@ -333,9 +339,19 @@ export interface Projectile {
   active: boolean;
   /** Visual variant index into the projectile mesh table. */
   variant: number;
+  knockback: number;
+  explosionRadius: number;
 }
 
-export type PickupKind = "scrap" | "fuel" | "cylinder";
+export type PickupKind =
+  | "scrap"
+  | "fuel"
+  | "cylinder"
+  | "repairKit"
+  | "pressureCanister"
+  | "shockMine"
+  | "armorPlate"
+  | "weaponPart";
 
 export interface Pickup {
   id: number;
@@ -420,6 +436,7 @@ export interface RunStats {
   peakTrail: number;
   timeInPursuit: number;
   objectivesCompleted: number;
+  nestsDestroyed: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -459,7 +476,31 @@ export interface RouteEncounterDefinition {
   occupants: Array<{ archetype: string; count: number }>;
 }
 
-export type RouteObjectiveKind = "recover" | "pressure" | "salvage" | "pursuit";
+export interface EncounterSite {
+  id: number;
+  definitionId: string;
+  x: number;
+  z: number;
+  health: number;
+  maxHealth: number;
+  radius: number;
+  active: boolean;
+  triggered: boolean;
+  wavesReleased: number;
+  reinforcementTimer: number;
+}
+
+export interface WaterZoneDefinition {
+  /** Longitudinal shallow-water band across the route. */
+  fromDistance: number;
+  toDistance: number;
+  /** Dry bridge half-width either side of the route centreline. */
+  bridgeHalfWidth: number;
+  /** Total visible channel half-width. */
+  channelHalfWidth: number;
+}
+
+export type RouteObjectiveKind = "recover" | "pressure" | "salvage" | "pursuit" | "nests";
 
 export interface RouteObjectiveDefinition {
   kind: RouteObjectiveKind;
@@ -480,11 +521,17 @@ export interface RouteSegmentDefinition {
   recommendedDuration: number;
   /** Multiplies ambient horde pressure; authored encounter squads are unaffected. */
   ambientThreatScale?: number;
+  /** Guaranteed campaign reward when this stage is first entered. */
+  weaponUnlock?: WeaponKind;
+  blueprintUnlocks?: StructureKind[];
   pursuitStartSeconds: number;
+  /** Optional stationary defense beat before the Spider begins this leg. */
+  departureHoldSeconds?: number;
   spawnZones: SpawnZoneDefinition[];
   resourceZones: ResourceZoneDefinition[];
   /** Finite authored beats, rendered and simulated from the same route data. */
   encounters?: RouteEncounterDefinition[];
+  waterZones?: WaterZoneDefinition[];
   modifiers: string[];
   rewardTable: string;
   destinationId: string;
@@ -521,6 +568,9 @@ export interface ModuleDefinition {
 export interface RunModifiers {
   playerDamage: number;
   playerFireRate: number;
+  /** Behavior upgrades, kept separate from generic damage multipliers. */
+  riflePierceBonus: number;
+  flamerHeatMultiplier: number;
   playerSpeed: number;
   playerMaxHealth: number;
   turretDamage: number;

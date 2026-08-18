@@ -237,11 +237,21 @@ describe("RouteDirector run structure", () => {
 
     expect(director.history).toEqual(["seg.approach"]);
     expect(director.currentCheckpointId).toBe("checkpoint.foundry");
-    expect(director.offeredSegments()).toEqual(["seg.mine", "seg.scrapyard"]);
+    expect(director.offeredSegments()).toEqual(["seg.mine"]);
 
-    director.enterSegment("seg.scrapyard");
+    director.enterSegment("seg.mine");
     expect(director.checkpointIndex).toBe(1);
     expect(director.isSegmentComplete(0)).toBe(false);
+    expect(director.isSegmentComplete(director.spline!.length + 5)).toBe(true);
+    expect(director.currentCheckpointId).toBe("checkpoint.settlement");
+    expect(director.offeredSegments()).toEqual(["seg.flooded", "seg.floodedShortcut"]);
+
+    director.enterSegment("seg.flooded");
+    expect(director.isSegmentComplete(director.spline!.length)).toBe(true);
+    expect(director.currentCheckpointId).toBe("checkpoint.pump");
+    expect(director.offeredSegments()).toEqual(["seg.scrapyard"]);
+
+    director.enterSegment("seg.scrapyard");
     expect(director.isSegmentComplete(director.spline!.length + 5)).toBe(true);
     expect(director.currentCheckpointId).toBe("checkpoint.gate");
     expect(director.offeredSegments()).toEqual(["seg.escape"]);
@@ -250,7 +260,9 @@ describe("RouteDirector run structure", () => {
     expect(director.isFinalSegment).toBe(true);
     expect(director.destinationCheckpointId()).toBe("gate.final");
     expect(director.isSegmentComplete(director.spline!.length)).toBe(true);
-    expect(director.history).toEqual(["seg.approach", "seg.scrapyard", "seg.escape"]);
+    expect(director.history).toEqual([
+      "seg.approach", "seg.mine", "seg.flooded", "seg.scrapyard", "seg.escape",
+    ]);
     // The gate is not a checkpoint, so the cursor stays on the last one.
     expect(director.currentCheckpointId).toBe("checkpoint.gate");
   });
@@ -430,7 +442,9 @@ describe("RouteDirector resources", () => {
     expect(placements.length).toBe(expected);
     const found = v();
     for (const placement of placements) {
-      expect(placement.kind === "scrap" || placement.kind === "fuel").toBe(true);
+      expect([
+        "scrap", "fuel", "repairKit", "pressureCanister", "shockMine", "armorPlate", "weaponPart",
+      ]).toContain(placement.kind);
       expect(placement.amount).toBeGreaterThan(0);
       expect(Math.abs(spline.lateralOffset(placement.x, placement.z))).toBeLessThan(9);
       const along = spline.projectPoint(found, placement.x, placement.z);
@@ -453,9 +467,10 @@ describe("RouteDirector resources", () => {
 
     director.enterSegment("seg.scrapyard");
     const yard = director.generateResources(new Random(33));
-    expect(yard.every((p) => p.kind === "scrap" || p.kind === "fuel")).toBe(true);
     expect(yard.filter((p) => p.kind === "scrap" && p.amount === 12).length).toBe(6);
     expect(yard.filter((p) => p.kind === "scrap" && p.amount === 3).length).toBe(26);
+    expect(yard.filter((p) => p.kind === "armorPlate")).toHaveLength(2);
+    expect(yard.filter((p) => p.kind === "weaponPart")).toHaveLength(3);
   });
 });
 

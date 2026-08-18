@@ -39,6 +39,11 @@ const RESOURCE_KIND: Record<ResourceZoneDefinition["kind"], string> = {
   fuel: "fuel",
   fuelBarrel: "fuel",
   cylinder: "cylinder",
+  repairKit: "repairKit",
+  pressureCanister: "pressureCanister",
+  shockMine: "shockMine",
+  armorPlate: "armorPlate",
+  weaponPart: "weaponPart",
 };
 
 const RESOURCE_AMOUNT: Record<ResourceZoneDefinition["kind"], number> = {
@@ -47,6 +52,11 @@ const RESOURCE_AMOUNT: Record<ResourceZoneDefinition["kind"], number> = {
   fuel: ECONOMY.jerrycanFuel,
   fuelBarrel: ECONOMY.fuelBarrel,
   cylinder: 1,
+  repairKit: 1,
+  pressureCanister: 1,
+  shockMine: 1,
+  armorPlate: 1,
+  weaponPart: 1,
 };
 
 const scratchPoint: Vec2 = { x: 0, z: 0 };

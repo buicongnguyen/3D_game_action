@@ -38,6 +38,7 @@ export const KEYBOARD_BINDINGS: Readonly<Record<string, InputAction>> = {
 
   KeyV: "tool",
   Mouse2: "tool",
+  KeyB: "weaponNext",
   Mouse0: "focusFire",
 
   ShiftLeft: "overdrive",

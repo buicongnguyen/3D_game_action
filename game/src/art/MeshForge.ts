@@ -23,6 +23,9 @@ import {
   buildEngineer,
   buildEnemyImpostorGeometry,
   buildScattergun,
+  buildRivetRifle,
+  buildSteamFlamer,
+  buildMagneticLauncher,
   buildSkeletonAxe,
   buildSkeletonGolem,
   buildSkeletonMinion,
@@ -54,8 +57,10 @@ import {
   buildGateGeometry,
   buildGrassTuftGeometry,
   buildMazeTowerGeometry,
+  buildMazeArchGeometry,
   buildMazeWallGeometry,
   buildRuinedHouseGeometry,
+  buildBridgeGeometry,
   buildRockGeometry,
   buildRuinPillarGeometry,
   buildScrapHeapGeometry,
@@ -98,7 +103,9 @@ const PROP_TABLE: ReadonlyArray<{ name: string; build: PropBuilder; variant: num
   { name: "grassC", build: buildGrassTuftGeometry, variant: 2 },
   { name: "mazeWall", build: buildMazeWallGeometry, variant: 0 },
   { name: "mazeTower", build: buildMazeTowerGeometry, variant: 0 },
+  { name: "mazeArch", build: buildMazeArchGeometry, variant: 0 },
   { name: "ruinedHouse", build: buildRuinedHouseGeometry, variant: 0 },
+  { name: "bridge", build: buildBridgeGeometry, variant: 0 },
   { name: "ruinPillar", build: buildRuinPillarGeometry, variant: 0 },
   { name: "ruinPillarB", build: buildRuinPillarGeometry, variant: 1 },
   { name: "ruinPillarC", build: buildRuinPillarGeometry, variant: 2 },
@@ -251,6 +258,18 @@ export class MeshForge {
     return buildScattergun(this.materials);
   }
 
+  createRivetRifle(): Object3D {
+    return buildRivetRifle(this.materials);
+  }
+
+  createSteamFlamer(): Object3D {
+    return buildSteamFlamer(this.materials);
+  }
+
+  createMagneticLauncher(): Object3D {
+    return buildMagneticLauncher(this.materials);
+  }
+
   createSkeletonAxe(): Object3D {
     return buildSkeletonAxe(this.materials);
   }
@@ -285,11 +304,14 @@ export class MeshForge {
 
   /** `kind` accepts the PickupKind union plus "scrapLarge" and "fuelBarrel". */
   createPickup(kind: string, large: boolean): Group {
-    if (kind === "cylinder") return buildCylinder(this.materials);
+    if (kind === "cylinder" || kind === "pressureCanister") return buildCylinder(this.materials);
     if (kind === "fuel" || kind === "fuelBarrel") {
       return large || kind === "fuelBarrel" ? buildFuelBarrel(this.materials) : buildJerrycan(this.materials);
     }
-    return buildScrapPile(this.materials, large || kind === "scrapLarge");
+    return buildScrapPile(
+      this.materials,
+      large || kind === "scrapLarge" || kind === "armorPlate" || kind === "shockMine",
+    );
   }
 
   // -------------------------------------------------------------------------

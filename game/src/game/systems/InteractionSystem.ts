@@ -1,5 +1,5 @@
 import { clamp, distSq } from "../../core/math.ts";
-import type { ContextualActionKind, Structure } from "../../core/types.ts";
+import type { ContextualActionKind, PickupKind, Structure } from "../../core/types.ts";
 import type { InputSnapshot } from "../../input/InputActions.ts";
 import { ECONOMY, PICKUPS, PLAYER, PRESSURE, STRUCTURES } from "../../data/balance.ts";
 import { getBlueprint, getStructureConfig } from "../../data/structures.ts";
@@ -80,7 +80,7 @@ export class InteractionSystem {
           break;
 
         case "folding":
-          if (structure.stateTimer <= 0) this.completeFold(world, structure);
+          if (structure.stateTimer <= 0) this.completeFold(world, structure, false);
           break;
 
         default:
@@ -514,18 +514,20 @@ export class InteractionSystem {
     if (world.player.carry.kind !== "none") return;
     structure.state = "folding";
     structure.stateTimer = 0;
-    this.completeFold(world, structure);
+    this.completeFold(world, structure, false);
   }
 
-  private completeFold(world: GameWorld, structure: Structure): void {
+  private completeFold(world: GameWorld, structure: Structure, bankImmediately: boolean): void {
     const awardRecoveryXp = !structure.recoveryXpGranted;
-    world.player.carry = {
-      kind: "structure",
-      structureType: structure.kind,
-      health: structure.health / structure.maxHealth,
-      buffer: structure.buffer,
-      recoveryXpGranted: true,
-    };
+    if (!bankImmediately) {
+      world.player.carry = {
+        kind: "structure",
+        structureType: structure.kind,
+        health: structure.health / structure.maxHealth,
+        buffer: structure.buffer,
+        recoveryXpGranted: true,
+      };
+    }
     world.stats.structuresRecovered++;
     world.events.emit({
       type: "structure.folded",
@@ -542,6 +544,10 @@ export class InteractionSystem {
       const condition = structure.health / Math.max(1, structure.maxHealth);
       const score = Math.round(blueprint.cost * 5 * (0.5 + condition * 0.5) + structure.buffer * 2);
       world.salvageScore += score;
+      // Salvage Rush banks recovered machinery immediately at the Spider's
+      // abstract rack. Filling the engineer's hands after one pickup made the
+      // collection mode ask for an install/drop action between every item.
+      if (bankImmediately) world.player.carry = { kind: "none" };
       world.events.emit({
         type: "ui.toast",
         message: `Salvaged ${blueprint.name} · +${score}`,
@@ -574,7 +580,7 @@ export class InteractionSystem {
 
     if (this.availableAction === "collect" && this.availableTargetId >= 0) {
       const structure = world.findStructure(this.availableTargetId);
-      if (structure?.state === "dropped") this.completeFold(world, structure);
+      if (structure?.state === "dropped") this.completeFold(world, structure, world.mode === "salvageRush");
       return;
     }
 
@@ -752,13 +758,30 @@ export class InteractionSystem {
       world.resources.fuel += amount;
       world.stats.fuelCollected += amount;
       world.progress.xp += 0.35;
-    } else {
+    } else if (pickup.kind === "cylinder" || pickup.kind === "pressureCanister") {
       world.cylindersReady++;
+    } else if (pickup.kind === "repairKit") {
+      world.fieldItems.repairKits++;
+      world.events.emit({ type: "ui.toast", message: "Repair kit stored · R1 to use", tone: "success", duration: 2.2 });
+    } else if (pickup.kind === "shockMine") {
+      world.fieldItems.shockMines++;
+      world.events.emit({ type: "ui.toast", message: "Shock mine stored · R1 to deploy", tone: "success", duration: 2.2 });
+    } else if (pickup.kind === "armorPlate") {
+      world.fieldItems.armorPlates++;
+      world.events.emit({ type: "ui.toast", message: "Armor plate recovered · bank it at the Spider", tone: "success", duration: 2.5 });
+    } else if (pickup.kind === "weaponPart") {
+      world.fieldItems.weaponParts++;
+      if (world.fieldItems.weaponParts % 3 === 0) {
+        world.modifiers.playerDamage *= 1.08;
+        world.events.emit({ type: "ui.toast", message: "Weapon rebuilt · +8% damage", tone: "success", duration: 2.5 });
+      } else {
+        world.events.emit({ type: "ui.toast", message: `Weapon part ${world.fieldItems.weaponParts % 3}/3`, tone: "info", duration: 1.6 });
+      }
     }
 
     world.events.emit({
       type: "pickup.collected",
-      kind: pickup.kind === "cylinder" ? "scrap" : pickup.kind,
+      kind: pickup.kind === "fuel" ? "fuel" : "scrap",
       amount,
       x: pickup.x,
       z: pickup.z,
@@ -771,7 +794,7 @@ export class InteractionSystem {
   /** Spawns a pickup at a world position. Returns false when the pool is full. */
   spawnPickup(
     world: GameWorld,
-    kind: "scrap" | "fuel" | "cylinder",
+    kind: PickupKind,
     x: number,
     z: number,
     amount: number,

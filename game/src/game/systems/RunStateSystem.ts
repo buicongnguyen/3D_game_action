@@ -21,6 +21,8 @@ export class RunStateSystem {
   pendingModules: string[] = [];
   /** Segment ids offered at the current fork. */
   pendingRoutes: string[] = [];
+  /** Finale preparation cannot depart until the player chooses a compact kit. */
+  pendingLoadout = false;
 
   /** Seconds left on the current checkpoint's departure timer. */
   checkpointTimer = 0;
@@ -127,6 +129,12 @@ export class RunStateSystem {
     this.checkpointTimer = checkpoint.duration;
     this.pendingModules = [...checkpoint.moduleOffer];
     this.pendingRoutes = [...checkpoint.nextSegments];
+    this.pendingLoadout = destination === "checkpoint.gate";
+
+    // These are authored campaign rewards, independent of combat XP luck.
+    if (destination === "checkpoint.foundry" || destination === "checkpoint.gate") {
+      world.progress.pendingLevelUps++;
+    }
 
     world.setPhase("CHECKPOINT_PREP");
     world.events.emit({
@@ -143,7 +151,7 @@ export class RunStateSystem {
     this.syncTrailState(world);
 
     this.checkpointTimer -= dt;
-    if (this.checkpointTimer <= 0 && this.pendingRoutes.length <= 1) {
+    if (this.checkpointTimer <= 0 && this.pendingRoutes.length <= 1 && !this.pendingLoadout) {
       this.departCheckpoint(world);
     }
   }
@@ -167,6 +175,7 @@ export class RunStateSystem {
     world.spider.prevDistanceAlongRoute = 0;
     this.pendingRoutes = [];
     this.pendingModules = [];
+    this.pendingLoadout = false;
     this.checkpointTimer = 0;
 
     const segment = world.route.segment;
@@ -175,7 +184,15 @@ export class RunStateSystem {
   }
 
   private beginObjective(world: GameWorld): void {
-    const definition = world.route.segment?.objective;
+    const definition =
+      world.mode === "salvageRush"
+        ? {
+            kind: "recover" as const,
+            label: "Bank 4 field machines at the Spider",
+            target: 4,
+            reward: { kind: "scrap" as const, amount: 24 },
+          }
+        : world.route.segment?.objective;
     if (!definition) {
       this.objective = null;
       return;
@@ -186,6 +203,8 @@ export class RunStateSystem {
         ? world.stats.structuresRecovered
         : definition.kind === "salvage"
           ? world.stats.scrapCollected
+          : definition.kind === "nests"
+            ? world.stats.nestsDestroyed
           : 0;
   }
 
@@ -199,6 +218,9 @@ export class RunStateSystem {
         break;
       case "salvage":
         objective.progress = world.stats.scrapCollected - this.objectiveBaseline;
+        break;
+      case "nests":
+        objective.progress = world.stats.nestsDestroyed - this.objectiveBaseline;
         break;
       case "pressure": {
         let powered = 0;

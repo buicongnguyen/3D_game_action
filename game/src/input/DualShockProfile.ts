@@ -44,7 +44,7 @@ export const DUALSHOCK4_PROFILE: GamepadProfile = {
     12: null, // PS
     13: null, // Touchpad click
     14: "overdrive", // D-pad up
-    15: "menuDown", // D-pad down
+    15: "weaponNext", // D-pad down
     16: "blueprintPrev", // D-pad left
     17: "blueprintNext", // D-pad right
   },

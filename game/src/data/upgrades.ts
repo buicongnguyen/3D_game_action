@@ -15,24 +15,26 @@ export interface SliceUpgrade extends UpgradeDefinition {
 export const UPGRADES: Record<string, SliceUpgrade> = {
   "weapon.choke": {
     id: "weapon.choke",
-    name: "Choke Barrel",
-    description: "+30% personal weapon damage, but the spread tightens to a narrow cone.",
+    name: "Armor-Punch Chamber",
+    description: "+12% weapon damage; Rivet Rifle rounds pierce one additional target.",
     category: "weapon",
     maxStacks: 2,
     weight: 10,
     apply: (m) => {
-      m.playerDamage *= 1.3;
+      m.playerDamage *= 1.12;
+      m.riflePierceBonus += 1;
     },
   },
   "weapon.autoloader": {
     id: "weapon.autoloader",
     name: "Autoloader",
-    description: "+25% personal fire rate.",
+    description: "+15% fire rate; Steam Flamer builds 22% less heat.",
     category: "weapon",
     maxStacks: 2,
     weight: 10,
     apply: (m) => {
-      m.playerFireRate *= 1.25;
+      m.playerFireRate *= 1.15;
+      m.flamerHeatMultiplier *= 0.78;
     },
   },
   "tool.hydraulics": {

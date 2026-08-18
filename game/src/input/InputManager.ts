@@ -50,6 +50,7 @@ const MENU_ALIASES: readonly (readonly [InputAction, MenuAction])[] = [
   ["buildRadial", "menuTabPrev"],
   ["tool", "menuTabNext"],
   ["overdrive", "menuUp"],
+  ["weaponNext", "menuDown"],
   ["blueprintPrev", "menuLeft"],
   ["blueprintNext", "menuRight"],
 ];
