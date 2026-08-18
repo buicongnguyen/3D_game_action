@@ -535,6 +535,59 @@ body {
   color: var(--hud-text);
 }
 
+.hud__objective {
+  display: none;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--gap);
+  margin-top: calc(var(--gap) * 0.45);
+  padding-top: calc(var(--gap) * 0.45);
+  border-top: 1px solid var(--hud-line);
+}
+
+.hud__objective.is-on {
+  display: flex;
+}
+
+.hud__objective-label {
+  max-width: 15rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--hud-dim);
+  font-size: var(--fs-tiny);
+}
+
+.hud__objective-value {
+  flex: none;
+  color: var(--hud-brass);
+  font-family: var(--font-num);
+  font-size: var(--fs-tiny);
+}
+
+.hud__objective.is-complete .hud__objective-value {
+  color: var(--fb-network);
+}
+
+.hud__salvage {
+  display: none;
+  justify-content: space-between;
+  gap: var(--gap);
+  margin-top: calc(var(--gap) * 0.45);
+  color: var(--fb-warning);
+  font-family: var(--font-num);
+  font-size: var(--fs-small);
+  letter-spacing: 0.08em;
+}
+
+.hud__salvage.is-on {
+  display: flex;
+}
+
+.hud__salvage-score {
+  color: var(--hud-brass);
+}
+
 /* Resources */
 .hud__res-row {
   display: flex;
@@ -592,7 +645,11 @@ body {
 
 .bp {
   position: relative;
-  width: clamp(58px, 6.4vw, 92px);
+  /* Wide enough for the longest blueprint name at the smallest type size.
+     "BARRICADE" at the 11px floor with its tracking wants about 88px; at
+     6.4vw the chip was 82px on a 1280-wide window and clipped it to
+     "BARRIC...", which is not a word a player can act on. */
+  width: clamp(72px, 6.8vw, 96px);
   padding: calc(var(--pad) * 0.6) calc(var(--pad) * 0.5) calc(var(--pad) * 0.5);
   background: var(--hud-panel);
   box-shadow: inset 0 0 0 1px var(--hud-edge);

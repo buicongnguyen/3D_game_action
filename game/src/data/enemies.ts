@@ -24,6 +24,7 @@ export const ENEMY_ARCHETYPES: Record<string, EnemyArchetype> = {
     scale: 0.94,
     rig: "medium",
     structurePreference: 0.55,
+    targetRole: "hunter",
     knockbackResistance: 0,
   },
   warrior: {
@@ -45,6 +46,7 @@ export const ENEMY_ARCHETYPES: Record<string, EnemyArchetype> = {
     rig: "medium",
     // Warriors are the structure-breakers; they bias hard toward buildings.
     structurePreference: 1.5,
+    targetRole: "saboteur",
     knockbackResistance: 0.45,
   },
   golem: {
@@ -66,6 +68,7 @@ export const ENEMY_ARCHETYPES: Record<string, EnemyArchetype> = {
     rig: "large",
     // The golem is the spider-killer; it walks past everything for the core.
     structurePreference: 0.25,
+    targetRole: "breaker",
     knockbackResistance: 0.92,
   },
   necromancer: {
@@ -86,6 +89,7 @@ export const ENEMY_ARCHETYPES: Record<string, EnemyArchetype> = {
     scale: 1.04,
     rig: "medium",
     structurePreference: 0.4,
+    targetRole: "support",
     knockbackResistance: 0.2,
   },
 };

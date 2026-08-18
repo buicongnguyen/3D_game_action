@@ -202,6 +202,7 @@ export class InputManager {
 
     this.snap.lastDevice = this.lastDeviceValue;
     this.snap.gamepadConnected = this.connectedValue;
+    this.snap.blueprintSlot = this.keyboard.blueprintSlot;
     this.snap.frame++;
   }
 
@@ -491,6 +492,22 @@ export class InputManager {
     if (-right > raw[MENU_LEFT]) raw[MENU_LEFT] = -right;
   }
 
+  /**
+   * Clears the latched press/release edges, marking them consumed.
+   *
+   * Called once per fixed step by `Game.fixedUpdate`, whatever path that step
+   * takes, so an edge survives exactly until one step has had the chance to
+   * read it and never reaches a second. `held` and the analog values are
+   * levels rather than edges and are deliberately untouched.
+   */
+  endStep(): void {
+    const states = this.states;
+    for (let i = 0; i < ACTION_COUNT; i++) {
+      states[i].pressed = false;
+      states[i].released = false;
+    }
+  }
+
   private resolveButtons(dt: number): void {
     const raw = this.raw;
     const states = this.states;
@@ -506,8 +523,19 @@ export class InputManager {
           ? TRIGGER_PRESS_THRESHOLD
           : DIGITAL_THRESHOLD;
       const down = value >= threshold;
-      state.pressed = down && !wasDown;
-      state.released = !down && wasDown;
+      // Edges are latched, not overwritten, and cleared by `endStep` when a
+      // fixed step has actually read them.
+      //
+      // Polling happens once per rendered frame and the simulation consumes
+      // input once per fixed step, and those two rates are not the same. A
+      // frame that runs no step - 50% of frames at 120 Hz, 58% at 144 Hz -
+      // used to have its edge erased by the next poll before any system saw
+      // it, silently swallowing half of every confirm, dodge, pause and
+      // overdrive press on a high-refresh display. A frame that runs two
+      // steps replayed the same edge twice, so pause opened and closed inside
+      // one frame and overdrive toggled straight back off.
+      state.pressed = state.pressed || (down && !wasDown);
+      state.released = state.released || (!down && wasDown);
       state.held = down;
       state.heldFor = down ? (wasDown ? state.heldFor + dt : 0) : 0;
       state.value = this.analogAction[i] ? value : down ? 1 : 0;

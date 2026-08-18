@@ -74,6 +74,8 @@ export interface InputSnapshot {
   /** Drives which glyph set the HUD shows. */
   lastDevice: InputDevice;
   gamepadConnected: boolean;
+  /** Direct number-row blueprint selection, or -1 when none is held. */
+  blueprintSlot: number;
   /** Monotonic counter, for detecting a stale snapshot in tests. */
   frame: number;
 }
@@ -105,6 +107,7 @@ export function createEmptySnapshot(): InputSnapshot {
     buttons,
     lastDevice: "none",
     gamepadConnected: false,
+    blueprintSlot: -1,
     frame: 0,
   };
 }

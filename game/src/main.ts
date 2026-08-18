@@ -19,6 +19,7 @@ if (!canvas || !uiRoot) {
 const params = new URLSearchParams(window.location.search);
 const seedParam = params.get("seed");
 const seed = seedParam ? seedFromString(seedParam) : undefined;
+const mode = params.get("mode") === "salvage" ? "salvageRush" : "expedition";
 
 const boot = document.createElement("div");
 boot.className = "boot-screen";
@@ -49,7 +50,7 @@ function showBootError(message: string): void {
 }
 
 const isCapture = params.has("capture");
-const game = new Game(canvas, uiRoot, seed, { preserveDrawingBuffer: isCapture });
+const game = new Game(canvas, uiRoot, seed, { preserveDrawingBuffer: isCapture, mode });
 // Display what the player actually typed, not the 32-bit canonical form.
 game.setSeedLabel(seedParam);
 
@@ -155,10 +156,11 @@ window.addEventListener("keydown", (event) => {
   }
 });
 
-// A hidden tab must not accumulate simulation time or burn GPU.
+// A hidden tab must not accumulate simulation time or burn GPU. Coming back
+// resumes the loop and nothing else - `start()` would begin the run over.
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) game.stop();
-  else if (!document.querySelector(".boot-screen")) game.start();
+  else if (!document.querySelector(".boot-screen")) game.resume();
 });
 
 void main();

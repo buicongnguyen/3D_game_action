@@ -2,6 +2,7 @@ import { GameLoop } from "./GameLoop.ts";
 import { GameWorld } from "../game/GameWorld.ts";
 import { InputManager } from "../input/InputManager.ts";
 import type { InputSnapshot } from "../input/InputActions.ts";
+import type { RunMode } from "./types.ts";
 import { PlayerMovementSystem } from "../game/systems/PlayerMovementSystem.ts";
 import { SpiderMovementSystem } from "../game/systems/SpiderMovementSystem.ts";
 import { ConstructionSystem } from "../game/systems/ConstructionSystem.ts";
@@ -42,7 +43,7 @@ import { createSeed, formatSeed, seedToString } from "./Random.ts";
 import { getBlueprint } from "../data/structures.ts";
 import { getModule } from "../data/modules.ts";
 import { getUpgrade } from "../data/upgrades.ts";
-import { PERFORMANCE, PLAYER, SIM, SPIDER, TRAIL } from "../data/balance.ts";
+import { PERFORMANCE, PLAYER, SALVAGE_RUSH, SIM, SPIDER, TRAIL } from "../data/balance.ts";
 
 /** Card glyph per upgrade category, so the three offers read apart at a glance. */
 const UPGRADE_GLYPHS: Record<string, string> = {
@@ -90,9 +91,9 @@ export class Game {
   private readonly hudBridge: HudBridge;
   private readonly audioBridge: AudioBridge;
 
-  private readonly playerMovement = new PlayerMovementSystem();
-  private readonly spiderMovement = new SpiderMovementSystem();
   private readonly construction = new ConstructionSystem();
+  private readonly playerMovement = new PlayerMovementSystem(this.construction);
+  private readonly spiderMovement = new SpiderMovementSystem();
   private readonly interaction: InteractionSystem;
   private readonly pressure = new PressureNetworkSystem();
   private readonly runState = new RunStateSystem();
@@ -107,15 +108,17 @@ export class Game {
   /** Set while a modal owns input; the simulation is fully paused. */
   private modalOpen = false;
   private booted = false;
+  /** A recentre asked for during a fixed step, awaiting the next render. */
+  private recenterRequested = false;
 
   constructor(
     canvas: HTMLCanvasElement,
     uiRoot: HTMLElement,
     seed?: number,
-    options: { preserveDrawingBuffer?: boolean } = {},
+    options: { preserveDrawingBuffer?: boolean; mode?: RunMode } = {},
   ) {
     const runSeed = seed ?? createSeed();
-    this.world = new GameWorld(runSeed);
+    this.world = new GameWorld(runSeed, options.mode ?? "expedition");
 
     this.interaction = new InteractionSystem(this.construction);
     this.damage = new DamageSystem(this.interaction);
@@ -254,6 +257,22 @@ export class Game {
   }
 
   /**
+   * Restarts the render loop without touching the run.
+   *
+   * This exists because `start()` does not: it calls `beginRun()`, which
+   * re-enters the first segment, teleports the spider and the engineer back to
+   * the start, respawns the segment's pickups and hides any open screen while
+   * leaving `modalOpen` set. The hidden-tab handler called `start()` on the way
+   * back in, so alt-tabbing away and returning silently threw the run away
+   * mid-march - and if a modal had been open when the tab was hidden, the run
+   * came back with the screen gone and input still swallowed by it.
+   */
+  resume(): void {
+    if (!this.booted) throw new Error("Game.resume() called before boot() completed");
+    this.loop.start();
+  }
+
+  /**
    * Sets a run up without starting the render loop. Visual-QA captures drive
    * `advance()` themselves so the scene is a function of the scenario rather
    * than of how long the screenshot tool took to attach.
@@ -326,11 +345,18 @@ export class Game {
   private beginRun(): void {
     const world = this.world;
     world.route.start();
-    this.runState.departCheckpoint(world, "seg.approach");
+    const openingSegment = world.mode === "salvageRush" ? "seg.scrapyard" : "seg.approach";
+    this.runState.departCheckpoint(world, openingSegment);
     world.spider.docked = false;
+    if (world.mode === "salvageRush") {
+      world.salvageTimeRemaining = SALVAGE_RUSH.duration;
+      world.salvageScore = 0;
+      world.trail = TRAIL.thresholds.PROBING;
+    }
 
     this.view.buildSegment(world);
     this.spawnSegmentResources();
+    if (world.mode === "salvageRush") this.spawnSalvageMachines();
 
     world.player.x = world.spider.x + 2;
     world.player.z = world.spider.z + 6;
@@ -348,13 +374,47 @@ export class Game {
     const placements = world.route.generateResources(world.random);
     for (let i = 0; i < placements.length; i++) {
       const placement = placements[i];
-      this.interaction.spawnPickup(
+      const kind = placement.kind === "fuel" ? "fuel" : "scrap";
+      const copies = world.mode === "salvageRush" ? SALVAGE_RUSH.resourcePocketMultiplier : 1;
+      for (let copy = 0; copy < copies; copy++) {
+        const offset = copy === 0 ? 0 : (copy % 2 === 0 ? -1 : 1) * (1 + copy * 0.55);
+        this.interaction.spawnPickup(
+          world,
+          kind,
+          placement.x + offset,
+          placement.z - offset * 0.4,
+          placement.amount,
+          0,
+          0,
+        );
+      }
+    }
+  }
+
+  private spawnSalvageMachines(): void {
+    const world = this.world;
+    const spline = world.route.spline;
+    if (!spline) return;
+    const point = { x: 0, z: 0 };
+    const tangent = { x: 0, z: 1 };
+    for (let i = 0; i < SALVAGE_RUSH.salvageMachines; i++) {
+      const distance = 16 + i * 10.5;
+      spline.positionAt(point, distance);
+      spline.tangentAt(tangent, distance);
+      const side = i % 2 === 0 ? -1 : 1;
+      const offset = 5.5 + (i % 3) * 1.2;
+      this.construction.dropCarriedStructure(
         world,
-        placement.kind === "fuel" ? "fuel" : "scrap",
-        placement.x,
-        placement.z,
-        placement.amount,
-        0,
+        {
+          kind: "structure",
+          structureType: i % 3 === 0 ? "relay" : "rivetTurret",
+          health: 0.45 + (i % 4) * 0.13,
+          buffer: 5 + (i % 3) * 5,
+          recoveryXpGranted: false,
+        },
+        point.x - tangent.z * offset * side,
+        point.z + tangent.x * offset * side,
+        Math.atan2(tangent.x, tangent.z) + Math.PI,
       );
     }
   }
@@ -404,8 +464,38 @@ export class Game {
    * rather than hidden behind a system registry.
    */
   private fixedUpdate(dt: number): void {
+    // `finally`, because every early return below is still a step that had its
+    // chance to read the input. Leaving the edge latched on those paths would
+    // hand the same press to the next step: the one that closes a modal would
+    // then be read again as gameplay, firing a dodge or a manual Last Shot on
+    // the way out of a menu.
+    try {
+      this.stepSimulation(dt);
+    } finally {
+      this.input.endStep();
+    }
+  }
+
+  private stepSimulation(dt: number): void {
     const world = this.world;
     const input = this.input.snapshot();
+
+    if (
+      this.screens.controllerDisconnected &&
+      input.lastDevice === "keyboard" &&
+      Object.values(input.buttons).some((button) => button.pressed)
+    ) {
+      this.screens.setControllerDisconnected(false);
+      world.paused = this.modalOpen;
+      this.loop.resetAccumulator();
+      return;
+    }
+
+    // Latched here and consumed by the next render. The camera runs during
+    // render, after this step has spent the frame's input edges, so it cannot
+    // read the button itself. Captured before the early returns below so a
+    // recentre asked for while a modal is closing is not swallowed with it.
+    if (input.buttons.recenter.pressed) this.recenterRequested = true;
 
     if (this.handleGlobalInput(input)) return;
     if (this.modalOpen || world.paused) return;
@@ -501,10 +591,17 @@ export class Game {
       }
     }
 
-    if (world.phase === "CHECKPOINT_PREP" && this.runState.pendingRoutes.length > 1) {
-      if (this.runState.checkpointTimer <= 0 && !this.modalOpen) {
-        this.openModal("route");
-      }
+    if (world.phase !== "CHECKPOINT_PREP" || this.modalOpen) return;
+
+    // Checkpoints are decision beats, not thirty-second idle screens. Present
+    // salvage first, then the route choice on the next simulation tick.
+    if (this.runState.pendingModules.length > 0) {
+      this.openModal("module");
+      return;
+    }
+
+    if (this.runState.pendingRoutes.length > 1) {
+      this.openModal("route");
     }
   }
 
@@ -567,10 +664,14 @@ export class Game {
 
       case "pause":
         this.screens.show("pause", {
-          subtitle: `Seed ${formatSeed(this.world.stats.seed, this.seedLabel)}`,
+          subtitle: `${this.world.mode === "salvageRush" ? "Salvage Rush" : "Expedition"} · Seed ${formatSeed(this.world.stats.seed, this.seedLabel)}`,
           options: [
             { id: "resume", label: "Resume the march" },
             { id: "settings", label: "Settings" },
+            {
+              id: this.world.mode === "salvageRush" ? "mode.expedition" : "mode.salvageRush",
+              label: this.world.mode === "salvageRush" ? "Start Expedition" : "Start Salvage Rush",
+            },
             { id: "restart", label: "Restart the run" },
           ],
           hints: [
@@ -631,12 +732,17 @@ export class Game {
           moduleId: value,
           slot: world.spider.installedModules.length - 1,
         });
+        // A checkpoint offer is single-use. Clearing it lets the next tick
+        // advance to the route decision instead of reopening this modal.
+        this.runState.pendingModules = [];
         this.closeModal();
         break;
       }
       case "pause": {
         if (value === "resume") this.closeModal();
         else if (value === "restart") this.restart();
+        else if (value === "mode.expedition") this.switchMode("expedition");
+        else if (value === "mode.salvageRush") this.switchMode("salvageRush");
         else if (value === "settings") {
           // Pushed, not shown: `back()` then returns to pause rather than
           // dropping the player straight back into a march they paused.
@@ -698,9 +804,15 @@ export class Game {
 
     const stats = this.world.stats;
     const totalDamage = Math.max(1, stats.damageByPlayer + stats.damageByStructures);
+    const salvage = this.world.mode === "salvageRush";
     this.screens.show(outcome, {
+      title: salvage
+        ? outcome === "victory" ? "Shift complete" : "Salvage lost"
+        : undefined,
       subtitle:
-        outcome === "victory"
+        salvage && outcome === "victory"
+          ? `Recovered value: ${this.world.salvageScore}`
+          : outcome === "victory"
           ? "The spider crossed the gate."
           : "The core went cold on the road.",
       options: [{ id: "restart", label: "March again" }],
@@ -716,6 +828,8 @@ export class Game {
         { label: "Recovered", value: `${stats.structuresRecovered}` },
         { label: "Abandoned", value: `${stats.structuresAbandoned}` },
         { label: "Last Shots", value: `${stats.lastShotsTriggered}` },
+        { label: "Objectives", value: `${stats.objectivesCompleted}` },
+        ...(salvage ? [{ label: "Salvage score", value: `${this.world.salvageScore}` }] : []),
         { label: "Peak Trail", value: stats.peakTrail.toFixed(0) },
         { label: "Seed", value: formatSeed(stats.seed, this.seedLabel) },
       ],
@@ -730,6 +844,13 @@ export class Game {
     window.location.reload();
   }
 
+  private switchMode(mode: RunMode): void {
+    const url = new URL(window.location.href);
+    if (mode === "expedition") url.searchParams.delete("mode");
+    else url.searchParams.set("mode", "salvage");
+    window.location.assign(url.toString());
+  }
+
   // -------------------------------------------------------------------------
   // Render
   // -------------------------------------------------------------------------
@@ -737,7 +858,8 @@ export class Game {
   private render(alpha: number, dt: number): void {
     const world = this.world;
 
-    this.camera.update(world, dt, this.input.snapshot());
+    this.camera.update(world, dt, this.recenterRequested);
+    this.recenterRequested = false;
     // Movement and the placement ghost are camera-relative, so the simulation
     // is handed the camera basis here, one frame behind. At 60 Hz with a damped
     // camera that lag is imperceptible and it keeps three.js out of the sim.

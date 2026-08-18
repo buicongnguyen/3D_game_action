@@ -1,6 +1,6 @@
 import { clamp } from "../../core/math.ts";
-import type { TrailState } from "../../core/types.ts";
-import { DIRECTOR, TRAIL, XP } from "../../data/balance.ts";
+import type { RouteObjectiveDefinition, TrailState } from "../../core/types.ts";
+import { DIRECTOR, SALVAGE_RUSH, TRAIL, XP } from "../../data/balance.ts";
 import { getCheckpoint } from "../../data/routes.ts";
 import { rollUpgradeOffers } from "../../data/upgrades.ts";
 import type { GameWorld } from "../GameWorld.ts";
@@ -24,11 +24,29 @@ export class RunStateSystem {
 
   /** Seconds left on the current checkpoint's departure timer. */
   checkpointTimer = 0;
+  objective: {
+    definition: RouteObjectiveDefinition;
+    progress: number;
+    complete: boolean;
+  } | null = null;
+  private objectiveBaseline = 0;
 
   update(world: GameWorld, dt: number): void {
     world.phaseTime += dt;
     world.elapsed += dt;
     world.stats.elapsedSeconds = world.elapsed;
+
+    if (
+      world.mode === "salvageRush" &&
+      (world.phase === "MARCH" || world.phase === "FINAL_ESCAPE")
+    ) {
+      world.salvageTimeRemaining = Math.max(0, world.salvageTimeRemaining - dt);
+      if (world.salvageTimeRemaining <= 0) {
+        world.setPhase("VICTORY");
+        world.events.emit({ type: "run.ended", outcome: "victory", reason: "salvage.shift" });
+        return;
+      }
+    }
 
     switch (world.phase) {
       case "CHECKPOINT_PREP":
@@ -50,7 +68,9 @@ export class RunStateSystem {
   // -------------------------------------------------------------------------
 
   private updateTrail(world: GameWorld, dt: number): void {
-    const rate = TRAIL.passivePerSecond + world.modifiers.extraTrailPerSecond;
+    const modeScale = world.mode === "salvageRush" ? SALVAGE_RUSH.trailRateMultiplier : 1;
+    const rate =
+      (TRAIL.passivePerSecond + world.modifiers.extraTrailPerSecond) * modeScale;
     world.trail = clamp(world.trail + rate * dt, 0, TRAIL.max);
 
     if (world.trail > world.stats.peakTrail) world.stats.peakTrail = world.trail;
@@ -81,6 +101,8 @@ export class RunStateSystem {
       world.trail = TRAIL.max;
     }
 
+    this.updateObjective(world, dt);
+
     if (route.isSegmentComplete(world.spider.distanceAlongRoute)) {
       this.arriveAtCheckpoint(world);
     }
@@ -99,7 +121,7 @@ export class RunStateSystem {
     world.spider.docked = true;
     world.spider.speedMode = "march";
     world.trail = Math.min(world.trail, TRAIL.checkpointReset);
-    world.trailState = resolveTrailState(world.trail);
+    this.syncTrailState(world);
     world.pursuitTime = 0;
 
     this.checkpointTimer = checkpoint.duration;
@@ -118,12 +140,20 @@ export class RunStateSystem {
     // A safe stop is quiet: the Trail bleeds off, which is the reward for
     // arriving with something left rather than a full reset handed out free.
     world.trail = Math.max(0, world.trail - TRAIL.dockedDecayPerSecond * dt);
-    world.trailState = resolveTrailState(world.trail);
+    this.syncTrailState(world);
 
     this.checkpointTimer -= dt;
     if (this.checkpointTimer <= 0 && this.pendingRoutes.length <= 1) {
       this.departCheckpoint(world);
     }
+  }
+
+  private syncTrailState(world: GameWorld): void {
+    const next = resolveTrailState(world.trail);
+    if (next === world.trailState) return;
+    const from = world.trailState;
+    world.trailState = next;
+    world.events.emit({ type: "trail.stateChanged", from, to: next, trail: world.trail });
   }
 
   /** Leaves the checkpoint on the chosen route. */
@@ -141,6 +171,67 @@ export class RunStateSystem {
 
     const segment = world.route.segment;
     world.setPhase(segment && segment.modifiers.includes("pursuit") ? "FINAL_ESCAPE" : "MARCH");
+    this.beginObjective(world);
+  }
+
+  private beginObjective(world: GameWorld): void {
+    const definition = world.route.segment?.objective;
+    if (!definition) {
+      this.objective = null;
+      return;
+    }
+    this.objective = { definition, progress: 0, complete: false };
+    this.objectiveBaseline =
+      definition.kind === "recover"
+        ? world.stats.structuresRecovered
+        : definition.kind === "salvage"
+          ? world.stats.scrapCollected
+          : 0;
+  }
+
+  private updateObjective(world: GameWorld, dt: number): void {
+    const objective = this.objective;
+    if (!objective || objective.complete) return;
+
+    switch (objective.definition.kind) {
+      case "recover":
+        objective.progress = world.stats.structuresRecovered - this.objectiveBaseline;
+        break;
+      case "salvage":
+        objective.progress = world.stats.scrapCollected - this.objectiveBaseline;
+        break;
+      case "pressure": {
+        let powered = 0;
+        for (let i = 0; i < world.structures.length; i++) {
+          const structure = world.structures[i];
+          if (structure.state === "active" && structure.powered && structure.maxBuffer > 0) {
+            powered++;
+          }
+        }
+        if (powered >= 2) objective.progress += dt;
+        break;
+      }
+      case "pursuit":
+        if (world.trailState === "PURSUIT") objective.progress += dt;
+        break;
+    }
+
+    objective.progress = Math.min(objective.definition.target, objective.progress);
+    if (objective.progress < objective.definition.target) return;
+
+    objective.complete = true;
+    world.stats.objectivesCompleted++;
+    const reward = objective.definition.reward;
+    if (reward.kind === "scrap") world.resources.scrap += reward.amount;
+    else if (reward.kind === "fuel") world.resources.fuel += reward.amount;
+    else world.spider.coreHealth = Math.min(world.spider.maxCoreHealth, world.spider.coreHealth + reward.amount);
+
+    world.events.emit({
+      type: "ui.toast",
+      message: `Objective complete · +${reward.amount} ${reward.kind}`,
+      tone: "success",
+      duration: 4,
+    });
   }
 
   // -------------------------------------------------------------------------

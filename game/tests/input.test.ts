@@ -137,31 +137,88 @@ describe("response curve", () => {
 });
 
 describe("button edges", () => {
-  it("fires pressed on exactly one frame", () => {
+  it("fires pressed exactly once, on the step that consumes it", () => {
     const reading = makeReading();
     const manager = bootManager(reading);
     manager.poll(STEP);
     expect(manager.snapshot().buttons.confirm.pressed).toBe(false);
+    manager.endStep();
 
     setButton(reading, 0, 1);
     manager.poll(STEP);
     expect(manager.snapshot().buttons.confirm.pressed).toBe(true);
     expect(manager.snapshot().buttons.confirm.held).toBe(true);
+    manager.endStep();
 
     manager.poll(STEP);
     expect(manager.snapshot().buttons.confirm.pressed).toBe(false);
     expect(manager.snapshot().buttons.confirm.held).toBe(true);
   });
 
-  it("fires released on exactly one frame", () => {
+  it("holds a press across frames that run no fixed step", () => {
+    // The edge used to be recomputed on every poll, so a press landing on a
+    // frame whose accumulator never reached a full step was erased by the next
+    // poll before any system read it. At 144 Hz that is 58% of frames, which
+    // silently swallowed half of every confirm, dodge and pause in the game.
+    const reading = makeReading();
+    const manager = bootManager(reading);
+    manager.poll(STEP);
+    manager.endStep();
+
+    setButton(reading, 0, 1);
+    manager.poll(STEP); // the frame the button went down - no step runs
+    manager.poll(STEP); // still no step, button still held
+    manager.poll(STEP);
+
+    expect(manager.snapshot().buttons.confirm.pressed).toBe(true);
+    manager.endStep();
+    expect(manager.snapshot().buttons.confirm.pressed).toBe(false);
+  });
+
+  it("never hands the same press to two steps", () => {
+    // The mirror failure: a frame running two or more steps replayed the edge,
+    // so pause opened and closed within one frame and overdrive toggled off again.
     const reading = makeReading();
     const manager = bootManager(reading);
     setButton(reading, 0, 1);
     manager.poll(STEP);
+
+    expect(manager.snapshot().buttons.confirm.pressed).toBe(true);
+    manager.endStep();
+    expect(manager.snapshot().buttons.confirm.pressed).toBe(false);
+    manager.endStep();
+    expect(manager.snapshot().buttons.confirm.pressed).toBe(false);
+  });
+
+  it("keeps a tap that goes down and up between two steps", () => {
+    // A quick tap can begin and end inside one rendered frame. Both edges have
+    // to survive to the next step or the input is lost entirely.
+    const reading = makeReading();
+    const manager = bootManager(reading);
+    manager.poll(STEP);
+    manager.endStep();
+
+    setButton(reading, 0, 1);
+    manager.poll(STEP);
+    setButton(reading, 0, 0);
+    manager.poll(STEP);
+
+    const state = manager.snapshot().buttons.confirm;
+    expect(state.pressed).toBe(true);
+    expect(state.released).toBe(true);
+  });
+
+  it("fires released exactly once, on the step that consumes it", () => {
+    const reading = makeReading();
+    const manager = bootManager(reading);
+    setButton(reading, 0, 1);
+    manager.poll(STEP);
+    manager.endStep();
     setButton(reading, 0, 0);
     manager.poll(STEP);
     expect(manager.snapshot().buttons.confirm.released).toBe(true);
     expect(manager.snapshot().buttons.confirm.held).toBe(false);
+    manager.endStep();
     manager.poll(STEP);
     expect(manager.snapshot().buttons.confirm.released).toBe(false);
   });
@@ -219,6 +276,8 @@ describe("analog trigger hysteresis", () => {
     manager.poll(STEP);
     expect(manager.snapshot().buttons.focusFire.pressed).toBe(true);
 
+    manager.endStep();
+
     for (const value of [0.36, 0.49, 0.36, 0.49, 0.4]) {
       setButton(reading, 7, value);
       manager.poll(STEP);
@@ -227,6 +286,7 @@ describe("analog trigger hysteresis", () => {
       expect(state.pressed).toBe(false);
       expect(state.released).toBe(false);
       expect(state.value).toBeCloseTo(value, 6);
+      manager.endStep();
     }
 
     setButton(reading, 7, 0.2);

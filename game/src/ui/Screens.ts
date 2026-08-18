@@ -115,7 +115,7 @@ export function routeOption(segment: RouteSegmentDefinition): ScreenOption {
     label: segment.name,
     reward: segment.reward,
     danger: segment.danger,
-    detail: `${Math.round(segment.lengthMeters)} m stretch`,
+    detail: `${Math.round(segment.lengthMeters)} m · ${segment.objective.label}`,
     tag: segment.modifiers.length > 0 ? segment.modifiers.join(" / ") : "standard",
   };
 }

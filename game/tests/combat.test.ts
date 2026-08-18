@@ -85,8 +85,9 @@ function placeStructure(world: GameWorld, kind: StructureKind, x: number, z: num
     turretHeading: 0,
     shotsFired: 0,
     behindSpider: false,
-    idleTime: 0,
-    active: true,
+      idleTime: 0,
+      recoveryXpGranted: false,
+      active: true,
   };
   world.structures.push(structure);
   return structure;

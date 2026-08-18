@@ -8,6 +8,7 @@ import type {
   PlayerState,
   Projectile,
   RunModifiers,
+  RunMode,
   RunPhase,
   RunProgress,
   RunResources,
@@ -61,6 +62,9 @@ export class GameWorld {
   readonly flowField: FlowField;
   readonly enemyHash: SpatialHash;
   readonly route: RouteDirector;
+  readonly mode: RunMode;
+  salvageTimeRemaining = 0;
+  salvageScore = 0;
 
   phase: RunPhase = "BOOT";
   previousPhase: RunPhase = "BOOT";
@@ -92,7 +96,8 @@ export class GameWorld {
   cylindersReady = 0;
   cylinderTimer = 0;
 
-  constructor(seed: number) {
+  constructor(seed: number, mode: RunMode = "expedition") {
+    this.mode = mode;
     this.random = new Random(seed);
     this.directorRandom = this.random.fork(0x51ed);
     this.cosmeticRandom = this.random.fork(0xc05a);
@@ -127,6 +132,7 @@ export class GameWorld {
       aimZ: 0,
       weaponCooldown: 0,
       tetherStrain: 0,
+      tethered: false,
     };
 
     this.spider = {
@@ -186,6 +192,7 @@ export class GameWorld {
       distanceTravelled: 0,
       peakTrail: 0,
       timeInPursuit: 0,
+      objectivesCompleted: 0,
     };
 
     this.enemies = new ObjectPool<Enemy>(

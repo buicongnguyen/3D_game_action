@@ -26,6 +26,7 @@ export type RunPhase =
   | "RUN_SUMMARY";
 
 export type TrailState = "QUIET" | "PROBING" | "SWARM" | "HEAVY" | "PURSUIT";
+export type RunMode = "expedition" | "salvageRush";
 
 export type SpeedMode = "fallback" | "march" | "overdrive";
 
@@ -72,7 +73,14 @@ export type PlayerAnimState =
 export type CarryPayload =
   | { kind: "none" }
   | { kind: "cylinder" }
-  | { kind: "structure"; structureType: StructureKind; health: number; buffer: number };
+  | {
+      kind: "structure";
+      structureType: StructureKind;
+      health: number;
+      buffer: number;
+      /** Persists across reinstall cycles so one machine awards recovery XP once. */
+      recoveryXpGranted: boolean;
+    };
 
 export interface PlayerState {
   x: number;
@@ -108,6 +116,13 @@ export interface PlayerState {
   weaponCooldown: number;
   /** Set by the tether system when the engineer has strayed too far. */
   tetherStrain: number;
+  /**
+   * True while the leash is taut, so `player.tethered` fires on the edge and
+   * not on the level. Emitting it every step the engineer was over the line
+   * meant sixty toasts a second, each one evicting whatever else was on the
+   * stack - a Last Shot warning included.
+   */
+  tethered: boolean;
 }
 
 export type ContextualActionKind =
@@ -170,6 +185,7 @@ export type StructureRuntimeState =
   | "starved"
   | "overloading"
   | "folding"
+  | "dropped"
   | "destroyed";
 
 export interface Structure {
@@ -201,6 +217,8 @@ export interface Structure {
   behindSpider: boolean;
   /** Seconds since the structure last had line of sight to a target. */
   idleTime: number;
+  /** True after this physical machine has paid its one recovery XP award. */
+  recoveryXpGranted: boolean;
   active: boolean;
 }
 
@@ -284,6 +302,8 @@ export interface EnemyArchetype {
   rig: "medium" | "large";
   /** Higher values pull enemy targeting toward structures over the player. */
   structurePreference: number;
+  /** Tactical role used by scoring and the adaptive spawn mix. */
+  targetRole: "hunter" | "saboteur" | "breaker" | "support";
   knockbackResistance: number;
 }
 
@@ -398,6 +418,7 @@ export interface RunStats {
   distanceTravelled: number;
   peakTrail: number;
   timeInPursuit: number;
+  objectivesCompleted: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -425,6 +446,15 @@ export interface ResourceZoneDefinition {
   maxLateral: number;
 }
 
+export type RouteObjectiveKind = "recover" | "pressure" | "salvage" | "pursuit";
+
+export interface RouteObjectiveDefinition {
+  kind: RouteObjectiveKind;
+  label: string;
+  target: number;
+  reward: { kind: "scrap" | "fuel" | "core"; amount: number };
+}
+
 export interface RouteSegmentDefinition {
   id: string;
   name: string;
@@ -441,6 +471,7 @@ export interface RouteSegmentDefinition {
   modifiers: string[];
   rewardTable: string;
   destinationId: string;
+  objective: RouteObjectiveDefinition;
   /** Corridor half-width in metres; drives terrain, nav grid and validation. */
   corridorHalfWidth: number;
 }

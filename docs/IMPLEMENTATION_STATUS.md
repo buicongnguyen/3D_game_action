@@ -337,6 +337,104 @@ recording here because they are about method rather than about this build.
   had checked by any means at all. `tests/animation.test.ts` now pins all three,
   and was confirmed to fail against the old formulation before being kept.
 
+### 2b.14 Half of every button press was being thrown away
+
+- **Evidence.** Input is polled once per rendered frame (`GameLoop.frame` calls
+  `onPoll` once, then runs 0..5 fixed steps), but `state.pressed` was recomputed
+  on every poll and consumed once per fixed *step*. The two rates are not the
+  same, and the gap is not small:
+
+  | Display | Frames running **no** step (press dropped) | Frames running 2+ steps (press replayed) |
+  |---|---:|---:|
+  | 60 Hz | 0% | 0% |
+  | 120 Hz | **50.0%** | 0% |
+  | 144 Hz | **58.4%** | 0% |
+  | 240 Hz | **75.0%** | 0% |
+  | 45 Hz | 0% | 33.3% |
+  | 30 Hz | 0% | **100%** |
+
+  So on any high-refresh display - the normal case for the audience a
+  controller-first game is aimed at - the majority of confirms, dodges, pause
+  presses and overdrive toggles silently did nothing. Below 60 fps the mirror
+  failure applied: the same edge was read twice, so pause opened and closed
+  inside one frame, overdrive toggled straight back off, and a menu confirm
+  leaked through into gameplay as a dodge or a manual Last Shot.
+- **How it hid.** `GameLoop.ts:80` carries a comment stating the exact guarantee
+  the code does not provide - "input is polled once per rendered frame, not once
+  per fixed step, so a frame that runs three steps does not read the same pad
+  state three times". Polling once per frame is necessary for that and is not
+  sufficient. Separately, `tests/integration.test.ts` clears edges after every
+  step in its own harness, with a comment claiming this is what the real
+  `InputManager` guarantees. It was not, and that is precisely why 236 passing
+  tests never saw it. The test suite modelled the fix rather than the code.
+- **Change.** Edges are now latched rather than overwritten
+  (`state.pressed = state.pressed || (down && !wasDown)`), and a new
+  `InputManager.endStep()` clears them. `Game.fixedUpdate` calls it in a
+  `finally`, so every early-return path - global input handled, modal open,
+  run already over - still counts as the step that consumed the press.
+- **Result.** Verified in the live game: on a two-step frame the pause menu now
+  opens and stays open, and overdrive toggles once instead of returning to
+  march. Six input tests were rewritten to assert the real contract (an edge
+  survives until a step consumes it, and never reaches a second step) instead of
+  the old "one poll" property, which was the defect written down as a promise.
+
+### 2b.15 Returning to the tab restarted the run
+
+- **Evidence.** `main.ts` called `game.start()` on `visibilitychange`, and
+  `Game.start()` unconditionally calls `beginRun()` - which re-enters the first
+  segment, teleports the spider and the engineer back to the start, respawns the
+  segment's pickups and hides any open screen while leaving `modalOpen` set. Alt-
+  tabbing away mid-march and returning silently discarded the run, and if a modal
+  had been open the run came back with the screen gone and input still swallowed.
+- **Change.** Added `Game.resume()`, which restarts the render loop and nothing
+  else. The visibility handler calls that.
+
+### 2b.16 A relay recharged itself forever
+
+- **Evidence.** `resolveRelays` set `powered = direct || buffer > 0`, and
+  `updateStructures` recharged anything `powered`. A relay with any buffer left
+  therefore counted as powered, recharged from being powered, and so never
+  drained - a permanent free network node. The comment four lines above the bug
+  states the design rule it broke: chaining is limited to one hop "because
+  unlimited chaining would let a player build a permanent base, which is exactly
+  what this game is not."
+- **Change.** Split "supplied" (fed by the spider, or one hop from a relay the
+  spider itself feeds) from "powered" (still serving, possibly on its own
+  buffer). Only a supplied structure recharges; a relay serving on buffer drains
+  as it always should have. The one-hop pass now sources from a snapshot of the
+  directly-fed set, so a relay the pass adds cannot become a hop source itself.
+
+### 2b.17 Reviewing the fixes, and the one that broke something else
+
+The three changes above were reviewed as their own diff. Two of the three
+findings were defects in that session's own work.
+
+- **The input fix broke camera recentre.** Clearing edges at the end of each
+  fixed step is right for the simulation and wrong for everything else that
+  reads input: `CameraController` reads `recenter.pressed`, and the camera
+  updates during *render*, after the frame's steps have run. The edge was spent
+  before the camera saw it, so R3 did nothing - a fix for dropped inputs that
+  dropped an input. Found by grepping every caller of `snapshot()` instead of
+  assuming the path I had changed was the only one. The camera now takes a
+  resolved boolean latched by the step and consumed by render, which removes its
+  dependence on edge timing altogether. Verified in the live game: the engineer
+  moves from screen (0.564, 0.420) to exactly (0.5, 0.5).
+- **A comment that was wrong about its own tradeoff.** The foot-planting fix
+  claimed residual slip "only under about 0.55 m/s". That was the cadence floor;
+  the amplitude blend also scales the hip, and at the 0.9 threshold I chose, a
+  character crowded to 0.7 m/s skated 23%. Now 0.4, so slip is zero from 0.6 m/s
+  up - above the slowest enemy at 1.1 and the spider's 1.25 march. The test had
+  sampled only speeds at or above 1.0, which is exactly why it passed.
+- **A latent pool bug made easier to hit.** Toasts evicted for capacity were
+  recycled with their timers still armed, so a timer could later fire on a
+  detached node and push it into the pool a second time - one element serving
+  two live toasts. Cancelled on eviction now.
+
+The relay fix also gained the behavioural test the system never had
+(`tests/pressure.test.ts`), confirmed to fail against the old code: the stranded
+relay reads `buffer 45 -> 45, state active` before the fix and `45 -> 0,
+starved` after.
+
 ## 3. Phase gate table (Phases A–E, §5 of fable_implementation_plan.md)
 
 All phases are marked "in progress" at the time this document was first

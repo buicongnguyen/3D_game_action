@@ -1,6 +1,9 @@
 import { Group, Object3D } from "three";
 import { describe, expect, it } from "vitest";
 import {
+  HIP_SWING,
+  LEG_LENGTH,
+  STRIDE_LENGTH,
   animateHumanoid,
   animateImpostor,
   animateSpider,
@@ -120,22 +123,54 @@ describe("gait phase continuity", () => {
     animateHumanoid(rig, state, STEP, 5.5, 5.5, false);
     const jump = Math.abs(angleDelta(before, state.gaitPhase));
 
-    // One frame may advance by at most the fastest cadence times the step.
-    const maxCadence = 4.2 + 1.4 * 5.4;
+    // One frame may advance by at most the cadence at the new speed times the
+    // step. Speed is smoothed, so the very next frame is well under this.
+    const maxCadence = (Math.PI * 2 * 5.5) / STRIDE_LENGTH;
     expect(jump).toBeLessThanOrEqual(maxCadence * STEP + 1e-6);
   });
 
-  it("advances at the cadence the speed implies", () => {
+  it("plants its feet: ground covered per cycle equals the foot arc, at every speed", () => {
+    // This is what "no foot sliding" means, stated as arithmetic. A gait cycle
+    // is two footfalls; each foot's arc on the ground is 2 * leg * sin(hip
+    // swing). If the body travels further than that per cycle the feet skate
+    // forward, and if less they skate back. Measured against the recorded march
+    // take, the previous cadence gave 24% skate at a sprint and 106% at a walk.
+    // The slow end matters as much as the fast: the amplitude blend scales the
+    // hip, and a hip swinging short of what STRIDE_LENGTH assumes puts the slip
+    // straight back. 0.6 is below the slowest enemy (1.1 m/s) and below the
+    // spider's march, so it covers a crowded or steered walker.
+    for (const speed of [0.6, 1.0, 1.1, 2.3, 3.5, 5.5]) {
+      const rig = makeRig();
+      const state = createPuppetState(0.2);
+      for (let i = 0; i < 240; i++) animateHumanoid(rig, state, STEP, speed, 5.5, false);
+
+      const before = state.gaitPhase;
+      animateHumanoid(rig, state, STEP, speed, 5.5, false);
+      const radiansPerStep = angleDelta(before, state.gaitPhase);
+      const secondsPerCycle = (Math.PI * 2) / (radiansPerStep / STEP);
+      const groundPerCycle = speed * secondsPerCycle;
+
+      // The hip must be at full amplitude for a moving character or the arc
+      // the stride length assumes is not the arc being drawn.
+      const hipAmplitude = Math.abs(rig.legL.rotation.x) > 1e-3 ? HIP_SWING : 0;
+      expect(state.locomotion).toBeGreaterThan(0.99);
+      const footArcPerCycle = 2 * 2 * LEG_LENGTH * Math.sin(hipAmplitude);
+
+      expect(groundPerCycle / footArcPerCycle).toBeCloseTo(1, 2);
+    }
+  });
+
+  it("does not stop the legs at a creep", () => {
+    // Below MIN_CADENCE the feet would barely move and the figure would read as
+    // frozen. A small, invisible slip is the deliberate price at these speeds.
     const rig = makeRig();
     const state = createPuppetState(0);
-    // Let the smoothed speed settle so cadence is at its steady value.
-    for (let i = 0; i < 240; i++) animateHumanoid(rig, state, STEP, 5.5, 5.5, false);
-
+    for (let i = 0; i < 240; i++) animateHumanoid(rig, state, STEP, 0.15, 5.5, false);
     const before = state.gaitPhase;
-    animateHumanoid(rig, state, STEP, 5.5, 5.5, false);
-    const advanced = angleDelta(before, state.gaitPhase);
-
-    expect(advanced).toBeCloseTo((4.2 + 1.0 * 5.4) * STEP, 4);
+    animateHumanoid(rig, state, STEP, 0.15, 5.5, false);
+    // At 0.15 m/s the physical cadence would be ~0.33 rad/s; the floor holds
+    // it above 1 rad/s so the legs visibly cycle rather than freeze.
+    expect(angleDelta(before, state.gaitPhase)).toBeGreaterThan(1.0 * STEP);
   });
 
   it("keeps the phase bounded rather than growing without limit", () => {
@@ -209,7 +244,7 @@ describe("impostor gait continuity", () => {
     animateImpostor(state, pose, STEP, 5.5, 5.5, 0);
     const jump = Math.abs(angleDelta(before, state.gaitPhase));
 
-    const maxCadence = 4.2 + 1.4 * 5.4;
+    const maxCadence = (Math.PI * 2 * 5.5) / STRIDE_LENGTH;
     expect(jump).toBeLessThanOrEqual(maxCadence * STEP + 1e-6);
   });
 

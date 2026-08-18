@@ -16,8 +16,12 @@ import type { GameWorld } from "../GameWorld.ts";
  * an abstract charge.
  */
 export class PressureNetworkSystem {
-  /** Relays resolved as powered this tick; reused to avoid allocating. */
+  /** Relays serving this tick, on a source or on their own buffer. */
   private readonly poweredRelays: number[] = [];
+  /** Relays fed by the spider directly - the only legal hop sources. */
+  private readonly directRelays: number[] = [];
+  /** Relays with a real upstream source, and so the only ones that recharge. */
+  private readonly suppliedRelays = new Set<number>();
 
   update(world: GameWorld, dt: number): void {
     const spider = world.spider;
@@ -41,6 +45,8 @@ export class PressureNetworkSystem {
    */
   private resolveRelays(world: GameWorld, serviceRadiusSq: number, producing: boolean): void {
     this.poweredRelays.length = 0;
+    this.directRelays.length = 0;
+    this.suppliedRelays.clear();
     const spider = world.spider;
     const relayRangeSq = STRUCTURES.relay.range * STRUCTURES.relay.range;
 
@@ -53,23 +59,40 @@ export class PressureNetworkSystem {
       }
       const direct =
         producing && distSq(structure.x, structure.z, spider.x, spider.z) <= serviceRadiusSq;
-      // A relay with buffer left keeps serving even once it drops out of the
-      // spider's radius; that grace period is what makes a relay worth carrying.
+      // Two different questions, and conflating them let a relay live forever.
+      //
+      // `supplied` is "something upstream is feeding this": the spider, or one
+      // hop from a relay the spider itself feeds. `powered` is "this is still
+      // serving", which a relay does on its own buffer after it drops out of
+      // range - the grace period that makes a relay worth carrying.
+      //
+      // Only `supplied` may recharge. When `powered` drove the recharge, any
+      // relay with a scrap of buffer counted as powered, recharged from that,
+      // and so never drained: a permanent free network node, which is the exact
+      // thing the one-hop limit above exists to prevent.
+      if (direct) {
+        this.directRelays.push(i);
+        this.suppliedRelays.add(i);
+      }
       structure.powered = direct || structure.buffer > 0;
       if (structure.powered) this.poweredRelays.push(i);
     }
 
-    // Second pass: a relay adjacent to an already-powered relay also counts.
-    const initialCount = this.poweredRelays.length;
+    // Second pass: one hop from a *directly supplied* relay. The source list is
+    // the first pass's snapshot, so a relay this loop adds cannot itself become
+    // a source and turn "one hop" into a chain of any length.
     for (let i = 0; i < world.structures.length; i++) {
       const structure = world.structures[i];
-      if (structure.kind !== "relay" || structure.powered) continue;
-      if (structure.state !== "active") continue;
-      for (let j = 0; j < initialCount; j++) {
-        const other = world.structures[this.poweredRelays[j]];
+      if (structure.kind !== "relay" || structure.state !== "active") continue;
+      if (this.suppliedRelays.has(i)) continue;
+      for (let j = 0; j < this.directRelays.length; j++) {
+        const other = world.structures[this.directRelays[j]];
         if (distSq(structure.x, structure.z, other.x, other.z) <= relayRangeSq) {
-          structure.powered = true;
-          this.poweredRelays.push(i);
+          this.suppliedRelays.add(i);
+          if (!structure.powered) {
+            structure.powered = true;
+            this.poweredRelays.push(i);
+          }
           break;
         }
       }
@@ -88,15 +111,24 @@ export class PressureNetworkSystem {
     for (let i = 0; i < world.structures.length; i++) {
       const structure = world.structures[i];
       if (structure.state === "destroyed") continue;
+      if (structure.state === "dropped") {
+        structure.powered = false;
+        continue;
+      }
 
       if (structure.maxBuffer <= 0) {
         structure.powered = true;
         continue;
       }
+      // Whether this structure has an upstream source right now. For everything
+      // but a relay that is the same as `powered`; for a relay it deliberately
+      // is not, because a relay running on its own buffer still serves the
+      // network while it drains, and must not refill itself from itself.
+      let inNetwork: boolean;
       if (structure.kind === "relay") {
-        // Already resolved above; still drains and recharges below.
+        inNetwork = this.suppliedRelays.has(i);
       } else {
-        let inNetwork =
+        inNetwork =
           producing && distSq(structure.x, structure.z, spider.x, spider.z) <= serviceRadiusSq;
         if (!inNetwork) {
           for (let j = 0; j < this.poweredRelays.length; j++) {
@@ -112,7 +144,7 @@ export class PressureNetworkSystem {
 
       if (structure.state === "overloading") continue;
 
-      if (structure.powered) {
+      if (inNetwork) {
         if (structure.buffer < structure.maxBuffer) {
           structure.buffer = Math.min(
             structure.maxBuffer,

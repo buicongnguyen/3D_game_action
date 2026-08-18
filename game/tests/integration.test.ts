@@ -18,8 +18,9 @@ import { CollisionSystem } from "../src/game/systems/CollisionSystem.ts";
 import { DamageSystem } from "../src/game/systems/DamageSystem.ts";
 import { ExperienceSystem } from "../src/game/systems/ExperienceSystem.ts";
 import { createEmptySnapshot, type InputSnapshot } from "../src/input/InputActions.ts";
-import { PLAYER, PRESSURE, SIM, SPIDER, STRUCTURES, TRAIL } from "../src/data/balance.ts";
+import { PICKUPS, PLAYER, PRESSURE, SIM, SPIDER, STRUCTURES, TRAIL } from "../src/data/balance.ts";
 import type { GameEvent } from "../src/core/events.ts";
+import type { RunMode } from "../src/core/types.ts";
 
 /**
  * Whole-loop integration tests.
@@ -39,7 +40,7 @@ class Harness {
   readonly input: InputSnapshot = createEmptySnapshot();
   readonly events: GameEvent[] = [];
 
-  private readonly playerMovement = new PlayerMovementSystem();
+  private readonly playerMovement: PlayerMovementSystem;
   private readonly spiderMovement = new SpiderMovementSystem();
   readonly construction = new ConstructionSystem();
   readonly interaction: InteractionSystem;
@@ -53,8 +54,9 @@ class Harness {
   private readonly damage: DamageSystem;
   private readonly experience = new ExperienceSystem();
 
-  constructor(seed: number, options: { spawns?: boolean } = {}) {
-    this.world = new GameWorld(seed);
+  constructor(seed: number, options: { spawns?: boolean; mode?: RunMode } = {}) {
+    this.world = new GameWorld(seed, options.mode);
+    this.playerMovement = new PlayerMovementSystem(this.construction);
     this.interaction = new InteractionSystem(this.construction);
     this.damage = new DamageSystem(this.interaction);
     this.collision = new CollisionSystem(this.damage);
@@ -211,6 +213,44 @@ describe("the march", () => {
     expect(harness.world.player.health).toBeGreaterThan(0);
     expect(harness.countEvents("player.tethered")).toBeGreaterThan(0);
   });
+
+  it("drops a carried machine as a recoverable folded structure at the tether", () => {
+    const harness = new Harness(4242, { spawns: false });
+    const placedBefore = harness.world.stats.structuresPlaced;
+    harness.world.player.carry = {
+      kind: "structure",
+      structureType: "rivetTurret",
+      health: 0.55,
+      buffer: 9,
+      recoveryXpGranted: false,
+    };
+    harness.placePlayerNear(
+      harness.world.spider.x + PLAYER.tetherDistance + 2,
+      harness.world.spider.z,
+    );
+
+    harness.step();
+
+    expect(harness.world.player.carry.kind).toBe("none");
+    expect(harness.world.structures).toHaveLength(1);
+    const dropped = harness.world.structures[0];
+    expect(dropped.state).toBe("dropped");
+    expect(dropped.health / dropped.maxHealth).toBeCloseTo(0.55, 3);
+    expect(dropped.buffer).toBeCloseTo(9, 3);
+    expect(harness.world.stats.structuresPlaced).toBe(placedBefore);
+
+    // Bring the dropped object into a safe test position and recover it through
+    // the same fold input used for every other machine.
+    dropped.x = harness.world.spider.x + 1;
+    dropped.z = harness.world.spider.z;
+    harness.placePlayerNear(dropped.x, dropped.z + 0.5);
+    harness.hold("fold", true);
+    harness.seconds(PLAYER.foldDuration + 0.2);
+    harness.hold("fold", false);
+
+    expect(harness.world.structures).toHaveLength(0);
+    expect(harness.world.player.carry.kind).toBe("structure");
+  });
 });
 
 describe("the engineering loop", () => {
@@ -256,6 +296,14 @@ describe("the engineering loop", () => {
     expect(harness.world.structures.length).toBe(1);
     expect(harness.world.structures[0].kind).toBe("rivetTurret");
     expect(harness.world.timeScale).toBe(1);
+  });
+
+  it("selects blueprint slots directly from the keyboard number row", () => {
+    const harness = new Harness(2025, { spawns: false });
+    harness.input.blueprintSlot = 2;
+    harness.step();
+    expect(harness.world.build.selectedBlueprint).toBe(2);
+    expect(harness.world.loadout[2]).toBe("barricade");
   });
 
   it("charges scrap and refuses a placement that cannot be afforded", () => {
@@ -345,6 +393,31 @@ describe("the engineering loop", () => {
     const reinstalled = harness.world.structures[0];
     expect(reinstalled.health / reinstalled.maxHealth).toBeCloseTo(0.5, 1);
     expect(reinstalled.buffer).toBeGreaterThan(9);
+  });
+
+  it("awards recovery XP only once for the same physical machine", () => {
+    const harness = new Harness(5252, { spawns: false });
+    harness.world.resources.scrap = 200;
+    const turret = buildTurret(harness, 1.2, 0);
+    turret.state = "active";
+    harness.step(); // subscribe ExperienceSystem and consume the original build event
+    harness.world.progress.xp = 0;
+
+    harness.hold("fold", true);
+    harness.seconds(PLAYER.foldDuration + 0.2);
+    harness.hold("fold", false);
+    expect(harness.world.progress.xp).toBe(5);
+
+    harness.press("confirm");
+    harness.step(3);
+    const reinstalled = harness.world.structures[0];
+    expect(reinstalled.recoveryXpGranted).toBe(true);
+    harness.placePlayerNear(reinstalled.x, reinstalled.z + 0.5);
+    harness.hold("fold", true);
+    harness.seconds(PLAYER.foldDuration + 0.2);
+    harness.hold("fold", false);
+
+    expect(harness.world.progress.xp).toBe(5);
   });
 
   it("finds a nearby spot rather than refusing when the drop point is occupied", () => {
@@ -446,9 +519,13 @@ describe("the engineering loop", () => {
     harness.world.resources.scrap = 200;
     const turret = buildTurret(harness, 1.2, 0);
     turret.state = "active";
+    turret.health *= 0.5;
     const id = turret.id;
 
-    harness.interaction.triggerLastShot(harness.world, id, "manual");
+    // Exercise the public input path: Recover used to return before Last Shot
+    // could ever become the advertised primary action.
+    harness.press("confirm");
+    harness.step();
     expect(turret.state).toBe("overloading");
 
     harness.seconds(STRUCTURES.rivetTurret.lastShotDuration + 0.5);
@@ -629,15 +706,111 @@ describe("trail and pursuit", () => {
 
   it("quietens the trail at a safe stop without resetting it to zero", () => {
     const harness = new Harness(80808, { spawns: false });
-    harness.world.trail = 90;
+    harness.world.trail = 30;
+    harness.world.trailState = "PROBING";
     harness.world.spider.docked = true;
     harness.world.setPhase("CHECKPOINT_PREP");
     harness.runState.checkpointTimer = 30;
+    const transitions: string[] = [];
+    harness.world.events.on("trail.stateChanged", (event) => transitions.push(event.to));
 
     harness.seconds(8);
 
-    expect(harness.world.trail).toBeLessThan(90);
+    expect(harness.world.trail).toBeLessThan(30);
     expect(harness.world.trail).toBeGreaterThan(0);
+    expect(transitions).toContain("QUIET");
+  });
+});
+
+describe("route objectives", () => {
+  it("tracks and rewards the distinct objective authored for each route", () => {
+    const recover = new Harness(6101, { spawns: false });
+    const recoverScrap = recover.world.resources.scrap;
+    recover.world.stats.structuresRecovered++;
+    recover.runState.update(recover.world, STEP);
+    expect(recover.runState.objective?.complete).toBe(true);
+    expect(recover.world.resources.scrap).toBe(recoverScrap + 12);
+
+    const mine = new Harness(6102, { spawns: false });
+    mine.runState.departCheckpoint(mine.world, "seg.mine");
+    for (let i = 0; i < 2; i++) {
+      const structure = mine.construction.spawnStructure(
+        mine.world,
+        "rivetTurret",
+        mine.world.spider.x + i + 1,
+        mine.world.spider.z,
+        0,
+        1,
+        -1,
+      );
+      structure.state = "active";
+      structure.powered = true;
+    }
+    mine.runState.update(mine.world, 25);
+    expect(mine.runState.objective?.complete).toBe(true);
+    expect(mine.world.resources.fuel).toBe(20);
+
+    const yard = new Harness(6103, { spawns: false });
+    yard.runState.departCheckpoint(yard.world, "seg.scrapyard");
+    yard.world.stats.scrapCollected += 30;
+    const yardScrap = yard.world.resources.scrap;
+    yard.runState.update(yard.world, STEP);
+    expect(yard.runState.objective?.complete).toBe(true);
+    expect(yard.world.resources.scrap).toBe(yardScrap + 24);
+
+    const escape = new Harness(6104, { spawns: false });
+    escape.runState.departCheckpoint(escape.world, "seg.escape");
+    escape.world.spider.coreHealth = 100;
+    escape.world.trail = TRAIL.max;
+    escape.world.trailState = "PURSUIT";
+    escape.runState.update(escape.world, 45);
+    expect(escape.runState.objective?.complete).toBe(true);
+    expect(escape.world.spider.coreHealth).toBe(135);
+  });
+});
+
+describe("Salvage Rush", () => {
+  it("ends the fixed shift successfully when its timer reaches zero", () => {
+    const harness = new Harness(9001, { spawns: false, mode: "salvageRush" });
+    harness.runState.departCheckpoint(harness.world, "seg.scrapyard");
+    harness.world.salvageTimeRemaining = 1;
+
+    harness.runState.update(harness.world, 1);
+    harness.world.events.drain();
+
+    expect(harness.world.phase).toBe("VICTORY");
+    expect(harness.countEvents("run.ended")).toBe(1);
+  });
+
+  it("scores each physical machine once across reinstall cycles", () => {
+    const harness = new Harness(9002, { spawns: false, mode: "salvageRush" });
+    harness.world.salvageTimeRemaining = 90;
+    const turret = harness.construction.spawnStructure(
+      harness.world,
+      "rivetTurret",
+      harness.world.player.x + 1,
+      harness.world.player.z,
+      0,
+      0.75,
+      10,
+    );
+    turret.state = "dropped";
+
+    harness.hold("fold", true);
+    harness.seconds(PLAYER.foldDuration + 0.2);
+    harness.hold("fold", false);
+    const firstScore = harness.world.salvageScore;
+    expect(firstScore).toBeGreaterThan(0);
+
+    harness.press("confirm");
+    harness.step(3);
+    const reinstalled = harness.world.structures[0];
+    harness.placePlayerNear(reinstalled.x, reinstalled.z + 0.5);
+    harness.hold("fold", true);
+    harness.seconds(PLAYER.foldDuration + 0.2);
+    harness.hold("fold", false);
+
+    expect(harness.world.salvageScore).toBe(firstScore);
   });
 });
 
@@ -709,13 +882,35 @@ describe("determinism", () => {
     const sample = (seed: number) => {
       const harness = new Harness(seed);
       harness.seconds(45);
-      return harness.countEvents("enemy.spawned") + harness.world.enemies.active * 1000;
+      // Counts can legitimately coincide across two seeds. Sample positions as
+      // well so the assertion tests generated run state, not a lossy checksum.
+      return harness.world.enemies.backing
+        .filter((enemy) => enemy.active)
+        .slice(0, 8)
+        .map((enemy) => [enemy.archetype, enemy.x, enemy.z]);
     };
-    expect(sample(1)).not.toBe(sample(2));
+    expect(sample(1)).not.toEqual(sample(2));
   });
 });
 
 describe("pooling", () => {
+  it("expires enemy drops but keeps authored route resources", () => {
+    const harness = new Harness(404, { spawns: false });
+    const x = harness.world.player.x + 50;
+    const z = harness.world.player.z + 50;
+    harness.interaction.spawnPickup(harness.world, "scrap", x, z, 2, 0);
+    harness.interaction.spawnPickup(harness.world, "fuel", x + 2, z, 2, 0, 0);
+
+    for (let i = 0; i < PICKUPS.dropLifetime + 1; i++) {
+      harness.interaction.collectPickups(harness.world, 1);
+    }
+
+    expect(harness.world.pickups.active).toBe(1);
+    const persistent = harness.world.pickups.backing.find((pickup) => pickup.active);
+    expect(persistent?.kind).toBe("fuel");
+    expect(persistent?.lifetime).toBe(0);
+  });
+
   it("never exhausts or leaks a pool across a long, busy run", { timeout: 60000 }, () => {
     const harness = new Harness(31415);
     harness.world.trail = TRAIL.max;

@@ -102,7 +102,9 @@ export const LIGHT = {
   ambientIntensity: 0.3,
   ambientColor: 0x33435a,
 
-  shadowMapSize: 3072,
+  // Preserves useful ground-shadow definition across the 78 m extent while
+  // cutting directional-shadow texel work by roughly 56% versus 3072.
+  shadowMapSize: 2048,
   /**
    * Orthographic shadow camera half-extent, in metres.
    *

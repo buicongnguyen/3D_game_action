@@ -1137,18 +1137,23 @@ export class WorldView {
 
     const backing = world.enemies.backing;
 
-    // Release puppets whose enemy has gone.
+    this.rebalanceTimer -= dt;
+    const rebalance = this.rebalanceTimer <= 0;
+    if (rebalance) this.rebalanceTimer = 0.4;
+
+    // Release puppets whose enemy has gone or moved out of the detailed LOD.
+    // Previously the first enemies seen owned the limited rigs forever.
     for (let i = 0; i < this.enemyVisuals.length; i++) {
       const visual = this.enemyVisuals[i];
       if (visual.slot < 0) continue;
       const enemy = backing[visual.slot];
-      if (enemy.active && enemy.id === visual.enemyId) continue;
+      if (
+        enemy.active &&
+        enemy.id === visual.enemyId &&
+        (!rebalance || enemy.lodTier === 0)
+      ) continue;
       this.releaseVisual(i);
     }
-
-    this.rebalanceTimer -= dt;
-    const rebalance = this.rebalanceTimer <= 0;
-    if (rebalance) this.rebalanceTimer = 0.4;
 
     for (let slot = 0; slot < backing.length; slot++) {
       const enemy = backing[slot];
@@ -1576,6 +1581,7 @@ function lerpAngle(from: number, to: number, alpha: number): number {
  * driven by anything other than a button press would use.
  */
 function foldProgress(world: GameWorld, structure: Structure): number {
+  if (structure.state === "dropped") return 1;
   if (structure.state === "folding") {
     const total = Math.max(0.001, STRUCTURES[structure.kind].foldTime);
     return clamp(1 - structure.stateTimer / total, 0, 1);

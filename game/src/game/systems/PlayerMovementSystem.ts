@@ -2,6 +2,7 @@ import { clamp, dist, dampAngle, headingFromDirection } from "../../core/math.ts
 import type { InputSnapshot } from "../../input/InputActions.ts";
 import { PLAYER } from "../../data/balance.ts";
 import type { GameWorld } from "../GameWorld.ts";
+import { ConstructionSystem } from "./ConstructionSystem.ts";
 
 /**
  * Camera-relative movement, dodge, and the safety tether.
@@ -12,6 +13,8 @@ import type { GameWorld } from "../GameWorld.ts";
  * simulation stays free of Three.js.
  */
 export class PlayerMovementSystem {
+  constructor(private readonly construction = new ConstructionSystem()) {}
+
   /** Camera-space basis on the XZ plane, set once per frame by the renderer. */
   private forwardX = 0;
   private forwardZ = 1;
@@ -44,6 +47,9 @@ export class PlayerMovementSystem {
     if (player.dodgeTimer > 0) {
       this.updateDodge(world, dt);
     } else {
+      // Release the simulation pose once the roll ends. The renderer owns its
+      // short action blend; leaving this as dodge retriggered it indefinitely.
+      if (player.animState === "dodge") player.animState = "idle";
       this.updateWalk(world, dt, input);
       this.tryDodge(world, input);
     }
@@ -189,7 +195,10 @@ export class PlayerMovementSystem {
       1,
     );
 
-    if (distance <= PLAYER.tetherDistance) return;
+    if (distance <= PLAYER.tetherDistance) {
+      player.tethered = false;
+      return;
+    }
 
     const dx = (spider.x - player.x) / distance;
     const dz = (spider.z - player.z) / distance;
@@ -197,10 +206,27 @@ export class PlayerMovementSystem {
     player.z += dz * PLAYER.tetherPullSpeed * dt;
 
     const droppedCarry = player.carry.kind !== "none";
+    if (player.carry.kind === "structure") {
+      this.construction.dropCarriedStructure(
+        world,
+        player.carry,
+        player.x,
+        player.z,
+        player.heading,
+      );
+    }
     if (droppedCarry) player.carry = { kind: "none" };
 
     this.applyTetherDamage(world, dt);
-    world.events.emit({ type: "player.tethered", x: player.x, z: player.z, droppedCarry });
+
+    // The pull and the damage are per step; the announcement is per event.
+    // The engineer crossing the line is one thing that happened, and it stays
+    // one thing however many steps they spend being hauled back. Dropping the
+    // payload is always announced, since it can only happen once per carry.
+    if (!player.tethered || droppedCarry) {
+      world.events.emit({ type: "player.tethered", x: player.x, z: player.z, droppedCarry });
+    }
+    player.tethered = true;
   }
 
   private applyTetherDamage(world: GameWorld, dt: number): void {

@@ -94,7 +94,9 @@ export const TRAIL = {
   max: 100,
   passivePerSecond: 0.3,
   /** Noise emitted by a single turret shot, a heavy shot and an explosion. */
-  noiseShot: 0.04,
+  // Sustained automated fire should be powerful but loud enough to wake the
+  // Trail naturally instead of leaving escalation entirely to the finale.
+  noiseShot: 0.07,
   noiseHeavyShot: 0.16,
   noiseExplosion: 1.4,
   noiseMining: 0.5,
@@ -274,27 +276,20 @@ export const WEAPONS = {
     id: "shotgun",
     name: "Rivet Scattergun",
     /**
-     * Damage and range were raised from 7/12 after the §7.3 damage-share test
-     * measured the engineer contributing only 23% of a three-turret encounter
-     * against a 30-40% target. The engineer was not weak per shot; the shotgun
-     * simply had less reach than a turret, so it spent most of the fight out of
-     * contact. Extending its reach past the turret's fixes the uptime rather
-     * than inflating the number.
+     * The engineer remains dangerous at close range, but no longer replaces
+     * the construction loop by standing on the spider and firing forever. A
+     * turret contributes comparable sustained damage, so positioning machines
+     * materially changes an encounter's outcome.
      */
-    damage: 10.5,
-    fireInterval: 0.62,
-    range: 14,
+    damage: 9,
+    fireInterval: 0.66,
+    range: 13.5,
     pellets: 5,
     /** Total cone width in radians. */
     spread: 0.36,
     projectileSpeed: 40,
-    /**
-     * One pierce per rivet. Without it the scattergun's nominal output was
-     * mostly theoretical - a 0.4 rad cone at 10 m is wider than a skeleton, so
-     * most pellets flew past. Punching through one body is also the right
-     * answer thematically for a rivet gun aimed into a packed horde.
-     */
-    pierce: 1,
+    /** The scattergun controls one close target layer; turrets handle the pack. */
+    pierce: 0,
     /** Cone half-angle within which right-stick focus prioritises a target. */
     focusCone: 0.6,
     knockback: 2.2,
@@ -316,6 +311,18 @@ export const XP = {
   pickupScrap: 0.35,
   /** Number of upgrade offers presented at each level. */
   offerCount: 3,
+} as const;
+
+export const PICKUPS = {
+  /** Enemy drops expire; authored route resources pass 0 and remain persistent. */
+  dropLifetime: 45,
+} as const;
+
+export const SALVAGE_RUSH = {
+  duration: 90,
+  trailRateMultiplier: 1.8,
+  resourcePocketMultiplier: 2,
+  salvageMachines: 8,
 } as const;
 
 export const CAMERA = {
@@ -373,20 +380,11 @@ export const PERFORMANCE = {
    * the two must agree or an articulated enemy would steer at a quarter rate -
    * the cap on full-rate LOD in `EnemyNavigationSystem`.
    *
-   * Raised from 64, where it was set while every puppet limb was its own draw
-   * call and 64 puppets were about 700 of them. The articulated horde is now a
-   * single `BatchedMesh` call whatever its size, so draw calls no longer bound
-   * this at all; what remains is batch instances (budget x 14, well inside what
-   * one batch holds), the per-frame matrix cost of about 12 joints per puppet,
-   * and full-rate steering for the same count. At 64 the measured 241-enemy
-   * stress figure left roughly three quarters of the horde on impostors.
-   *
-   * 128 is chosen against `DIRECTOR.maxActiveEnemies` (130): normal play is now
-   * almost entirely articulated, while the 260-enemy stress pool still falls
-   * back to impostors for its rear half. Going higher would only serve the
-   * stress case, and it doubles both costs above again to do it.
+   * 96 keeps the closest, most readable enemies articulated while leaving
+   * headroom for the full normal horde. Distant enemies retain animated
+   * impostor motion but avoid the mesh, matrix and full-rate steering costs.
    */
-  maxFullAnimationEnemies: 128,
+  maxFullAnimationEnemies: 96,
   projectilePoolCapacity: 420,
   pickupPoolCapacity: 220,
   vfxPoolCapacity: 180,

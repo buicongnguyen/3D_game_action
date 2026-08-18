@@ -75,14 +75,53 @@ export interface ImpostorPose {
 const TAU = Math.PI * 2;
 
 /**
- * Stride cadence in radians per second.
- *
- * Rises with speed but sub-linearly, so a sprint does not become a blur of leg
- * frequency. Shared by the puppets and the impostors, because an enemy crossing
- * the LOD boundary must not visibly change its stride rate.
+ * Hip-to-sole leg length shared by every humanoid rig, in metres. Knee at
+ * -0.44 and a shin of about 0.55; see `characters.ts`.
  */
-function strideCadence(normalizedSpeed: number): number {
-  return 4.2 + normalizedSpeed * 5.4;
+export const LEG_LENGTH = 0.99;
+/** Hip swing amplitude at full stride, radians. */
+export const HIP_SWING = 0.82;
+/**
+ * Ground covered by one full gait cycle - two footfalls - at full stride. This
+ * is what a foot's arc actually spans on the ground: two swings of
+ * 2 * LEG_LENGTH * sin(HIP_SWING). It is the number that ties cadence to
+ * distance, and it must be derived from the pose, not tuned by eye.
+ */
+export const STRIDE_LENGTH = 2 * 2 * LEG_LENGTH * Math.sin(HIP_SWING);
+/**
+ * Slowest cadence a moving character will show. Below it a foot planted at
+ * true speed would barely move and the character would read as frozen rather
+ * than creeping. At 2.4 this bound at a full 1.0 m/s and put 10% skate back
+ * onto an ordinary walk, which is why it is this low.
+ */
+const MIN_CADENCE = 1.2;
+/**
+ * Ground speed at which the pose is fully "walking" rather than "standing".
+ *
+ * This has to sit *below* every speed anything actually walks at, because the
+ * blend scales the hip amplitude, and a hip swinging less far than
+ * `STRIDE_LENGTH` assumes puts the slip straight back. At 0.9 - a value that
+ * looked harmless - a character crowded down to 0.7 m/s skated 23%, and one at
+ * 0.5 m/s skated 50%. The slowest enemy walks at 1.1 m/s and the spider marches
+ * at 1.25, so 0.4 clears them all: slip is exactly zero from 0.6 m/s upward,
+ * and what remains below that is under the cadence floor, on a character a
+ * couple of dozen pixels tall, moving less than half a metre a second.
+ */
+const MOVING_SPEED = 0.4;
+
+/**
+ * Stride cadence in radians per second, from ground speed in metres per second.
+ *
+ * Cadence is a physical quantity here - speed over stride length, times two pi -
+ * so that a foot's ground arc per cycle equals the ground actually travelled and
+ * the feet plant instead of skating. The previous form, `4.2 + normalized * 5.4`
+ * with an amplitude scaled independently by speed, was measured against the
+ * recorded march take at 24% slip at a sprint and 106% at a walk: the ground
+ * moved a quarter again as far as the feet did. Shared by puppets and
+ * impostors, because an enemy crossing the LOD boundary must not change stride.
+ */
+function strideCadence(speed: number): number {
+  return Math.max(MIN_CADENCE, (TAU * speed) / STRIDE_LENGTH);
 }
 
 export function createPuppetState(phase: number): PuppetAnimationState {
@@ -127,22 +166,35 @@ export function animateHumanoid(
   state.smoothedSpeed = lerp(state.smoothedSpeed, speed, clamp(dt * 9, 0, 1));
 
   const normalizedSpeed = clamp(state.smoothedSpeed / Math.max(0.1, maxSpeed), 0, 1.4);
-  state.locomotion = lerp(state.locomotion, clamp(normalizedSpeed, 0, 1), clamp(dt * 10, 0, 1));
+  // Moving-versus-idle, not a fraction of top speed. It reaches 1 by a walking
+  // pace so the leg arc is at full amplitude for any real movement; only the
+  // last few tenths of a metre per second before standing still fade the pose
+  // out. Tying it to normalised speed made a half-speed character swing its
+  // legs half as far while its feet still had the full distance to cover.
+  const moving = clamp(state.smoothedSpeed / MOVING_SPEED, 0, 1);
+  state.locomotion = lerp(state.locomotion, moving, clamp(dt * 10, 0, 1));
 
   if (state.actionTimer > 0) {
     state.actionTimer -= dt;
     if (state.actionTimer <= 0 && state.action !== "death") state.action = "none";
   }
 
-  state.gaitPhase = (state.gaitPhase + strideCadence(normalizedSpeed) * dt) % TAU;
+  // Cadence from ground speed in metres, never from the normalised figure: slip
+  // depends on how far the body actually moves per cycle, and a golem at half
+  // its top speed covers a different distance from a minion at half of its own.
+  state.gaitPhase = (state.gaitPhase + strideCadence(state.smoothedSpeed) * dt) % TAU;
   const t = state.gaitPhase;
   const swing = Math.sin(t);
   const swingOpposite = Math.sin(t + Math.PI);
   const stride = state.locomotion;
 
-  // Legs
-  rig.legL.rotation.x = swing * 0.82 * stride;
-  rig.legR.rotation.x = swingOpposite * 0.82 * stride;
+  // Legs. The hip amplitude is the constant STRIDE_LENGTH was derived from and
+  // stays at it whenever the character is moving; `stride` only fades the whole
+  // pose toward idle as the character comes to rest, so at any moving speed the
+  // foot arc matches the ground travelled. Scaling the amplitude by speed - the
+  // previous form - is precisely what decoupled the two.
+  rig.legL.rotation.x = swing * HIP_SWING * stride;
+  rig.legR.rotation.x = swingOpposite * HIP_SWING * stride;
   // Knees only bend on the forward half of the swing, which is what separates a
   // walk from a pendulum.
   rig.shinL.rotation.x = Math.max(0, -swing) * 1.15 * stride;
@@ -173,7 +225,11 @@ export function animateHumanoid(
   rig.torso.rotation.y = -swing * 0.16 * stride;
   rig.pelvis.rotation.y = swing * 0.2 * stride;
   rig.torso.position.y = restY(rig.torso) + Math.abs(Math.sin(t)) * 0.055 * stride;
-  rig.torso.rotation.x = 0.06 + stride * 0.12;
+  // The forward lean is effort, not footfall: it follows how hard the character
+  // is pushing relative to its own top speed, which is what `maxSpeed` is for.
+  // A golem at its full lumber leans as a minion does at its full sprint, and
+  // the impostor tier derives its lean the same way so the two agree.
+  rig.torso.rotation.x = 0.06 + clamp(normalizedSpeed, 0, 1) * 0.12;
 
   // Idle breathing keeps a standing character from looking frozen.
   const idle = 1 - stride;
@@ -233,15 +289,18 @@ export function animateImpostor(
 ): void {
   state.smoothedSpeed = lerp(state.smoothedSpeed, speed, clamp(dt * 9, 0, 1));
   const normalizedSpeed = clamp(state.smoothedSpeed / Math.max(0.1, maxSpeed), 0, 1.4);
-  state.gaitPhase = (state.gaitPhase + strideCadence(normalizedSpeed) * dt) % TAU;
+  // Ground speed in metres, as for the puppet: the two tiers must agree on how
+  // many strides a given distance takes or the boundary between them shows.
+  state.gaitPhase = (state.gaitPhase + strideCadence(state.smoothedSpeed) * dt) % TAU;
 
-  // Amplitudes scale with the stride, so a stationary enemy is still and a
-  // sprinting one is emphatic. The bob is two per stride, as the puppet's torso
-  // bob is, and the lean matches the puppet's torso pitch at full speed so the
-  // two tiers read as the same posture.
-  const stride = clamp(normalizedSpeed, 0, 1);
-  out.squash = 1 + Math.abs(Math.sin(state.gaitPhase + phaseOffset)) * 0.075 * stride;
-  out.lean = stride * 0.16;
+  // The bob fades with the same moving/idle rule as the puppet's pose, so a
+  // stationary enemy is still and anything walking bobs at full amplitude. It
+  // is two per stride, as the puppet's torso bob is. The lean alone follows
+  // normalised speed, because it stands in for the run posture rather than for
+  // a footfall, and matches the puppet's torso pitch at full speed.
+  const moving = clamp(state.smoothedSpeed / MOVING_SPEED, 0, 1);
+  out.squash = 1 + Math.abs(Math.sin(state.gaitPhase + phaseOffset)) * 0.075 * moving;
+  out.lean = clamp(normalizedSpeed, 0, 1) * 0.16;
 }
 
 /**

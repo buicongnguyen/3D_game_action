@@ -1,7 +1,7 @@
 import { clamp, distSq } from "../../core/math.ts";
 import type { ContextualActionKind, Structure } from "../../core/types.ts";
 import type { InputSnapshot } from "../../input/InputActions.ts";
-import { ECONOMY, PLAYER, PRESSURE, STRUCTURES } from "../../data/balance.ts";
+import { ECONOMY, PICKUPS, PLAYER, PRESSURE, STRUCTURES } from "../../data/balance.ts";
 import { getBlueprint, getStructureConfig } from "../../data/structures.ts";
 import type { ConstructionSystem } from "./ConstructionSystem.ts";
 import type { GameWorld } from "../GameWorld.ts";
@@ -216,12 +216,32 @@ export class InteractionSystem {
     const blueprint = getBlueprint(structure.kind);
 
     if (
+      structure.state !== "overloading" &&
+      structure.state !== "dropped" &&
       structure.health < structure.maxHealth - 1 &&
       world.resources.scrap >= ECONOMY.repairCostPer10Percent
     ) {
       this.setService(world, "repair", structure.id, `Repair ${blueprint.name}`);
+    }
+
+    // Last Shot is the dramatic primary choice; Recover remains available on
+    // its dedicated fold button through foldTargetId. Previously fold returned
+    // first, making this signature mechanic unreachable through normal input.
+    if (
+      structure.state !== "overloading" &&
+      structure.state !== "dropped" &&
+      structure.category === "foldable" &&
+      structure.buffer > 0
+    ) {
+      this.availableAction = "lastShot";
+      this.availableTargetId = structure.id;
+      this.availableLabel = `Overload ${blueprint.name}`;
       return;
     }
+
+    // With no Last Shot available, a valid service action remains the primary
+    // prompt and Recover is advertised as its secondary alternative.
+    if (this.serviceAction !== null) return;
 
     if (this.foldTargetId >= 0) {
       const target = world.findStructure(this.foldTargetId);
@@ -233,11 +253,6 @@ export class InteractionSystem {
       }
     }
 
-    if (structure.category === "foldable" && structure.buffer > 0) {
-      this.availableAction = "lastShot";
-      this.availableTargetId = structure.id;
-      this.availableLabel = `Overload ${blueprint.name}`;
-    }
   }
 
   /**
@@ -265,10 +280,14 @@ export class InteractionSystem {
   ): Structure | null {
     const player = world.player;
     let best: Structure | null = null;
-    let bestDistance = rangeSq;
+    let bestDistance = Number.POSITIVE_INFINITY;
     for (let i = 0; i < world.structures.length; i++) {
       const structure = world.structures[i];
-      if (structure.state === "destroyed" || structure.state === "folding") continue;
+      if (
+        structure.state === "destroyed" ||
+        structure.state === "folding" ||
+        structure.state === "overloading"
+      ) continue;
       if (foldableOnly && structure.category !== "foldable") continue;
       const blueprint = getBlueprint(structure.kind);
       // Measure to the structure's surface, not its centre, so a big barricade
@@ -289,7 +308,12 @@ export class InteractionSystem {
     let bestFraction = 1;
     for (let i = 0; i < world.structures.length; i++) {
       const structure = world.structures[i];
-      if (structure.maxBuffer <= 0 || structure.state === "destroyed") continue;
+      if (
+        structure.maxBuffer <= 0 ||
+        structure.state === "destroyed" ||
+        structure.state === "overloading" ||
+        structure.state === "dropped"
+      ) continue;
       if (distSq(player.x, player.z, structure.x, structure.z) > rangeSq + 1) continue;
       const fraction = structure.buffer / structure.maxBuffer;
       if (fraction < bestFraction) {
@@ -464,11 +488,13 @@ export class InteractionSystem {
   }
 
   private completeFold(world: GameWorld, structure: Structure): void {
+    const awardRecoveryXp = !structure.recoveryXpGranted;
     world.player.carry = {
       kind: "structure",
       structureType: structure.kind,
       health: structure.health / structure.maxHealth,
       buffer: structure.buffer,
+      recoveryXpGranted: true,
     };
     world.stats.structuresRecovered++;
     world.events.emit({
@@ -480,7 +506,19 @@ export class InteractionSystem {
     });
     structure.state = "destroyed";
     this.construction.removeStructure(world, structure);
-    this.grantActionXp(world, 5);
+    if (awardRecoveryXp) this.grantActionXp(world, 5);
+    if (awardRecoveryXp && world.mode === "salvageRush") {
+      const blueprint = getBlueprint(structure.kind);
+      const condition = structure.health / Math.max(1, structure.maxHealth);
+      const score = Math.round(blueprint.cost * 5 * (0.5 + condition * 0.5) + structure.buffer * 2);
+      world.salvageScore += score;
+      world.events.emit({
+        type: "ui.toast",
+        message: `Salvaged ${blueprint.name} · +${score}`,
+        tone: "success",
+        duration: 3,
+      });
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -567,6 +605,10 @@ export class InteractionSystem {
       heading + Math.PI,
       player.carry.health,
       player.carry.buffer,
+      {
+        source: "reinstall",
+        recoveryXpGranted: player.carry.recoveryXpGranted,
+      },
     );
     player.carry = { kind: "none" };
     player.animState = "interact";
@@ -626,6 +668,15 @@ export class InteractionSystem {
     for (let i = 0; i < backing.length; i++) {
       const pickup = backing[i];
       if (!pickup.active) continue;
+
+      if (pickup.lifetime > 0) {
+        pickup.lifetime -= dt;
+        if (pickup.lifetime <= 0) {
+          pickup.active = false;
+          world.pickups.release(i);
+          continue;
+        }
+      }
 
       if (pickup.settleTimer > 0) {
         pickup.settleTimer -= dt;
@@ -689,6 +740,7 @@ export class InteractionSystem {
     z: number,
     amount: number,
     settle: number,
+    lifetime: number = PICKUPS.dropLifetime,
   ): boolean {
     const pickup = world.pickups.acquire();
     if (!pickup) return false;
@@ -699,7 +751,7 @@ export class InteractionSystem {
     pickup.y = 0.35;
     pickup.amount = amount;
     pickup.settleTimer = settle;
-    pickup.lifetime = 0;
+    pickup.lifetime = lifetime;
     pickup.attracted = false;
     pickup.active = true;
     pickup.phase = world.cosmeticRandom.next();

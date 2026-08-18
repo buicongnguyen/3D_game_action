@@ -112,6 +112,7 @@ export interface StructurePlacedEvent {
   kind: StructureKind;
   x: number;
   z: number;
+  source: "build" | "reinstall";
 }
 
 export interface StructureFoldedEvent {

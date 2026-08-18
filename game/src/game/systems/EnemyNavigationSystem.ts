@@ -441,7 +441,7 @@ export class EnemyNavigationSystem {
     for (let i = 0; i < structures.length; i++) {
       const structure = structures[i];
       if (structure.id !== enemy.targetId) continue;
-      if (structure.state === "destroyed") return false;
+      if (structure.state === "destroyed" || structure.state === "dropped") return false;
       target.x = structure.x;
       target.z = structure.z;
       target.radius = getBlueprint(structure.kind).radius;
@@ -473,18 +473,26 @@ export class EnemyNavigationSystem {
     let heldScore = -1;
 
     const coreDistance = Math.sqrt(distSq(enemy.x, enemy.z, spider.x, spider.z));
-    const coreScore = (PROXIMITY_REFERENCE / (PROXIMITY_REFERENCE + coreDistance)) * CORE_WEIGHT;
+    const coreRoleWeight = archetype.targetRole === "breaker" ? 1.65 : CORE_WEIGHT;
+    const coreScore =
+      (PROXIMITY_REFERENCE / (PROXIMITY_REFERENCE + coreDistance)) * coreRoleWeight;
     bestScore = coreScore;
     if (enemy.targetKind === "core") heldScore = coreScore;
 
     const structures = world.structures;
     for (let i = 0; i < structures.length; i++) {
       const structure = structures[i];
-      if (structure.state === "destroyed") continue;
+      if (structure.state === "destroyed" || structure.state === "dropped") continue;
 
       const distance = Math.sqrt(distSq(enemy.x, enemy.z, structure.x, structure.z));
       const decoy = structure.kind === "barricade";
-      const weight = archetype.structurePreference * (decoy ? BARRICADE_TAUNT : 1);
+      let roleWeight = 1;
+      if (archetype.targetRole === "saboteur") {
+        if (structure.kind === "relay") roleWeight *= 1.9;
+        else if (structure.kind === "rivetTurret") roleWeight *= 1.35;
+        if (structure.behindSpider) roleWeight *= 1.45;
+      }
+      const weight = archetype.structurePreference * (decoy ? BARRICADE_TAUNT : roleWeight);
       const score = (PROXIMITY_REFERENCE / (PROXIMITY_REFERENCE + distance)) * weight;
 
       if (enemy.targetId === structure.id && enemy.targetKind !== "core" && enemy.targetKind !== "player") {
@@ -499,7 +507,7 @@ export class EnemyNavigationSystem {
 
     if (!player.downed) {
       const distance = Math.sqrt(distSq(enemy.x, enemy.z, player.x, player.z));
-      let weight = PLAYER_WEIGHT;
+      let weight = archetype.targetRole === "hunter" ? 1.15 : PLAYER_WEIGHT;
       if (distance < PLAYER_THREAT_DISTANCE) {
         weight += PLAYER_CLOSE_BONUS * (1 - distance / PLAYER_THREAT_DISTANCE);
       }

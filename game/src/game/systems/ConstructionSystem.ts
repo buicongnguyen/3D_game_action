@@ -58,6 +58,10 @@ export class ConstructionSystem {
   private updateBlueprintCycling(world: GameWorld, input: InputSnapshot): void {
     const build = world.build;
     const count = world.loadout.length;
+    if (input.blueprintSlot >= 0 && input.blueprintSlot < count) {
+      build.selectedBlueprint = input.blueprintSlot;
+      build.radialIndex = input.blueprintSlot;
+    }
     if (input.buttons.blueprintNext.pressed) {
       build.selectedBlueprint = (build.selectedBlueprint + 1) % count;
     }
@@ -273,6 +277,12 @@ export class ConstructionSystem {
     heading: number,
     healthFraction: number,
     buffer: number,
+    options: {
+      countPlacement?: boolean;
+      generateNoise?: boolean;
+      source?: "build" | "reinstall";
+      recoveryXpGranted?: boolean;
+    } = {},
   ): Structure {
     const config = getStructureConfig(kind);
     const maxBuffer = config.maxBuffer * world.modifiers.structureBuffer;
@@ -298,11 +308,12 @@ export class ConstructionSystem {
       shotsFired: 0,
       behindSpider: false,
       idleTime: 0,
+      recoveryXpGranted: options.recoveryXpGranted ?? false,
       active: true,
     };
 
     world.structures.push(structure);
-    world.stats.structuresPlaced++;
+    if (options.countPlacement !== false) world.stats.structuresPlaced++;
 
     // A barricade physically blocks pathing, so the nav grid must learn about
     // it immediately or enemies will walk straight through.
@@ -310,15 +321,52 @@ export class ConstructionSystem {
       world.navigation.addObstacle(x, z, config.radius, structure.id);
     }
 
-    world.trail = Math.min(TRAIL.max, world.trail + TRAIL.noiseStructurePlaced);
-    world.events.emit({ type: "structure.placed", structureId: structure.id, kind, x, z });
-    world.events.emit({
-      type: "noise.generated",
-      amount: TRAIL.noiseStructurePlaced,
+    if (options.generateNoise !== false) {
+      world.trail = Math.min(TRAIL.max, world.trail + TRAIL.noiseStructurePlaced);
+      world.events.emit({
+        type: "structure.placed",
+        structureId: structure.id,
+        kind,
+        x,
+        z,
+        source: options.source ?? "build",
+      });
+      world.events.emit({
+        type: "noise.generated",
+        amount: TRAIL.noiseStructurePlaced,
+        x,
+        z,
+        reason: "build",
+      });
+    }
+    return structure;
+  }
+
+  /** Leaves a folded, inert machine in the world when the tether tears it free. */
+  dropCarriedStructure(
+    world: GameWorld,
+    payload: Extract<GameWorld["player"]["carry"], { kind: "structure" }>,
+    x: number,
+    z: number,
+    heading: number,
+  ): Structure {
+    const structure = this.spawnStructure(
+      world,
+      payload.structureType,
       x,
       z,
-      reason: "build",
-    });
+      heading,
+      payload.health,
+      payload.buffer,
+      {
+        countPlacement: false,
+        generateNoise: false,
+        recoveryXpGranted: payload.recoveryXpGranted,
+      },
+    );
+    structure.state = "dropped";
+    structure.stateTimer = 0;
+    structure.powered = false;
     return structure;
   }
 

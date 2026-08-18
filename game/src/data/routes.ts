@@ -44,6 +44,12 @@ export const ROUTE_SEGMENTS: Record<string, RouteSegmentDefinition> = {
     modifiers: [],
     rewardTable: "basic",
     destinationId: "checkpoint.foundry",
+    objective: {
+      kind: "recover",
+      label: "Recover one field machine",
+      target: 1,
+      reward: { kind: "scrap", amount: 12 },
+    },
   },
 
   "seg.mine": {
@@ -79,6 +85,12 @@ export const ROUTE_SEGMENTS: Record<string, RouteSegmentDefinition> = {
     modifiers: ["narrow"],
     rewardTable: "fuel",
     destinationId: "checkpoint.gate",
+    objective: {
+      kind: "pressure",
+      label: "Power two machines for 25 seconds",
+      target: 25,
+      reward: { kind: "fuel", amount: 20 },
+    },
   },
 
   "seg.scrapyard": {
@@ -113,6 +125,12 @@ export const ROUTE_SEGMENTS: Record<string, RouteSegmentDefinition> = {
     modifiers: ["swarm"],
     rewardTable: "scrap",
     destinationId: "checkpoint.gate",
+    objective: {
+      kind: "salvage",
+      label: "Collect 30 scrap on this leg",
+      target: 30,
+      reward: { kind: "scrap", amount: 24 },
+    },
   },
 
   "seg.escape": {
@@ -143,6 +161,12 @@ export const ROUTE_SEGMENTS: Record<string, RouteSegmentDefinition> = {
     modifiers: ["pursuit"],
     rewardTable: "final",
     destinationId: "gate.final",
+    objective: {
+      kind: "pursuit",
+      label: "Survive 45 seconds of Pursuit",
+      target: 45,
+      reward: { kind: "core", amount: 35 },
+    },
   },
 };
 

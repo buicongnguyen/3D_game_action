@@ -1,7 +1,6 @@
 import { OrthographicCamera, Vector3 } from "three";
 import { clamp, damp, lerp } from "../core/math.ts";
 import { CAMERA, PLAYER, SPIDER } from "../data/balance.ts";
-import type { InputSnapshot } from "../input/InputActions.ts";
 import type { GameWorld } from "../game/GameWorld.ts";
 import type { Renderer } from "./Renderer.ts";
 
@@ -163,10 +162,18 @@ export class CameraController {
     );
   }
 
-  update(world: GameWorld, dt: number, input: InputSnapshot): void {
+  /**
+   * `recenter` arrives as an already-resolved request rather than being read
+   * off an input snapshot here. The camera updates during render, which runs
+   * after the frame's fixed steps have consumed their input edges, so reading
+   * the edge at this point would find it already spent and the button would do
+   * nothing at all. Whoever owns the step decides a recentre was asked for;
+   * this only carries it out.
+   */
+  update(world: GameWorld, dt: number, recenter: boolean): void {
     this.computeFocusTarget(world);
 
-    if (input.buttons.recenter.pressed) {
+    if (recenter) {
       // R3 recentres on the engineer, not on the weighted point. The player
       // presses it when they have lost track of themselves, so it should answer
       // that question rather than reframe the fortress.

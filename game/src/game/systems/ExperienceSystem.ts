@@ -31,7 +31,7 @@ export class ExperienceSystem {
   private readonly onStructurePlaced = (event: StructurePlacedEvent): void => {
     const world = this.subscribedWorld;
     if (!world) return;
-    void event;
+    if (event.source !== "build") return;
     world.progress.xp += XP.structurePlaced;
   };
 

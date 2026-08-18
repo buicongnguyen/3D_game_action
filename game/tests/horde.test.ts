@@ -139,6 +139,35 @@ describe("HordeDirector budget", () => {
     }
   });
 
+  it("adapts the spawn mix toward saboteurs when a large machine network is active", () => {
+    const quietBuild = marchingWorld(0x51ab);
+    const defended = marchingWorld(0x51ab);
+    quietBuild.trail = defended.trail = 60;
+    quietBuild.trailState = defended.trailState = "SWARM";
+    const construction = new ConstructionSystem();
+    for (let i = 0; i < 6; i++) {
+      const machine = place(
+        defended,
+        construction,
+        "rivetTurret",
+        defended.spider.x + i - 3,
+        defended.spider.z + 5,
+      );
+      machine.powered = true;
+    }
+
+    // Use a high budget so both minions and the costlier warrior are affordable
+    // on every draw; this isolates weighting from budget availability.
+    runDirector(quietBuild, new HordeDirector(), 30, 40);
+    runDirector(defended, new HordeDirector(), 30, 40);
+
+    const warriorShare = (world: GameWorld) => {
+      const active = world.enemies.backing.filter((enemy) => enemy.active);
+      return active.filter((enemy) => enemy.archetype === "warrior").length / active.length;
+    };
+    expect(warriorShare(defended)).toBeGreaterThan(warriorShare(quietBuild));
+  });
+
   it("never exceeds maxActiveEnemies and counts the denials", () => {
     const world = marchingWorld(0xc0ffee);
     world.trail = 100;
@@ -442,6 +471,32 @@ describe("enemy target scoring", () => {
     expect(enemy.targetId).toBe(turret.id);
   });
 
+  it("sends saboteurs after relays and rear defenses before ordinary turrets", () => {
+    const world = marchingWorld(0x5ab0);
+    const construction = new ConstructionSystem();
+    const director = new HordeDirector();
+    const navigation = new EnemyNavigationSystem();
+    const sx = world.spider.x;
+    const sz = world.spider.z;
+    const enemy = placeEnemy(world, director, "warrior", sx, sz + 20);
+    const turret = place(world, construction, "rivetTurret", sx - 4, sz + 16);
+    const relay = place(world, construction, "relay", sx + 4, sz + 16);
+
+    navigation.update(world, STEP);
+    expect(enemy.targetId).toBe(relay.id);
+
+    // Once the relay is gone, an equally placed rear defense has priority.
+    construction.removeStructure(world, relay);
+    const rear = place(world, construction, "rivetTurret", sx + 4, sz + 16);
+    rear.behindSpider = true;
+    enemy.targetCooldown = 0;
+    enemy.targetId = -1;
+    enemy.targetKind = "core";
+    navigation.update(world, STEP);
+    expect(enemy.targetId).toBe(rear.id);
+    expect(enemy.targetId).not.toBe(turret.id);
+  });
+
   it("answers the engineer when they stand in the horde", () => {
     const world = marchingWorld(0x9147);
     const director = new HordeDirector();
@@ -499,7 +554,8 @@ describe("enemy target scoring", () => {
     navigation.update(world, STEP);
 
     expect(enemy.targetId).toBe(-1);
-    expect(enemy.targetKind).toBe("core");
+    // A hunter whose structure target vanished answers the nearby engineer.
+    expect(enemy.targetKind).toBe("player");
   });
 });
 

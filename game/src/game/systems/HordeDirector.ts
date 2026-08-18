@@ -148,13 +148,29 @@ export class HordeDirector {
    */
   private refreshWeights(world: GameWorld): number {
     let cheapest = -1;
+    let activeMachines = 0;
+    for (let i = 0; i < world.structures.length; i++) {
+      const structure = world.structures[i];
+      if (structure.state === "active" && structure.maxBuffer > 0) activeMachines++;
+    }
+    const playerExposure = Math.sqrt(
+      distSq(world.player.x, world.player.z, world.spider.x, world.spider.z),
+    );
     for (let i = 0; i < SLICE_ROSTER.length; i++) {
       const archetype = getArchetype(SLICE_ROSTER[i]);
       if (archetype.minimumThreat > world.trail) {
         this.weights[i] = 0;
         continue;
       }
-      this.weights[i] = archetype.weight;
+      let weight = archetype.weight;
+      if (archetype.targetRole === "saboteur") {
+        weight *= 1 + Math.min(1.25, activeMachines * 0.18);
+      } else if (archetype.targetRole === "hunter" && playerExposure > 10) {
+        weight *= 1.35;
+      } else if (archetype.targetRole === "breaker" && world.trailState === "PURSUIT") {
+        weight *= 1.45;
+      }
+      this.weights[i] = weight;
       if (cheapest < 0 || archetype.spawnCost < cheapest) cheapest = archetype.spawnCost;
     }
     return cheapest;

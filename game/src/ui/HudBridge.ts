@@ -40,6 +40,13 @@ export class HudBridge {
     carried: null,
     distanceToCheckpoint: 0,
     etaSeconds: 0,
+    objectiveLabel: null,
+    objectiveProgress: 0,
+    objectiveTarget: 0,
+    objectiveComplete: false,
+    salvageMode: false,
+    salvageSeconds: 0,
+    salvageScore: 0,
     speedMode: "march",
     blueprints: [],
     prompt: null,
@@ -159,6 +166,13 @@ export class HudBridge {
     model.distanceToCheckpoint = remaining;
     const speed = spider.docked ? SPIDER.speedMarch : Math.max(0.2, spider.speed);
     model.etaSeconds = spider.docked ? runState.checkpointTimer : remaining / speed;
+    model.objectiveLabel = runState.objective?.definition.label ?? null;
+    model.objectiveProgress = runState.objective?.progress ?? 0;
+    model.objectiveTarget = runState.objective?.definition.target ?? 0;
+    model.objectiveComplete = runState.objective?.complete ?? false;
+    model.salvageMode = world.mode === "salvageRush";
+    model.salvageSeconds = world.salvageTimeRemaining;
+    model.salvageScore = world.salvageScore;
 
     this.updateBlueprints(world);
     this.updatePrompt(world, interaction, input);

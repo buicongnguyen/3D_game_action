@@ -52,6 +52,13 @@ export interface HudModel {
   carried: string | null;
   distanceToCheckpoint: number;
   etaSeconds: number;
+  objectiveLabel: string | null;
+  objectiveProgress: number;
+  objectiveTarget: number;
+  objectiveComplete: boolean;
+  salvageMode: boolean;
+  salvageSeconds: number;
+  salvageScore: number;
   speedMode: string;
   blueprints: HudBlueprintModel[];
   prompt: HudPromptModel | null;
@@ -335,6 +342,12 @@ export class HudController {
   private readonly trailState: HTMLElement;
   private readonly distanceValue: HTMLElement;
   private readonly etaValue: HTMLElement;
+  private readonly objective: HTMLElement;
+  private readonly objectiveLabel: HTMLElement;
+  private readonly objectiveValue: HTMLElement;
+  private readonly salvage: HTMLElement;
+  private readonly salvageTime: HTMLElement;
+  private readonly salvageScore: HTMLElement;
   private readonly scrapValue: HTMLElement;
   private readonly cylinderValue: HTMLElement;
   private readonly levelValue: HTMLElement;
@@ -362,6 +375,8 @@ export class HudController {
   private readonly toastLayer: HTMLElement;
   private readonly toastPool: HTMLElement[] = [];
   private readonly toastTimers = new Set<number>();
+  /** The pending hold timer per visible toast, so a repeat can extend it. */
+  private readonly toastTimerByNode = new Map<HTMLElement, number>();
 
   private readonly flashes: Record<FlashKind, HTMLElement>;
 
@@ -433,6 +448,12 @@ export class HudController {
     checkpointLabel.textContent = "Next halt";
     this.distanceValue = el("span", "hud__checkpoint-value", checkpoint);
     this.etaValue = el("span", "hud__checkpoint-value", checkpoint);
+    this.objective = el("div", "hud__objective", trail);
+    this.objectiveLabel = el("span", "hud__objective-label", this.objective);
+    this.objectiveValue = el("span", "hud__objective-value", this.objective);
+    this.salvage = el("div", "hud__salvage", trail);
+    this.salvageTime = el("span", "hud__salvage-time", this.salvage);
+    this.salvageScore = el("span", "hud__salvage-score", this.salvage);
 
     // --- resources, top right ----------------------------------------------
     const resources = panel(this.hud, "hud__resources panel--right");
@@ -551,6 +572,21 @@ export class HudController {
       this.etaValue.textContent = formatClock(eta);
     }
 
+    const hasObjective = model.objectiveLabel !== null;
+    this.objective.classList.toggle("is-on", hasObjective);
+    if (hasObjective) {
+      this.objectiveLabel.textContent = model.objectiveLabel ?? "";
+      this.objectiveValue.textContent = model.objectiveComplete
+        ? "COMPLETE"
+        : `${Math.floor(model.objectiveProgress)} / ${Math.floor(model.objectiveTarget)}`;
+      this.objective.classList.toggle("is-complete", model.objectiveComplete);
+    }
+    this.salvage.classList.toggle("is-on", model.salvageMode);
+    if (model.salvageMode) {
+      this.salvageTime.textContent = `SHIFT ${formatClock(Math.ceil(model.salvageSeconds))}`;
+      this.salvageScore.textContent = `SCORE ${Math.floor(model.salvageScore)}`;
+    }
+
     const scrap = Math.floor(model.scrap);
     if (scrap !== this.prevScrap) {
       this.prevScrap = scrap;
@@ -578,6 +614,19 @@ export class HudController {
   }
 
   showToast(message: string, tone: string, duration: number): void {
+    // A message already on the stack is refreshed, not stacked. Sources that
+    // announce a continuing condition rather than a discrete event will call
+    // this every step, and four copies of one warning say less than one while
+    // pushing off everything else. Refreshing keeps it visible for as long as
+    // the condition lasts, which is what a repeat was trying to achieve.
+    for (const existing of this.toastLayer.children) {
+      const node = existing as HTMLElement;
+      if (node.textContent === message && !node.classList.contains("is-out")) {
+        this.restartToastTimers(node, duration);
+        return;
+      }
+    }
+
     const toast = this.toastPool.pop() ?? el("div", "toast", null);
     toast.className = `toast toast--${tone}`;
     toast.textContent = message;
@@ -585,13 +634,36 @@ export class HudController {
     while (this.toastLayer.childElementCount > TOAST_CAPACITY) {
       const oldest = this.toastLayer.firstElementChild as HTMLElement | null;
       if (!oldest) break;
+      // Cancel the evicted toast's own timers before recycling it. They were
+      // left armed: the hold timer would later fire on a node that is already
+      // detached and pooled, mark it exiting, and push it into the pool a
+      // second time - so one element could be handed out for two live toasts,
+      // and whichever wrote to it last would win.
+      this.cancelToastTimers(oldest);
       oldest.remove();
       this.toastPool.push(oldest);
     }
 
+    this.restartToastTimers(toast, duration);
+  }
+
+  /** Drops any pending hold timer for a toast, so it cannot fire once recycled. */
+  private cancelToastTimers(toast: HTMLElement): void {
+    const previous = this.toastTimerByNode.get(toast);
+    if (previous === undefined) return;
+    window.clearTimeout(previous);
+    this.toastTimers.delete(previous);
+    this.toastTimerByNode.delete(toast);
+  }
+
+  /** (Re)arms a toast's hold-then-exit timers, cancelling any it already had. */
+  private restartToastTimers(toast: HTMLElement, duration: number): void {
+    this.cancelToastTimers(toast);
+
     const holdMs = Math.max(200, duration * 1000);
     const exitTimer = window.setTimeout(() => {
       this.toastTimers.delete(exitTimer);
+      this.toastTimerByNode.delete(toast);
       toast.classList.add("is-out");
       const removeTimer = window.setTimeout(() => {
         this.toastTimers.delete(removeTimer);
@@ -601,6 +673,7 @@ export class HudController {
       this.toastTimers.add(removeTimer);
     }, holdMs);
     this.toastTimers.add(exitTimer);
+    this.toastTimerByNode.set(toast, exitTimer);
   }
 
   /** One-shot full-screen flash. Pursuit also has a sustained state via update. */
@@ -617,6 +690,7 @@ export class HudController {
   dispose(): void {
     for (const timer of this.toastTimers) window.clearTimeout(timer);
     this.toastTimers.clear();
+    this.toastTimerByNode.clear();
     this.toastPool.length = 0;
     this.chips.length = 0;
     this.markers.length = 0;
