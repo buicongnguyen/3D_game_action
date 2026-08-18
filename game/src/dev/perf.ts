@@ -291,6 +291,11 @@ export function runPerformanceSuite(game: Game): PerformanceReport {
     world.pickups.releaseAll();
     world.structures.length = 0;
     world.encounterSites.length = 0;
+    // Stage 5 legitimately ends the run; later synthetic profiles must not
+    // inherit its terminal phase or every fixed update becomes an early return.
+    world.paused = false;
+    world.spider.docked = false;
+    world.setPhase("MARCH");
     scenario.setup(game);
     // Pool statistics accumulate from construction and all four scenarios share
     // one world, so without this reset every peak after the first would really
