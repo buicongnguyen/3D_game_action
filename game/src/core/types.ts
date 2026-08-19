@@ -284,6 +284,10 @@ export interface Enemy {
   /** Direction the last hit came from, for the recoil shove. */
   hitDirX: number;
   hitDirZ: number;
+  /** Time spent trying to move without making progress; drives bounded recovery. */
+  stuckTime: number;
+  /** A player weapon has tagged this enemy, so its eventual loot is recoverable. */
+  playerLootCredit: boolean;
 }
 
 export interface EnemyArchetype {
@@ -365,6 +369,8 @@ export interface Pickup {
   lifetime: number;
   /** Set while being pulled toward the player by the magnet. */
   attracted: boolean;
+  /** Optional attraction radius for combat-earned loot; zero uses the normal magnet. */
+  claimRadius: number;
   velocityX: number;
   velocityZ: number;
   active: boolean;

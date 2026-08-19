@@ -114,6 +114,8 @@ export class Game {
   private booted = false;
   /** A recentre asked for during a fixed step, awaiting the next render. */
   private recenterRequested = false;
+  /** Segment whose terrain/resources are currently presented to the player. */
+  private presentedSegmentId = "";
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -362,8 +364,7 @@ export class Game {
       world.trail = TRAIL.thresholds.PROBING;
     }
 
-    this.view.buildSegment(world);
-    this.spawnSegmentResources();
+    this.syncSegmentPresentation();
     if (world.mode === "salvageRush") this.spawnSalvageMachines();
 
     // Start beside the hull rather than well behind it: close enough to read as
@@ -385,7 +386,7 @@ export class Game {
     const placements = world.route.generateResources(world.random);
     for (let i = 0; i < placements.length; i++) {
       const placement = placements[i];
-      const kind = placement.kind === "fuel" ? "fuel" : "scrap";
+      const kind = placement.kind;
       const copies = world.mode === "salvageRush" ? SALVAGE_RUSH.resourcePocketMultiplier : 1;
       for (let copy = 0; copy < copies; copy++) {
         const offset = copy === 0 ? 0 : (copy % 2 === 0 ? -1 : 1) * (1 + copy * 0.55);
@@ -400,6 +401,20 @@ export class Game {
         );
       }
     }
+  }
+
+  /**
+   * Simulation can auto-depart a one-route checkpoint without a modal callback.
+   * Keep presentation keyed to route state so both automatic and chosen
+   * transitions rebuild scenery and populate the new stage exactly once.
+   */
+  private syncSegmentPresentation(): void {
+    const segmentId = this.world.route.segment?.id ?? "";
+    if (!segmentId || segmentId === this.presentedSegmentId) return;
+    if (this.presentedSegmentId) this.interaction.clearRoutePickups(this.world);
+    this.presentedSegmentId = segmentId;
+    this.view.buildSegment(this.world);
+    this.spawnSegmentResources();
   }
 
   private spawnSalvageMachines(): void {
@@ -516,6 +531,7 @@ export class Game {
 
     // 1-2. run state and Trail
     this.runState.update(world, scaled);
+    this.syncSegmentPresentation();
 
     // 3. spider
     this.spiderMovement.update(world, scaled);
@@ -754,8 +770,7 @@ export class Game {
       case "route": {
         this.closeModal();
         this.runState.departCheckpoint(world, value);
-        this.view.buildSegment(world);
-        this.spawnSegmentResources();
+        this.syncSegmentPresentation();
         break;
       }
       case "module": {
@@ -1015,8 +1030,7 @@ export class Game {
       },
       enterSegment: (segmentId: string) => {
         this.runState.departCheckpoint(this.world, segmentId);
-        this.view.buildSegment(this.world);
-        this.spawnSegmentResources();
+        this.syncSegmentPresentation();
       },
       /**
        * Places live machines around the spider. The performance scenarios need

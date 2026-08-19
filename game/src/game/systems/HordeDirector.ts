@@ -348,6 +348,11 @@ export class HordeDirector {
     enemy.knockZ = 0;
     enemy.spawnedVisible = visible;
     enemy.phase = world.directorRandom.next();
+    enemy.hitFlash = 0;
+    enemy.hitDirX = 0;
+    enemy.hitDirZ = 0;
+    enemy.stuckTime = 0;
+    enemy.playerLootCredit = false;
 
     this.stats.spawnedTotal++;
     world.events.emit({

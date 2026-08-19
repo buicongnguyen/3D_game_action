@@ -665,6 +665,23 @@ body {
   transform: translateX(-50%);
   display: flex;
   gap: var(--gap);
+  padding-top: 20px;
+}
+
+.hud__build-hint {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translate(-50%, -100%);
+  width: max-content;
+  padding: 4px 9px;
+  color: var(--hud-text);
+  background: rgba(12, 11, 10, 0.82);
+  box-shadow: inset 0 0 0 1px var(--brass);
+  font-family: var(--font-num);
+  font-size: var(--fs-tiny);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
 }
 
 .bp {

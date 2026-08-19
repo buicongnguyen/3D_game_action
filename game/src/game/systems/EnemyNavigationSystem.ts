@@ -67,6 +67,10 @@ const OUTER_RALLY_DISTANCE = 18;
 
 /** Inside this range an enemy seeks its target directly, unquantised by cells. */
 const DIRECT_SEEK_DISTANCE = 7;
+/** A blocked enemy is nudged to the nearest reachable cell after this long. */
+const STUCK_RECOVERY_SECONDS = 1.1;
+/** Fraction of intended step distance that still counts as useful progress. */
+const STUCK_PROGRESS_FRACTION = 0.2;
 
 /**
  * Awakening beat for an on-screen spawn; the off-screen case is near-instant.
@@ -159,7 +163,7 @@ function nowMs(): number {
 // ---------------------------------------------------------------------------
 
 export class EnemyNavigationSystem {
-  readonly stats = { flowRebuilds: 0, steered: 0, fullLod: 0, lastRebuildMs: 0 };
+  readonly stats = { flowRebuilds: 0, steered: 0, fullLod: 0, unstuck: 0, lastRebuildMs: 0 };
 
   private focusX = 0;
   private focusZ = 0;
@@ -710,12 +714,21 @@ export class EnemyNavigationSystem {
       );
     }
 
-    this.integrate(world, enemy, enemy.velocityX, enemy.velocityZ, dt);
+    this.integrate(world, enemy, enemy.velocityX, enemy.velocityZ, dt, true);
   }
 
   /** Axis-separated so a glancing contact slides instead of stopping dead. */
-  private integrate(world: GameWorld, enemy: Enemy, vx: number, vz: number, dt: number): void {
+  private integrate(
+    world: GameWorld,
+    enemy: Enemy,
+    vx: number,
+    vz: number,
+    dt: number,
+    expectsProgress = false,
+  ): void {
     const grid = world.navigation;
+    const startX = enemy.x;
+    const startZ = enemy.z;
     let nextX = enemy.x + vx * dt;
     let nextZ = enemy.z + vz * dt;
 
@@ -730,6 +743,57 @@ export class EnemyNavigationSystem {
 
     enemy.x = nextX;
     enemy.z = nextZ;
+
+    const wantedSq = vx * vx + vz * vz;
+    const movedSq = distSq(startX, startZ, nextX, nextZ);
+    const intendedStepSq = wantedSq * dt * dt;
+    const minimumProgressSq = intendedStepSq *
+      STUCK_PROGRESS_FRACTION * STUCK_PROGRESS_FRACTION;
+    const stalled = wantedSq <= 0.2 * 0.2 || movedSq < minimumProgressSq;
+    if (expectsProgress && enemy.state === "APPROACHING" && stalled) enemy.stuckTime += dt;
+    else enemy.stuckTime = Math.max(0, enemy.stuckTime - dt * 2);
+
+    if (enemy.stuckTime >= STUCK_RECOVERY_SECONDS) this.recoverStuckEnemy(world, enemy);
+  }
+
+  /**
+   * Searches a small deterministic fan for open, flow-connected ground. This
+   * handles authored corners and spawn pockets without an unbounded pathfind
+   * per enemy or a visible jump across the whole maze.
+   */
+  private recoverStuckEnemy(world: GameWorld, enemy: Enemy): void {
+    let bestX = enemy.x;
+    let bestZ = enemy.z;
+    let bestScore = Infinity;
+    const base = enemy.phase * Math.PI * 2;
+    for (let ring = 1; ring <= 4; ring++) {
+      const radius = ring * world.navigation.cellSize * 1.15;
+      for (let i = 0; i < 16; i++) {
+        const angle = base + (i / 16) * Math.PI * 2;
+        const x = enemy.x + Math.cos(angle) * radius;
+        const z = enemy.z + Math.sin(angle) * radius;
+        if (world.navigation.isBlockedCircle(x, z, enemy.radius)) continue;
+        if (!world.flowField.hasFlowAt(x, z)) continue;
+        const score = distSq(x, z, world.spider.x, world.spider.z);
+        if (score >= bestScore) continue;
+        bestScore = score;
+        bestX = x;
+        bestZ = z;
+      }
+      if (bestScore < Infinity) break;
+    }
+    enemy.stuckTime = 0;
+    if (bestScore === Infinity) return;
+    enemy.x = bestX;
+    enemy.z = bestZ;
+    enemy.prevX = bestX;
+    enemy.prevZ = bestZ;
+    enemy.velocityX = 0;
+    enemy.velocityZ = 0;
+    enemy.targetKind = "core";
+    enemy.targetId = -1;
+    enemy.targetCooldown = 0;
+    this.stats.unstuck++;
   }
 }
 

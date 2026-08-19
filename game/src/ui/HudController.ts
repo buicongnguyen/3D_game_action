@@ -359,6 +359,8 @@ export class HudController {
 
   private readonly blueprintRow: HTMLElement;
   private readonly chips: BlueprintChip[] = [];
+  private readonly buildHint: HTMLElement;
+  private prevBuildHintDevice = "";
 
   private readonly prompt: HTMLElement;
   private readonly promptRing: HTMLElement;
@@ -486,6 +488,7 @@ export class HudController {
 
     // --- blueprints, bottom centre -----------------------------------------
     this.blueprintRow = el("div", "hud__blueprints", this.hud);
+    this.buildHint = el("div", "hud__build-hint", this.blueprintRow);
 
     // --- contextual prompt ---------------------------------------------------
     this.prompt = el("div", "hud__prompt", this.hud);
@@ -721,6 +724,12 @@ export class HudController {
   }
 
   private updateBlueprints(blueprints: HudBlueprintModel[], device: string): void {
+    if (device !== this.prevBuildHintDevice) {
+      this.prevBuildHintDevice = device;
+      this.buildHint.textContent = device === "keyboard"
+        ? "HOLD Q TO BUILD · RELEASE · E TO PLACE"
+        : "HOLD L1 TO BUILD · RELEASE · ✕ TO PLACE";
+    }
     while (this.chips.length < blueprints.length) {
       const chipRoot = el("div", "bp", this.blueprintRow);
       this.chips.push({

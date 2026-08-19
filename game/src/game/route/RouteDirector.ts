@@ -2,6 +2,7 @@ import type { Random } from "../../core/Random.ts";
 import type { Vec2 } from "../../core/math.ts";
 import { clamp, clamp01 } from "../../core/math.ts";
 import type {
+  PickupKind,
   ResourceZoneDefinition,
   RouteSegmentDefinition,
   SpawnZoneDefinition,
@@ -23,7 +24,7 @@ import type { RouteSpline } from "./RouteSpline.ts";
  */
 
 export interface ResourcePlacement {
-  kind: string;
+  kind: PickupKind;
   x: number;
   z: number;
   amount: number;
@@ -33,7 +34,7 @@ export interface ResourcePlacement {
 const ZONE_LOOKAHEAD = 20;
 const COMPLETION_EPSILON = 1e-4;
 
-const RESOURCE_KIND: Record<ResourceZoneDefinition["kind"], string> = {
+const RESOURCE_KIND: Record<ResourceZoneDefinition["kind"], PickupKind> = {
   scrap: "scrap",
   scrapLarge: "scrap",
   fuel: "fuel",

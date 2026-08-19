@@ -24,8 +24,10 @@ export const PLAYER = {
   deceleration: 70,
   turnRate: 14,
   radius: 0.42,
-  comfortableDistance: 18,
-  tetherDistance: 22,
+  /** Exploration stays warning-free through nearby houses and side chambers. */
+  comfortableDistance: 26,
+  /** Hard escort leash; long enough for ranged loot and maze side rooms. */
+  tetherDistance: 32,
   /** Damage per second applied while past the tether limit. */
   tetherDamagePerSecond: 6,
   /** Speed of the pull-back applied at the tether limit. */
@@ -377,6 +379,8 @@ export const XP = {
 export const PICKUPS = {
   /** Enemy drops expire; authored route resources pass 0 and remain persistent. */
   dropLifetime: 45,
+  /** Rifle-range loot from an enemy tagged by the player flies back automatically. */
+  creditedLootRadius: 32,
 } as const;
 
 export const SALVAGE_RUSH = {

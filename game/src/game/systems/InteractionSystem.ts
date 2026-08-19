@@ -703,7 +703,6 @@ export class InteractionSystem {
   collectPickups(world: GameWorld, dt: number): void {
     const player = world.player;
     const magnetRadius = PLAYER.magnetRadius * world.modifiers.magnetRadius;
-    const magnetSq = magnetRadius * magnetRadius;
     const collectSq = 0.8 * 0.8;
     const backing = world.pickups.backing;
 
@@ -725,8 +724,9 @@ export class InteractionSystem {
         continue;
       }
 
+      const activeRadius = Math.max(magnetRadius, pickup.claimRadius);
       const d = distSq(pickup.x, pickup.z, player.x, player.z);
-      if (d > magnetSq) {
+      if (d > activeRadius * activeRadius) {
         pickup.attracted = false;
         continue;
       }
@@ -740,10 +740,28 @@ export class InteractionSystem {
       const distance = Math.sqrt(d) || 1;
       // Accelerate as it closes, so collection reads as a satisfying snap
       // rather than a slow drift.
-      const pull = PLAYER.magnetSpeed * (1 + (1 - clamp(distance / magnetRadius, 0, 1)) * 1.5);
+      const pull = PLAYER.magnetSpeed * (1 + (1 - clamp(distance / activeRadius, 0, 1)) * 1.5);
       pickup.x += ((player.x - pickup.x) / distance) * pull * dt;
       pickup.z += ((player.z - pickup.z) / distance) * pull * dt;
     }
+  }
+
+  /**
+   * Removes persistent authored pickups from the segment being left. Enemy
+   * drops have a positive lifetime and are deliberately left to expire by
+   * their normal rule instead of disappearing at a checkpoint boundary.
+   */
+  clearRoutePickups(world: GameWorld): number {
+    let cleared = 0;
+    const backing = world.pickups.backing;
+    for (let i = 0; i < backing.length; i++) {
+      const pickup = backing[i];
+      if (!pickup.active || pickup.lifetime > 0) continue;
+      pickup.active = false;
+      world.pickups.release(i);
+      cleared++;
+    }
+    return cleared;
   }
 
   private consumePickup(world: GameWorld, index: number): void {
@@ -800,6 +818,7 @@ export class InteractionSystem {
     amount: number,
     settle: number,
     lifetime: number = PICKUPS.dropLifetime,
+    claimRadius = 0,
   ): boolean {
     const pickup = world.pickups.acquire();
     if (!pickup) return false;
@@ -812,6 +831,7 @@ export class InteractionSystem {
     pickup.settleTimer = settle;
     pickup.lifetime = lifetime;
     pickup.attracted = false;
+    pickup.claimRadius = claimRadius;
     pickup.active = true;
     pickup.phase = world.cosmeticRandom.next();
     return true;

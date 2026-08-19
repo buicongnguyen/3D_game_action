@@ -86,7 +86,10 @@ export class ObjectPool<T> {
 
   releaseAll(): void {
     this.free.length = 0;
-    for (let i = 0; i < this.capacity; i++) this.free.push(this.capacity - 1 - i);
+    for (let i = 0; i < this.capacity; i++) {
+      this.reset(this.items[i]);
+      this.free.push(this.capacity - 1 - i);
+    }
     this.liveCount = 0;
   }
 

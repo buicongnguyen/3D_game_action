@@ -298,6 +298,8 @@ export function createEnemy(renderIndex: number): Enemy {
     hitFlash: 0,
     hitDirX: 0,
     hitDirZ: 0,
+    stuckTime: 0,
+    playerLootCredit: false,
   };
 }
 
@@ -333,6 +335,8 @@ export function resetEnemy(enemy: Enemy): void {
   enemy.hitFlash = 0;
   enemy.hitDirX = 0;
   enemy.hitDirZ = 0;
+  enemy.stuckTime = 0;
+  enemy.playerLootCredit = false;
   // renderIndex is the pool slot and is intentionally preserved.
 }
 
@@ -395,6 +399,7 @@ export function createPickup(_index: number): Pickup {
     settleTimer: 0,
     lifetime: 0,
     attracted: false,
+    claimRadius: 0,
     velocityX: 0,
     velocityZ: 0,
     active: false,
@@ -412,6 +417,7 @@ export function resetPickup(pickup: Pickup): void {
   pickup.settleTimer = 0;
   pickup.lifetime = 0;
   pickup.attracted = false;
+  pickup.claimRadius = 0;
   pickup.velocityX = 0;
   pickup.velocityZ = 0;
   pickup.active = false;

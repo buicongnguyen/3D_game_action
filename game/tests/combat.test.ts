@@ -25,6 +25,7 @@ interface Rig {
   weapons: WeaponSystem;
   turrets: StructureCombatSystem;
   pressure: PressureNetworkSystem;
+  interactions: InteractionSystem;
 }
 
 function createRig(seed = 20260816): Rig {
@@ -40,6 +41,7 @@ function createRig(seed = 20260816): Rig {
     weapons: new WeaponSystem(),
     turrets: new StructureCombatSystem(),
     pressure: new PressureNetworkSystem(),
+    interactions,
   };
 }
 
@@ -542,6 +544,31 @@ describe("personal weapon", () => {
     for (let i = 0; i < 20; i++) rig.collision.update(world, STEP);
     expect(world.encounterSites[0].active).toBe(false);
     expect(world.resources.scrap).toBe(scrap + 25);
+  });
+
+  it("pulls distant scrap back when the player tagged the enemy before it died", () => {
+    const rig = createRig(20260820);
+    const world = rig.world;
+    const enemy = spawnEnemy(world, "golem", world.player.x, world.player.z + 22);
+    rig.damage.applyToEnemy(world, enemy, {
+      amount: 1, source: "player.weapon", originX: world.player.x,
+      originZ: world.player.z, knockback: 0, critical: false,
+    });
+    rig.damage.applyToEnemy(world, enemy, {
+      amount: enemy.health, source: "structure.turret", originX: world.spider.x,
+      originZ: world.spider.z, knockback: 0, critical: false,
+    });
+
+    expect(world.enemies.active).toBe(0);
+    expect(world.enemies.available).toBe(world.enemies.capacity);
+    const pickup = world.pickups.backing.find((candidate) => candidate.active)!;
+    expect(pickup.claimRadius).toBeGreaterThan(22);
+    const scrapBefore = world.resources.scrap;
+    for (let i = 0; i < 60 * 4 && world.pickups.active > 0; i++) {
+      rig.interactions.collectPickups(world, STEP);
+    }
+    expect(world.pickups.active).toBe(0);
+    expect(world.resources.scrap).toBeGreaterThan(scrapBefore);
   });
 });
 

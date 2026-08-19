@@ -672,6 +672,62 @@ describe("EnemyNavigationSystem", () => {
     }
   });
 
+  it("recovers an enemy trapped in an unreachable obstacle pocket", () => {
+    const world = marchingWorld(0x57ac);
+    const director = new HordeDirector();
+    const navigation = new EnemyNavigationSystem();
+    const enemy = placeEnemy(
+      world,
+      director,
+      "minion",
+      world.spider.x + 10,
+      world.spider.z + 10,
+    );
+    enemy.state = "APPROACHING";
+    world.navigation.setStatic(enemy.x, enemy.z, 2.4);
+    const startX = enemy.x;
+    const startZ = enemy.z;
+
+    for (let i = 0; i < 60 * 4; i++) navigation.update(world, STEP);
+
+    expect(navigation.stats.unstuck).toBeGreaterThan(0);
+    expect(Math.hypot(enemy.x - startX, enemy.z - startZ)).toBeGreaterThan(2.4);
+    expect(world.navigation.isBlockedCircle(enemy.x, enemy.z, enemy.radius)).toBe(false);
+    expect(enemy.targetKind).toBe("core");
+  });
+
+  it("does not mistake legitimate shallow-water movement for being stuck", () => {
+    const world = marchingWorld(0x57ad);
+    world.route.enterSegment("seg.flooded");
+    world.spider.distanceAlongRoute = 60;
+    const spline = world.route.spline!;
+    const spiderPoint = { x: 0, z: 0 };
+    const waterPoint = { x: 0, z: 0 };
+    const tangent = { x: 0, z: 1 };
+    spline.positionAt(spiderPoint, 60);
+    spline.positionAt(waterPoint, 40);
+    spline.tangentAt(tangent, 40);
+    world.spider.x = spiderPoint.x;
+    world.spider.z = spiderPoint.z;
+    world.player.x = spiderPoint.x;
+    world.player.z = spiderPoint.z;
+    const director = new HordeDirector();
+    const navigation = new EnemyNavigationSystem();
+    const enemy = placeEnemy(
+      world, director, "minion",
+      waterPoint.x - tangent.z * 8,
+      waterPoint.z + tangent.x * 8,
+    );
+    enemy.state = "APPROACHING";
+    const startX = enemy.x;
+    const startZ = enemy.z;
+
+    for (let i = 0; i < 60 * 2; i++) navigation.update(world, STEP);
+
+    expect(navigation.stats.unstuck).toBe(0);
+    expect(Math.hypot(enemy.x - startX, enemy.z - startZ)).toBeGreaterThan(0.5);
+  });
+
   it("walks an enemy to its target and attacks the spider core", () => {
     const world = marchingWorld(0xc02e);
     const director = new HordeDirector();

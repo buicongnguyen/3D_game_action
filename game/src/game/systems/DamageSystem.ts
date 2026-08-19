@@ -1,7 +1,7 @@
 import { clamp01, distSq } from "../../core/math.ts";
 import type { StructureExplodedEvent } from "../../core/events.ts";
 import type { DamageInfo, DamageSource, Enemy, Structure, StructureKind } from "../../core/types.ts";
-import { PLAYER, SPIDER, STRUCTURES, TRAIL } from "../../data/balance.ts";
+import { PICKUPS, PLAYER, SPIDER, STRUCTURES, TRAIL } from "../../data/balance.ts";
 import { getArchetype } from "../../data/enemies.ts";
 import { getStructureConfig } from "../../data/structures.ts";
 import type { GameWorld } from "../GameWorld.ts";
@@ -104,6 +104,7 @@ export class DamageSystem {
     enemy.health -= info.amount;
 
     if (info.source === "player.weapon") {
+      enemy.playerLootCredit = true;
       world.stats.damageByPlayer += applied;
     } else if (info.source === "structure.turret" || info.source === "structure.explosion") {
       world.stats.damageByStructures += applied;
@@ -186,10 +187,12 @@ export class DamageSystem {
       ? archetype.scrapDropChance * PLAYER_KILL_LOOT_BONUS
       : archetype.scrapDropChance;
     if (archetype.scrapDrop > 0 && world.random.next() < chance) {
-      this.interactions.spawnPickup(world, "scrap", enemy.x, enemy.z, archetype.scrapDrop, 0.35);
+      this.interactions.spawnPickup(
+        world, "scrap", enemy.x, enemy.z, archetype.scrapDrop, 0.35,
+        undefined, enemy.playerLootCredit ? PICKUPS.creditedLootRadius : 0,
+      );
     }
 
-    enemy.active = false;
     releaseEnemy(world, enemy);
   }
 

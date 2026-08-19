@@ -214,6 +214,19 @@ describe("the march", () => {
     expect(harness.countEvents("player.tethered")).toBeGreaterThan(0);
   });
 
+  it("allows exploration thirty metres from the spider before the tether engages", () => {
+    const harness = new Harness(43, { spawns: false });
+    harness.placePlayerNear(harness.world.spider.x + 30, harness.world.spider.z);
+    harness.step();
+
+    expect(harness.world.player.tethered).toBe(false);
+    expect(harness.countEvents("player.tethered")).toBe(0);
+    expect(Math.hypot(
+      harness.world.player.x - harness.world.spider.x,
+      harness.world.player.z - harness.world.spider.z,
+    )).toBeGreaterThan(29);
+  });
+
   it("drops a carried machine as a recoverable folded structure at the tether", () => {
     const harness = new Harness(4242, { spawns: false });
     const placedBefore = harness.world.stats.structuresPlaced;
@@ -936,6 +949,20 @@ describe("determinism", () => {
 });
 
 describe("pooling", () => {
+  it("clears obsolete route resources without deleting timed enemy loot", () => {
+    const harness = new Harness(403, { spawns: false });
+    const x = harness.world.player.x + 10;
+    const z = harness.world.player.z;
+    harness.interaction.spawnPickup(harness.world, "repairKit", x, z, 1, 0, 0);
+    harness.interaction.spawnPickup(harness.world, "scrap", x + 1, z, 3, 0, 20);
+
+    expect(harness.interaction.clearRoutePickups(harness.world)).toBe(1);
+    expect(harness.world.pickups.active).toBe(1);
+    const survivor = harness.world.pickups.backing.find((pickup) => pickup.active);
+    expect(survivor?.kind).toBe("scrap");
+    expect(survivor?.lifetime).toBe(20);
+  });
+
   it("expires enemy drops but keeps authored route resources", () => {
     const harness = new Harness(404, { spawns: false });
     const x = harness.world.player.x + 50;
