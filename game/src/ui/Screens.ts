@@ -22,6 +22,9 @@ export type ScreenKind =
   | "route"
   | "upgrade"
   | "module"
+  | "shop"
+  | "turretShop"
+  | "story"
   | "pause"
   | "settings"
   | "victory"
@@ -67,6 +70,8 @@ export interface ScreenData {
   stats?: ScreenStat[];
   /** Overrides the per-kind default layout. */
   layout?: "list" | "cards";
+  /** Fixed card columns; omitted screens keep their one-row layout. */
+  columns?: number;
   hints?: ScreenHint[];
 }
 
@@ -83,6 +88,9 @@ const DEFAULT_TITLES: Record<ScreenKind, string> = {
   route: "Choose the road",
   upgrade: "Level up",
   module: "Install a module",
+  shop: "Weapon Workshop",
+  turretShop: "Turret Foundry",
+  story: "Stage complete",
   pause: "Paused",
   settings: "Settings",
   victory: "The gate holds",
@@ -95,6 +103,8 @@ const CARD_KINDS: Record<string, boolean> = {
   route: true,
   upgrade: true,
   module: true,
+  shop: true,
+  turretShop: true,
 };
 
 function el(tag: string, className: string, parent: HTMLElement | null): HTMLElement {
@@ -391,7 +401,7 @@ export class ScreenManager {
     this.hintsBar = el("div", "screen__hints", screen);
     this.renderHints();
 
-    const columns = cards ? Math.max(1, this.options.length) : 1;
+    const columns = cards ? Math.max(1, data.columns ?? this.options.length) : 1;
     if (this.options.length > 0) this.focus.setGroup(this.options, focusIndex, columns);
   }
 
@@ -409,7 +419,7 @@ export class ScreenManager {
   private renderOptions(parent: HTMLElement, models: ScreenOption[], cards: boolean): void {
     const list = el("div", "screen__options", parent);
     list.dataset.layout = cards ? "cards" : "list";
-    if (cards) list.style.setProperty("--cols", `${models.length}`);
+    if (cards) list.style.setProperty("--cols", `${this.data.columns ?? models.length}`);
 
     for (let i = 0; i < models.length; i++) {
       const model = models[i];
@@ -495,6 +505,9 @@ const DEFAULT_EYEBROWS: Record<ScreenKind, string> = {
   route: "Checkpoint",
   upgrade: "Level up",
   module: "Spider workshop",
+  shop: "Checkpoint market",
+  turretShop: "Emplaced weapon engineering",
+  story: "A voice from the checkpoint",
   pause: "",
   settings: "",
   victory: "Run complete",
@@ -516,6 +529,9 @@ const DEFAULT_HINTS: Record<ScreenKind, ScreenHint[]> = {
   route: [NAVIGATE_HINT, SELECT_HINT],
   upgrade: [NAVIGATE_HINT, SELECT_HINT],
   module: [NAVIGATE_HINT, SELECT_HINT],
+  shop: [NAVIGATE_HINT, SELECT_HINT, BACK_HINT],
+  turretShop: [NAVIGATE_HINT, SELECT_HINT, BACK_HINT],
+  story: [SELECT_HINT],
   pause: [NAVIGATE_HINT, SELECT_HINT, RESUME_HINT],
   // No Select here: every row on this screen is adjusted, not chosen, and a
   // footer that names a button which does nothing is how F52 happened.

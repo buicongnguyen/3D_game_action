@@ -33,6 +33,23 @@ export class ConstructionSystem {
     this.cameraRightZ = rightZ;
   }
 
+  /**
+   * Starts placement from a pointer-selected HUD card. Keyboard and controller
+   * still use the radial, but mouse/touch players should not have to discover
+   * a separate shortcut for a deployable that is already visible on screen.
+   */
+  selectBlueprintForPlacement(world: GameWorld, index: number): boolean {
+    if (index < 0 || index >= world.loadout.length || world.player.downed || world.paused) return false;
+
+    const build = world.build;
+    build.radialOpen = false;
+    build.radialIndex = index;
+    build.selectedBlueprint = index;
+    world.timeScale = 1;
+    this.cancelGhost(world);
+    return this.startSelectedPlacement(world);
+  }
+
   update(world: GameWorld, dt: number, input: InputSnapshot): void {
     const build = world.build;
 
@@ -93,20 +110,26 @@ export class ConstructionSystem {
     build.radialOpen = false;
     build.selectedBlueprint = build.radialIndex;
 
+    this.startSelectedPlacement(world);
+  }
+
+  private startSelectedPlacement(world: GameWorld): boolean {
+    const build = world.build;
     const kind = world.loadout[build.selectedBlueprint];
-    if (!kind) return;
+    if (!kind) return false;
 
     const blueprint = getBlueprint(kind);
     const cost = Math.ceil(blueprint.cost * world.modifiers.structureCost);
     if (world.resources.scrap < cost) {
       world.events.emit({ type: "build.rejected", reason: `Need ${cost} scrap` });
-      return;
+      return false;
     }
 
     build.ghostActive = true;
     build.ghostKind = kind;
     this.ghostOffsetX = Math.sin(world.player.heading) * 3;
     this.ghostOffsetZ = Math.cos(world.player.heading) * 3;
+    return true;
   }
 
   private updateGhost(world: GameWorld, dt: number, input: InputSnapshot): void {

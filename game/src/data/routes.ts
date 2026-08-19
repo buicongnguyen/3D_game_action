@@ -308,6 +308,11 @@ export interface CheckpointDefinition {
   nextSegments: string[];
   /** Module ids offered here; empty means none. */
   moduleOffer: string[];
+  /** Short stage-completion message shown before checkpoint rewards. */
+  arrivalStory?: {
+    speaker: string;
+    text: string;
+  };
 }
 
 export const CHECKPOINTS: Record<string, CheckpointDefinition> = {
@@ -324,6 +329,10 @@ export const CHECKPOINTS: Record<string, CheckpointDefinition> = {
     duration: 30,
     nextSegments: ["seg.mine"],
     moduleOffer: [],
+    arrivalStory: {
+      speaker: "Foundry Keeper Mara",
+      text: "Thank you for escorting us to Foundry Halt. The furnaces can breathe again because you held the road. We believe in you—keep the Iron Spider moving.",
+    },
   },
   "checkpoint.settlement": {
     id: "checkpoint.settlement",
@@ -331,6 +340,10 @@ export const CHECKPOINTS: Record<string, CheckpointDefinition> = {
     duration: 24,
     nextSegments: ["seg.flooded", "seg.floodedShortcut"],
     moduleOffer: ["module.crane", "module.dorsalTurret"],
+    arrivalStory: {
+      speaker: "Settlement Watchman",
+      text: "You brought us safely through the broken streets. The families here saw your courage, and now they have hope. The next road is harder, but we believe in you.",
+    },
   },
   "checkpoint.pump": {
     id: "checkpoint.pump",
@@ -338,6 +351,10 @@ export const CHECKPOINTS: Record<string, CheckpointDefinition> = {
     duration: 24,
     nextSegments: ["seg.scrapyard"],
     moduleOffer: ["module.boiler", "module.reactiveArmor"],
+    arrivalStory: {
+      speaker: "Pump Engineer Ilya",
+      text: "Thank you for reaching the Pump Station. Fresh water will flow behind you because you refused to stop. Rest for a moment—the whole march is counting on you.",
+    },
   },
   "checkpoint.gate": {
     id: "checkpoint.gate",
@@ -345,8 +362,15 @@ export const CHECKPOINTS: Record<string, CheckpointDefinition> = {
     duration: 24,
     nextSegments: ["seg.escape"],
     moduleOffer: [],
+    arrivalStory: {
+      speaker: "Captain of the Gate",
+      text: "You carried our last hope to Gate Watch. One final road remains, and every defender is standing because of you. We believe you can bring the Spider home.",
+    },
   },
 };
+
+export const FINAL_GATE_STORY =
+  "You brought the Iron Spider through every road and delivered us safely to the gate. Tonight the lights stay on because of you. Thank you, Engineer—we always believed in you.";
 
 /** Ordered checkpoint chain for the slice. */
 export const SLICE_CHECKPOINT_ORDER: readonly string[] = [

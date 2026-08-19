@@ -49,15 +49,18 @@ export class EncounterSystem {
       if (world.spider.distanceAlongRoute < encounter.distance - encounter.triggerLead) continue;
 
       const position = encounterPosition(world, encounter);
+      const hasBoss = encounter.occupants.some((group) => group.archetype === "golem");
       this.started.add(encounter.id);
       const site = world.encounterSites.find((candidate) => candidate.definitionId === encounter.id);
       if (site) site.triggered = true;
       this.pending.push({ definition: encounter, timer: encounter.warningSeconds, ...position });
       world.events.emit({
         type: "ui.toast",
-        message: encounter.kind === "workshopNest" ? "Enemy nest awakening!" : "Movement inside the ruins!",
+        message: hasBoss
+          ? "BOSS · Bone Colossus awakening!"
+          : encounter.kind === "workshopNest" ? "Enemy nest awakening!" : "Movement inside the ruins!",
         tone: "warning",
-        duration: Math.max(1.5, encounter.warningSeconds),
+        duration: hasBoss ? 3 : Math.max(1.5, encounter.warningSeconds),
       });
       world.events.emit({
         type: "vfx.request",

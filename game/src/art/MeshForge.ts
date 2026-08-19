@@ -23,8 +23,10 @@ import {
   buildEngineer,
   buildEnemyImpostorGeometry,
   buildScattergun,
+  buildGearburstCarbine,
   buildRivetRifle,
   buildSteamFlamer,
+  buildArcProjector,
   buildMagneticLauncher,
   buildSkeletonAxe,
   buildSkeletonGolem,
@@ -140,6 +142,11 @@ export class MeshForge {
         () => {
           buildWrench(this.materials);
           buildScattergun(this.materials);
+          buildGearburstCarbine(this.materials);
+          buildRivetRifle(this.materials);
+          buildSteamFlamer(this.materials);
+          buildArcProjector(this.materials);
+          buildMagneticLauncher(this.materials);
           buildSkeletonAxe(this.materials);
         },
       ],
@@ -258,12 +265,20 @@ export class MeshForge {
     return buildScattergun(this.materials);
   }
 
+  createGearburstCarbine(): Object3D {
+    return buildGearburstCarbine(this.materials);
+  }
+
   createRivetRifle(): Object3D {
     return buildRivetRifle(this.materials);
   }
 
   createSteamFlamer(): Object3D {
     return buildSteamFlamer(this.materials);
+  }
+
+  createArcProjector(): Object3D {
+    return buildArcProjector(this.materials);
   }
 
   createMagneticLauncher(): Object3D {

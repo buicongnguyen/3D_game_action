@@ -51,7 +51,7 @@ export const ENEMY_ARCHETYPES: Record<string, EnemyArchetype> = {
   },
   golem: {
     id: "golem",
-    name: "Skeleton Golem",
+    name: "Bone Colossus · Boss",
     health: 400,
     speed: 1.1,
     spawnCost: 15,

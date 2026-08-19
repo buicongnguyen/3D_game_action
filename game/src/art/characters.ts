@@ -809,6 +809,18 @@ export function buildRivetRifle(materials: MaterialLibrary): Object3D {
   return weaponGroup("rivetRifle", geometry, materials);
 }
 
+export function buildGearburstCarbine(materials: MaterialLibrary): Object3D {
+  const P = PLAYER_COLORS;
+  const geometry = cacheSingle("gearburstCarbine", () => tint(merge([
+    place(chamferedBox(0.14, 0.13, 0.42, 0.025, P.steelDark), 0, 0.015, 0.08),
+    place(cylinderish(0.045, 0.035, 0.48, 8, P.steel), 0, 0.04, 0.52, Math.PI * 0.5),
+    place(rivetRing(0.105, 8, 0.018, P.brass), 0, 0.04, 0.28, Math.PI * 0.5),
+    place(chamferedBox(0.11, 0.15, 0.16, 0.025, P.brassDark), 0, -0.02, -0.18),
+    place(taperedBox(0.08, 0.065, 0.18, 0.1, 0.08, 0.02, ENV.treeTrunkDark), 0, -0.12, -0.08, -0.25),
+  ]), 0.05, 64));
+  return weaponGroup("gearburstCarbine", geometry, materials);
+}
+
 export function buildSteamFlamer(materials: MaterialLibrary): Object3D {
   const P = PLAYER_COLORS;
   const geometry = cacheSingle("steamFlamer", () => tint(merge([
@@ -820,6 +832,20 @@ export function buildSteamFlamer(materials: MaterialLibrary): Object3D {
     place(sphereish(0.05, 6, P.brass), 0.13, 0.08, -0.1),
   ]), 0.05, 62));
   return weaponGroup("steamFlamer", geometry, materials);
+}
+
+export function buildArcProjector(materials: MaterialLibrary): Object3D {
+  const P = PLAYER_COLORS;
+  const geometry = cacheSingle("arcProjector", () => tint(merge([
+    place(chamferedBox(0.17, 0.17, 0.38, 0.035, P.steelDark), 0, 0.02, 0.02),
+    place(cylinderish(0.075, 0.055, 0.52, 10, P.brassDark), 0, 0.04, 0.45, Math.PI * 0.5),
+    place(rivetRing(0.14, 8, 0.022, P.brass), 0, 0.04, 0.46, Math.PI * 0.5),
+    place(sphereish(0.075, 8, SPIDER_COLORS.glass), 0, 0.04, 0.72),
+    place(chamferedBox(0.045, 0.045, 0.22, 0.012, SPIDER_COLORS.glass), 0.11, 0.04, 0.66),
+    place(chamferedBox(0.045, 0.045, 0.22, 0.012, SPIDER_COLORS.glass), -0.11, 0.04, 0.66),
+    place(taperedBox(0.09, 0.07, 0.2, 0.12, 0.09, 0.02, ENV.treeTrunkDark), 0, -0.13, -0.05, -0.24),
+  ]), 0.045, 65));
+  return weaponGroup("arcProjector", geometry, materials);
 }
 
 export function buildMagneticLauncher(materials: MaterialLibrary): Object3D {

@@ -1,7 +1,7 @@
 import { clamp } from "../../core/math.ts";
 import type { RouteObjectiveDefinition, TrailState } from "../../core/types.ts";
 import { DIRECTOR, SALVAGE_RUSH, TRAIL, XP } from "../../data/balance.ts";
-import { getCheckpoint } from "../../data/routes.ts";
+import { getCheckpoint, type CheckpointDefinition } from "../../data/routes.ts";
 import { rollUpgradeOffers } from "../../data/upgrades.ts";
 import type { GameWorld } from "../GameWorld.ts";
 
@@ -23,6 +23,9 @@ export class RunStateSystem {
   pendingRoutes: string[] = [];
   /** Finale preparation cannot depart until the player chooses a compact kit. */
   pendingLoadout = false;
+  /** Each reached checkpoint opens its scrap-powered weapon shop once. */
+  pendingShop = false;
+  pendingStory: CheckpointDefinition["arrivalStory"] = undefined;
 
   /** Seconds left on the current checkpoint's departure timer. */
   checkpointTimer = 0;
@@ -130,6 +133,8 @@ export class RunStateSystem {
     this.pendingModules = [...checkpoint.moduleOffer];
     this.pendingRoutes = [...checkpoint.nextSegments];
     this.pendingLoadout = destination === "checkpoint.gate";
+    this.pendingShop = true;
+    this.pendingStory = checkpoint.arrivalStory;
 
     // These are authored campaign rewards, independent of combat XP luck.
     if (destination === "checkpoint.foundry" || destination === "checkpoint.gate") {
@@ -151,7 +156,13 @@ export class RunStateSystem {
     this.syncTrailState(world);
 
     this.checkpointTimer -= dt;
-    if (this.checkpointTimer <= 0 && this.pendingRoutes.length <= 1 && !this.pendingLoadout) {
+    if (
+      this.checkpointTimer <= 0 &&
+      this.pendingRoutes.length <= 1 &&
+      !this.pendingLoadout &&
+      !this.pendingShop &&
+      !this.pendingStory
+    ) {
       this.departCheckpoint(world);
     }
   }
@@ -176,6 +187,8 @@ export class RunStateSystem {
     this.pendingRoutes = [];
     this.pendingModules = [];
     this.pendingLoadout = false;
+    this.pendingShop = false;
+    this.pendingStory = undefined;
     this.checkpointTimer = 0;
 
     const segment = world.route.segment;

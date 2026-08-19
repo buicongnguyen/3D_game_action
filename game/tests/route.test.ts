@@ -3,7 +3,7 @@ import { Random } from "../src/core/Random.ts";
 import { angleDelta } from "../src/core/math.ts";
 import type { Vec2 } from "../src/core/math.ts";
 import { DIRECTOR } from "../src/data/balance.ts";
-import { ROUTE_SEGMENTS } from "../src/data/routes.ts";
+import { CHECKPOINTS, FINAL_GATE_STORY, ROUTE_SEGMENTS } from "../src/data/routes.ts";
 import { RouteDirector } from "../src/game/route/RouteDirector.ts";
 import { RouteGraph } from "../src/game/route/RouteGraph.ts";
 import { RouteSpline } from "../src/game/route/RouteSpline.ts";
@@ -215,6 +215,20 @@ describe("RouteSpline lateral offset", () => {
 });
 
 describe("RouteDirector run structure", () => {
+  it("gives every completed stage a distinct encouraging story", () => {
+    const stories = Object.values(CHECKPOINTS)
+      .map((checkpoint) => checkpoint.arrivalStory)
+      .filter((story) => story !== undefined);
+
+    expect(stories).toHaveLength(4);
+    expect(new Set(stories.map((story) => story.text)).size).toBe(4);
+    for (const story of stories) {
+      expect(story.speaker.length).toBeGreaterThan(3);
+      expect(story.text.length).toBeGreaterThan(80);
+    }
+    expect(FINAL_GATE_STORY).toContain("Thank you");
+  });
+
   it("walks the authored checkpoint chain", () => {
     const director = new RouteDirector(new Random(4242));
     director.start();

@@ -27,7 +27,7 @@ export type RunPhase =
 
 export type TrailState = "QUIET" | "PROBING" | "SWARM" | "HEAVY" | "PURSUIT";
 export type RunMode = "expedition" | "salvageRush";
-export type WeaponKind = "shotgun" | "rifle" | "flamer" | "launcher";
+export type WeaponKind = "shotgun" | "carbine" | "rifle" | "flamer" | "arc" | "launcher";
 
 export type SpeedMode = "fallback" | "march" | "overdrive";
 
@@ -117,6 +117,8 @@ export interface PlayerState {
   weaponCooldown: number;
   currentWeapon: WeaponKind;
   unlockedWeapons: WeaponKind[];
+  /** Per-weapon shop level, from 1 to 5. Locked weapons remain level 0. */
+  weaponLevels: Record<WeaponKind, number>;
   /** Normalized heat used by heat-limited weapons. */
   weaponHeat: number;
   weaponOverheated: boolean;
@@ -418,12 +420,17 @@ export interface RunResources {
   fuel: number;
 }
 
+export type TurretUpgradeKind = "power" | "volley" | "range" | "autoloader";
+
+export type TurretUpgradeLevels = Record<TurretUpgradeKind, number>;
+
 export interface RunProgress {
   level: number;
   xp: number;
   xpToNext: number;
   pendingLevelUps: number;
   chosenUpgrades: string[];
+  turretUpgrades: TurretUpgradeLevels;
 }
 
 export interface RunStats {
@@ -582,6 +589,8 @@ export interface RunModifiers {
   turretDamage: number;
   turretFireRate: number;
   turretRange: number;
+  /** Rivets fired by each emplaced-turret salvo. */
+  turretVolley: number;
   structureBuffer: number;
   structureCost: number;
   serviceRadius: number;

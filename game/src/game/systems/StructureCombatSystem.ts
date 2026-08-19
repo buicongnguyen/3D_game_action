@@ -146,15 +146,20 @@ export class StructureCombatSystem {
     const muzzleX = structure.x + Math.sin(structure.turretHeading) * offset;
     const muzzleZ = structure.z + Math.cos(structure.turretHeading) * offset;
 
-    this.spawnRivet(
-      world,
-      muzzleX,
-      muzzleZ,
-      config.muzzleHeight,
-      structure.turretHeading,
-      damage,
-      range,
-    );
+    const volley = Math.max(1, Math.floor(world.modifiers.turretVolley));
+    const spread = 0.045;
+    for (let shot = 0; shot < volley; shot++) {
+      const headingOffset = (shot - (volley - 1) * 0.5) * spread;
+      this.spawnRivet(
+        world,
+        muzzleX,
+        muzzleZ,
+        config.muzzleHeight,
+        structure.turretHeading + headingOffset,
+        damage,
+        range,
+      );
+    }
 
     structure.shotsFired++;
     this.stats.shotsFired++;

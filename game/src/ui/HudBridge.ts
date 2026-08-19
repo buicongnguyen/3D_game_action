@@ -9,6 +9,7 @@ import { getBlueprint } from "../data/structures.ts";
 import { PLAYER, SPIDER, STRUCTURES, WEAPONS } from "../data/balance.ts";
 import type { HudController, HudModel } from "./HudController.ts";
 import type { RadialMenu } from "./RadialMenu.ts";
+import { WEAPON_SHOP } from "../data/weaponShop.ts";
 
 /**
  * Builds the HUD's view model from world state each frame and pipes feedback
@@ -39,7 +40,10 @@ export class HudBridge {
     xpToNext: 1,
     carried: null,
     currentWeapon: "Rivet Scattergun",
+    weaponIndex: 0,
+    weaponCount: 1,
     weaponHeat: 0,
+    weapons: [],
     fieldItems: "",
     distanceToCheckpoint: 0,
     etaSeconds: 0,
@@ -77,6 +81,17 @@ export class HudBridge {
         cost: 0,
         accent: 0xffffff,
         affordable: false,
+        selected: false,
+      });
+    }
+    for (let i = 0; i < WEAPON_SHOP.length; i++) {
+      const entry = WEAPON_SHOP[i];
+      this.model.weapons.push({
+        kind: entry.kind,
+        icon: entry.icon,
+        name: WEAPONS[entry.kind].name,
+        level: 0,
+        unlocked: false,
         selected: false,
       });
     }
@@ -156,7 +171,16 @@ export class HudBridge {
     model.cylinders = world.cylindersReady;
     model.lastDevice = input.lastDevice;
     model.currentWeapon = WEAPONS[player.currentWeapon].name;
+    model.weaponIndex = Math.max(0, player.unlockedWeapons.indexOf(player.currentWeapon));
+    model.weaponCount = player.unlockedWeapons.length;
     model.weaponHeat = player.weaponHeat;
+    for (let i = 0; i < model.weapons.length; i++) {
+      const slot = model.weapons[i];
+      const kind = WEAPON_SHOP[i].kind;
+      slot.level = player.weaponLevels[kind] ?? 0;
+      slot.unlocked = player.unlockedWeapons.includes(kind);
+      slot.selected = player.currentWeapon === kind;
+    }
     const items = world.fieldItems;
     model.fieldItems = [
       items.repairKits > 0 ? `KIT×${items.repairKits}` : "",

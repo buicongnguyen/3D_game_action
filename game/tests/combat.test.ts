@@ -485,6 +485,18 @@ describe("personal weapon", () => {
     expect(rig.world.player.currentWeapon).toBe("shotgun");
   });
 
+  it("lets the HUD cycle stronger guns but never selects a locked weapon", () => {
+    const rig = createRig();
+    expect(rig.weapons.cycleUnlockedWeapon(rig.world)).toBe(false);
+    expect(rig.world.player.currentWeapon).toBe("shotgun");
+
+    rig.world.player.unlockedWeapons.push("rifle", "launcher");
+    expect(rig.weapons.cycleUnlockedWeapon(rig.world)).toBe(true);
+    expect(rig.world.player.currentWeapon).toBe("rifle");
+    expect(rig.weapons.cycleUnlockedWeapon(rig.world)).toBe(true);
+    expect(rig.world.player.currentWeapon).toBe("launcher");
+  });
+
   it("gives the rifle longer range and piercing instead of shotgun crowd spread", () => {
     const rig = createRig();
     const world = rig.world;

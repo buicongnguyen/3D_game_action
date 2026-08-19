@@ -1,10 +1,11 @@
 import { clamp, distSq, headingFromDirection } from "../../core/math.ts";
-import type { DamageSource, Enemy } from "../../core/types.ts";
+import type { DamageSource, Enemy, WeaponKind } from "../../core/types.ts";
 import { TRAIL, WEAPONS } from "../../data/balance.ts";
 import { getArchetype } from "../../data/enemies.ts";
 import type { GameWorld } from "../GameWorld.ts";
 import { MAX_TARGET_RADIUS, PROJECTILE_VARIANT_CRIT, refreshEnemyHash } from "./CollisionSystem.ts";
 import { emitNoise } from "./RunStateSystem.ts";
+import { weaponLevelDamage, weaponLevelFireRate } from "../../data/weaponShop.ts";
 
 /**
  * The engineer's personal weapon.
@@ -62,7 +63,7 @@ export class WeaponSystem {
     const player = world.player;
 
     this.applyStageUnlock(world);
-    if (this.cycleRequested) this.cycleWeapon(world);
+    if (this.cycleRequested) this.cycleUnlockedWeapon(world);
     this.cycleRequested = false;
 
     const config = WEAPONS[player.currentWeapon];
@@ -164,6 +165,39 @@ export class WeaponSystem {
     return best ?? this.acquireSite(world, range);
   }
 
+  /** Cycles only through weapons actually unlocked in this run. */
+  cycleUnlockedWeapon(world: GameWorld): boolean {
+    const player = world.player;
+    if (player.downed || world.paused || player.unlockedWeapons.length <= 1) return false;
+    const current = player.unlockedWeapons.indexOf(player.currentWeapon);
+    player.currentWeapon = player.unlockedWeapons[(current + 1) % player.unlockedWeapons.length];
+    player.weaponCooldown = Math.min(player.weaponCooldown, 0.18);
+    player.weaponOverheated = false;
+    world.events.emit({
+      type: "ui.toast",
+      message: `Equipped ${WEAPONS[player.currentWeapon].name}`,
+      tone: "info",
+      duration: 1.4,
+    });
+    return true;
+  }
+
+  selectUnlockedWeapon(world: GameWorld, kind: WeaponKind): boolean {
+    const player = world.player;
+    if (player.downed || world.paused || !player.unlockedWeapons.includes(kind)) return false;
+    if (player.currentWeapon === kind) return true;
+    player.currentWeapon = kind;
+    player.weaponCooldown = Math.min(player.weaponCooldown, 0.18);
+    player.weaponOverheated = false;
+    world.events.emit({
+      type: "ui.toast",
+      message: `Equipped ${WEAPONS[kind].name} · Mk ${player.weaponLevels[kind] || 1}`,
+      tone: "info",
+      duration: 1.4,
+    });
+    return true;
+  }
+
   private acquireSite(world: GameWorld, range: number): { id: number; x: number; z: number } | null {
     const player = world.player;
     let best = null as { id: number; x: number; z: number } | null;
@@ -188,14 +222,15 @@ export class WeaponSystem {
     const player = world.player;
     const config = WEAPONS[player.currentWeapon];
 
-    const fireRate = Math.max(0.05, world.modifiers.playerFireRate);
+    const weaponLevel = Math.max(1, player.weaponLevels[player.currentWeapon] || 1);
+    const fireRate = Math.max(0.05, world.modifiers.playerFireRate * weaponLevelFireRate(weaponLevel));
     player.weaponCooldown = config.fireInterval / fireRate;
 
     const heading = headingFromDirection(target.x - player.x, target.z - player.z);
     const muzzleX = player.x + Math.sin(heading) * MUZZLE_FORWARD;
     const muzzleZ = player.z + Math.cos(heading) * MUZZLE_FORWARD;
 
-    const baseDamage = config.damage * world.modifiers.playerDamage;
+    const baseDamage = config.damage * world.modifiers.playerDamage * weaponLevelDamage(weaponLevel);
     const pellets = config.pellets;
     const step = pellets > 1 ? config.spread / (pellets - 1) : 0;
     const jitter = config.spread / (pellets * 4);
@@ -261,6 +296,7 @@ export class WeaponSystem {
     const unlock = segment.weaponUnlock;
     if (unlock && !world.player.unlockedWeapons.includes(unlock)) {
       world.player.unlockedWeapons.push(unlock);
+      world.player.weaponLevels[unlock] = Math.max(1, world.player.weaponLevels[unlock] || 0);
       world.player.currentWeapon = unlock;
       world.player.weaponCooldown = 0;
       world.events.emit({
@@ -281,20 +317,6 @@ export class WeaponSystem {
     }
   }
 
-  private cycleWeapon(world: GameWorld): void {
-    const player = world.player;
-    if (player.unlockedWeapons.length <= 1) return;
-    const current = player.unlockedWeapons.indexOf(player.currentWeapon);
-    player.currentWeapon = player.unlockedWeapons[(current + 1) % player.unlockedWeapons.length];
-    player.weaponCooldown = Math.min(player.weaponCooldown, 0.18);
-    player.weaponOverheated = false;
-    world.events.emit({
-      type: "ui.toast",
-      message: `Equipped ${WEAPONS[player.currentWeapon].name}`,
-      tone: "info",
-      duration: 1.4,
-    });
-  }
 }
 
 /** Threat class weight, derived from the director's spawn cost for the archetype. */

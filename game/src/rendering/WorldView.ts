@@ -273,8 +273,10 @@ export class WorldView {
 
     this.weaponVisuals.push(
       this.forge.createScattergun(),
+      this.forge.createGearburstCarbine(),
       this.forge.createRivetRifle(),
       this.forge.createSteamFlamer(),
+      this.forge.createArcProjector(),
       this.forge.createMagneticLauncher(),
     );
     for (let i = 0; i < this.weaponVisuals.length; i++) this.playerRig.handR.add(this.weaponVisuals[i]);
@@ -706,7 +708,12 @@ export class WorldView {
     const carrying = player.carry.kind !== "none";
     if (this.weaponKind !== player.currentWeapon) {
       this.weaponKind = player.currentWeapon;
-      const index = player.currentWeapon === "shotgun" ? 0 : player.currentWeapon === "rifle" ? 1 : player.currentWeapon === "flamer" ? 2 : 3;
+      const index = player.currentWeapon === "shotgun" ? 0
+        : player.currentWeapon === "carbine" ? 1
+        : player.currentWeapon === "rifle" ? 2
+        : player.currentWeapon === "flamer" ? 3
+        : player.currentWeapon === "arc" ? 4
+        : 5;
       for (let i = 0; i < this.weaponVisuals.length; i++) this.weaponVisuals[i].visible = i === index;
     }
 

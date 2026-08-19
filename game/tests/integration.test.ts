@@ -165,6 +165,50 @@ class Harness {
 }
 
 describe("the march", () => {
+  it("holds a checkpoint for its stage-completion story", () => {
+    const harness = new Harness(1203, { spawns: false });
+    harness.world.spider.distanceAlongRoute = harness.world.route.spline!.length;
+    harness.step();
+
+    expect(harness.runState.pendingStory?.speaker).toBe("Foundry Keeper Mara");
+    expect(harness.runState.pendingStory?.text).toContain("We believe in you");
+
+    harness.runState.pendingModules = [];
+    harness.runState.pendingRoutes = [harness.runState.pendingRoutes[0]];
+    harness.runState.pendingLoadout = false;
+    harness.runState.pendingShop = false;
+    harness.runState.checkpointTimer = 0;
+    harness.step();
+    expect(harness.world.phase).toBe("CHECKPOINT_PREP");
+
+    harness.runState.pendingStory = undefined;
+    harness.step();
+    expect(harness.world.phase).toBe("MARCH");
+  });
+
+  it("holds each checkpoint until the player finishes shopping", () => {
+    const harness = new Harness(1204, { spawns: false });
+    harness.world.spider.distanceAlongRoute = harness.world.route.spline!.length;
+    harness.step();
+
+    expect(harness.world.phase).toBe("CHECKPOINT_PREP");
+    expect(harness.runState.pendingShop).toBe(true);
+
+    // Reduce the other checkpoint decisions to one automatic route so this
+    // specifically proves the workshop is what prevents early departure.
+    harness.runState.pendingModules = [];
+    harness.runState.pendingRoutes = [harness.runState.pendingRoutes[0]];
+    harness.runState.pendingLoadout = false;
+    harness.runState.pendingStory = undefined;
+    harness.runState.checkpointTimer = 0;
+    harness.step();
+    expect(harness.world.phase).toBe("CHECKPOINT_PREP");
+
+    harness.runState.pendingShop = false;
+    harness.step();
+    expect(harness.world.phase).toBe("MARCH");
+  });
+
   it("advances the spider at the specified speed and burns fuel at the specified rate", () => {
     const harness = new Harness(1234, { spawns: false });
     const startFuel = harness.world.spider.fuel;
@@ -318,6 +362,34 @@ describe("the engineering loop", () => {
     harness.step();
     expect(harness.world.build.selectedBlueprint).toBe(2);
     expect(harness.world.loadout[2]).toBe("barricade");
+  });
+
+  it("starts placement when a visible HUD blueprint is pressed", () => {
+    const harness = new Harness(2026, { spawns: false });
+    harness.world.loadout.push("relay", "mine");
+    harness.world.resources.scrap = 200;
+
+    expect(harness.construction.selectBlueprintForPlacement(harness.world, 1)).toBe(true);
+    expect(harness.world.build.selectedBlueprint).toBe(1);
+    expect(harness.world.build.ghostKind).toBe("relay");
+    expect(harness.world.build.ghostActive).toBe(true);
+
+    harness.step();
+    harness.press("confirm");
+    harness.step();
+    expect(harness.world.structures.some((structure) => structure.kind === "relay")).toBe(true);
+  });
+
+  it("rejects a HUD-selected blueprint when scrap is insufficient", () => {
+    const harness = new Harness(2027, { spawns: false });
+    harness.world.loadout.push("mine");
+    harness.world.resources.scrap = 0;
+
+    expect(harness.construction.selectBlueprintForPlacement(harness.world, 1)).toBe(false);
+    expect(harness.world.build.ghostActive).toBe(false);
+    expect(harness.world.structures).toHaveLength(0);
+    harness.step();
+    expect(harness.countEvents("build.rejected")).toBe(1);
   });
 
   it("charges scrap and refuses a placement that cannot be afforded", () => {

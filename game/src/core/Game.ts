@@ -42,10 +42,30 @@ import { DebugOverlay } from "../ui/DebugOverlay.ts";
 import { HudBridge } from "../ui/HudBridge.ts";
 import { AudioBridge } from "../audio/AudioBridge.ts";
 import { createSeed, formatSeed, seedToString } from "./Random.ts";
+import {
+  captureCheckpoint,
+  queueCheckpointRetry,
+  takeQueuedCheckpoint,
+  restoreCheckpoint,
+  type CheckpointSnapshot,
+} from "./CheckpointState.ts";
 import { getBlueprint } from "../data/structures.ts";
 import { getModule } from "../data/modules.ts";
 import { getUpgrade } from "../data/upgrades.ts";
-import { PERFORMANCE, PLAYER, SALVAGE_RUSH, SIM, SPIDER, TRAIL } from "../data/balance.ts";
+import {
+  MAX_WEAPON_LEVEL,
+  WEAPON_SHOP,
+  purchaseWeaponUpgrade,
+  weaponUpgradeCost,
+} from "../data/weaponShop.ts";
+import {
+  TURRET_UPGRADES,
+  purchaseTurretUpgrade,
+  turretUpgradeCost,
+} from "../data/turretShop.ts";
+import type { TurretUpgradeKind } from "./types.ts";
+import { FINAL_GATE_STORY } from "../data/routes.ts";
+import { PERFORMANCE, PLAYER, SALVAGE_RUSH, SIM, SPIDER, TRAIL, WEAPONS } from "../data/balance.ts";
 
 /** Card glyph per upgrade category, so the three offers read apart at a glance. */
 const UPGRADE_GLYPHS: Record<string, string> = {
@@ -116,6 +136,11 @@ export class Game {
   private recenterRequested = false;
   /** Segment whose terrain/resources are currently presented to the player. */
   private presentedSegmentId = "";
+  /** Stage-entry state used by the defeat screen's retry option. */
+  private checkpointSnapshot: CheckpointSnapshot | null = null;
+  /** Last workshop transaction result, kept visible while the game is paused. */
+  private shopMessage = "";
+  private turretShopMessage = "";
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -140,6 +165,32 @@ export class Game {
     this.view.setVfx(this.vfx);
 
     this.hud = new HudController(uiRoot);
+    this.hud.onBlueprintSelect = (index) => {
+      if (this.modalOpen || this.world.phase === "VICTORY" || this.world.phase === "DEFEAT") return;
+      this.construction.selectBlueprintForPlacement(this.world, index);
+    };
+    this.hud.onWeaponCycle = () => {
+      if (this.modalOpen || this.world.phase === "VICTORY" || this.world.phase === "DEFEAT") return;
+      if (!this.weapons.cycleUnlockedWeapon(this.world)) {
+        this.world.events.emit({
+          type: "ui.toast",
+          message: "A stronger weapon unlocks in the next stages",
+          tone: "info",
+          duration: 1.8,
+        });
+      }
+    };
+    this.hud.onWeaponSelect = (kind) => {
+      if (this.modalOpen || this.world.phase === "VICTORY" || this.world.phase === "DEFEAT") return;
+      if (!this.weapons.selectUnlockedWeapon(this.world, kind)) {
+        this.world.events.emit({
+          type: "ui.toast",
+          message: "Buy this weapon at a checkpoint workshop",
+          tone: "info",
+          duration: 1.8,
+        });
+      }
+    };
     this.radial = new RadialMenu(uiRoot);
     this.screens = new ScreenManager(uiRoot);
     this.screens.onChoose = (kind, optionId) => this.applyModalChoice(kind, optionId);
@@ -148,7 +199,14 @@ export class Game {
       // level-up demand an answer, or the run would resume in a broken state.
       // Settings reaches this only when it was opened as the root screen; from
       // pause it is pushed, and `back()` pops to pause without asking.
-      if (kind === "pause" || kind === "settings") this.closeModal();
+      if (kind === "shop") {
+        this.runState.pendingShop = false;
+        this.shopMessage = "";
+        this.closeModal();
+      } else if (kind === "turretShop") {
+        this.turretShopMessage = "";
+        this.openModal("shop");
+      } else if (kind === "pause" || kind === "settings") this.closeModal();
     };
     this.screens.onAdjust = (kind, optionId, delta) => {
       if (kind === "settings") this.stepSetting(optionId, delta);
@@ -354,6 +412,29 @@ export class Game {
 
   private beginRun(): void {
     const world = this.world;
+    const queuedCheckpoint = takeQueuedCheckpoint();
+    if (queuedCheckpoint) {
+      try {
+        restoreCheckpoint(world, this.runState, queuedCheckpoint);
+        this.presentedSegmentId = "";
+        this.syncSegmentPresentation();
+        if (world.mode === "salvageRush") this.spawnSalvageMachines();
+        this.camera.snapTo(world);
+        this.hud.setVisible(true);
+        this.screens.hide();
+        this.audio.setTension(world.trailState, false);
+        world.events.emit({
+          type: "ui.toast",
+          message: `Checkpoint restored · ${world.route.segment?.name ?? "stage"}`,
+          tone: "success",
+          duration: 2.4,
+        });
+        return;
+      } catch (error) {
+        console.warn("Could not restore checkpoint; starting a new run", error);
+      }
+    }
+
     world.route.start();
     const openingSegment = world.mode === "salvageRush" ? "seg.scrapyard" : "seg.approach";
     this.runState.departCheckpoint(world, openingSegment);
@@ -364,9 +445,6 @@ export class Game {
       world.trail = TRAIL.thresholds.PROBING;
     }
 
-    this.syncSegmentPresentation();
-    if (world.mode === "salvageRush") this.spawnSalvageMachines();
-
     // Start beside the hull rather than well behind it: close enough to read as
     // one expedition, but outside the body footprint so the engineer remains
     // visible instead of spawning underneath the Spider.
@@ -374,6 +452,9 @@ export class Game {
     world.player.z = world.spider.z + 1.5;
     world.player.prevX = world.player.x;
     world.player.prevZ = world.player.z;
+
+    this.syncSegmentPresentation();
+    if (world.mode === "salvageRush") this.spawnSalvageMachines();
 
     this.camera.snapTo(world);
     this.hud.setVisible(true);
@@ -414,6 +495,10 @@ export class Game {
     if (this.presentedSegmentId) this.interaction.clearRoutePickups(this.world);
     this.presentedSegmentId = segmentId;
     this.view.buildSegment(this.world);
+    // Capture before resources consume RNG. Restoring this state regenerates
+    // the same authored pickups and then leaves the random stream at the same
+    // point as the first attempt.
+    this.checkpointSnapshot = captureCheckpoint(this.world);
     this.spawnSegmentResources();
   }
 
@@ -618,6 +703,11 @@ export class Game {
     const world = this.world;
     if (this.suppressAutoModals) return;
 
+    if (world.phase === "CHECKPOINT_PREP" && this.runState.pendingStory && !this.modalOpen) {
+      this.openModal("story");
+      return;
+    }
+
     if (world.progress.pendingLevelUps > 0 && !this.modalOpen) {
       if (this.runState.tryOpenUpgradeChoice(world)) {
         this.openModal("upgrade");
@@ -636,6 +726,11 @@ export class Game {
 
     if (this.runState.pendingLoadout) {
       this.openModal("loadout");
+      return;
+    }
+
+    if (this.runState.pendingShop) {
+      this.openModal("shop");
       return;
     }
 
@@ -713,6 +808,97 @@ export class Game {
           ],
         });
         break;
+
+      case "shop": {
+        const world = this.world;
+        this.screens.show("shop", {
+          eyebrow: `Checkpoint workshop · ${Math.floor(world.resources.scrap)} scrap`,
+          subtitle: this.shopMessage || "Buy new guns or improve an owned gun. Each Mk adds 16% damage and 4.5% fire rate.",
+          layout: "cards",
+          columns: 3,
+          options: [
+            ...WEAPON_SHOP.map((entry) => {
+              const unlocked = world.player.unlockedWeapons.includes(entry.kind);
+              const level = world.player.weaponLevels[entry.kind] ?? 0;
+              const maxed = unlocked && level >= MAX_WEAPON_LEVEL;
+              const cost = unlocked ? weaponUpgradeCost(entry.kind, level) : entry.unlockCost;
+              return {
+                id: `weapon.${entry.kind}`,
+                label: WEAPONS[entry.kind].name,
+                tag: unlocked ? `Owned · Mk ${level}` : "Locked",
+                glyph: entry.icon,
+                detail: entry.role,
+                reward: maxed ? "Fully upgraded" : unlocked ? `Upgrade to Mk ${level + 1}` : "Unlock weapon",
+                danger: maxed ? undefined : `${cost} scrap`,
+                disabled: maxed,
+              };
+            }),
+            {
+              id: "turrets",
+              label: "Turret Foundry",
+              tag: "Four upgrade tracks",
+              glyph: "⌂",
+              detail: "Damage · volley size · range · fire rate",
+              reward: "Improve every deployed turret",
+            },
+            {
+              id: "done",
+              label: "Leave workshop",
+              tag: "Continue",
+              glyph: "→",
+              detail: "Return to checkpoint preparations",
+            },
+          ],
+        });
+        break;
+      }
+
+      case "turretShop": {
+        const world = this.world;
+        this.screens.show("turretShop", {
+          eyebrow: `Turret foundry · ${Math.floor(world.resources.scrap)} scrap`,
+          subtitle: this.turretShopMessage || "Permanent run upgrades affect every current and future rivet turret.",
+          layout: "cards",
+          columns: 2,
+          options: [
+            ...TURRET_UPGRADES.map((entry) => {
+              const level = world.progress.turretUpgrades[entry.kind] ?? 0;
+              const maxed = level >= entry.maxLevel;
+              const cost = turretUpgradeCost(entry.kind, level);
+              return {
+                id: `turret.${entry.kind}`,
+                label: entry.name,
+                tag: `Mk ${level} / ${entry.maxLevel}`,
+                glyph: entry.icon,
+                detail: entry.description,
+                reward: maxed ? "Fully upgraded" : `Upgrade to Mk ${level + 1}`,
+                danger: maxed ? undefined : `${cost} scrap`,
+                disabled: maxed,
+              };
+            }),
+            {
+              id: "back",
+              label: "Back to weapons",
+              tag: "Workshop",
+              glyph: "←",
+              detail: "Return to weapon upgrades",
+            },
+          ],
+        });
+        break;
+      }
+
+      case "story": {
+        const story = this.runState.pendingStory;
+        this.screens.show("story", {
+          eyebrow: story?.speaker ?? "Checkpoint survivor",
+          title: `Stage ${Math.max(1, this.world.route.checkpointIndex)} complete`,
+          body: story?.text ?? "Thank you for bringing us this far. We believe in you.",
+          options: [{ id: "continue", label: "Continue the march" }],
+          hints: [{ button: "confirm", label: "Continue" }],
+        });
+        break;
+      }
 
       case "pause":
         this.screens.show("pause", {
@@ -803,6 +989,57 @@ export class Game {
         this.closeModal();
         break;
       }
+      case "shop": {
+        if (value === "done") {
+          this.runState.pendingShop = false;
+          this.shopMessage = "";
+          this.closeModal();
+          break;
+        }
+        if (value === "turrets") {
+          this.shopMessage = "";
+          this.openModal("turretShop");
+          break;
+        }
+        const kind = value.startsWith("weapon.") ? value.slice(7) as keyof typeof WEAPONS : null;
+        if (!kind || !WEAPONS[kind]) break;
+        const result = purchaseWeaponUpgrade(world, kind);
+        this.shopMessage = result.message;
+        world.events.emit({
+          type: "ui.toast",
+          message: result.message,
+          tone: result.ok ? "success" : "warning",
+          duration: 2,
+        });
+        // Keep shopping and immediately refresh costs, levels and scrap.
+        this.openModal("shop");
+        break;
+      }
+      case "turretShop": {
+        if (value === "back") {
+          this.turretShopMessage = "";
+          this.openModal("shop");
+          break;
+        }
+        const kind = value.startsWith("turret.") ? value.slice(7) as TurretUpgradeKind : null;
+        if (!kind || !TURRET_UPGRADES.some((entry) => entry.kind === kind)) break;
+        const result = purchaseTurretUpgrade(world, kind);
+        this.turretShopMessage = result.message;
+        world.events.emit({
+          type: "ui.toast",
+          message: result.message,
+          tone: result.ok ? "success" : "warning",
+          duration: 2,
+        });
+        this.openModal("turretShop");
+        break;
+      }
+      case "story": {
+        if (value !== "continue") break;
+        this.runState.pendingStory = undefined;
+        this.closeModal();
+        break;
+      }
       case "pause": {
         if (value === "resume") this.closeModal();
         else if (value === "restart") this.restart();
@@ -821,9 +1058,13 @@ export class Game {
         // through to the default and closing the modal under the player.
         break;
       case "victory":
-      case "defeat":
       case "summary": {
         if (value === "restart") this.restart();
+        break;
+      }
+      case "defeat": {
+        if (value === "checkpoint") this.retryCheckpoint();
+        else if (value === "restart") this.restart();
         break;
       }
       default:
@@ -876,11 +1117,16 @@ export class Game {
         : undefined,
       subtitle:
         salvage && outcome === "victory"
-          ? `Recovered value: ${this.world.salvageScore}`
+          ? `Recovered value: ${this.world.salvageScore}. ${FINAL_GATE_STORY}`
           : outcome === "victory"
-          ? "The spider crossed the gate."
+          ? FINAL_GATE_STORY
           : "The core went cold on the road.",
-      options: [{ id: "restart", label: "March again" }],
+      options: outcome === "defeat"
+        ? [
+            { id: "checkpoint", label: "Retry this stage" },
+            { id: "restart", label: "Restart from stage 1" },
+          ]
+        : [{ id: "restart", label: "March again" }],
       stats: [
         { label: "Time", value: formatDuration(stats.elapsedSeconds) },
         { label: "Distance", value: `${stats.distanceTravelled.toFixed(0)} m` },
@@ -905,6 +1151,20 @@ export class Game {
   }
 
   restart(): void {
+    this.stop();
+    window.location.reload();
+  }
+
+  private retryCheckpoint(): void {
+    const snapshot = this.checkpointSnapshot;
+    if (!snapshot) {
+      this.restart();
+      return;
+    }
+    if (!queueCheckpointRetry(snapshot)) {
+      this.hud.showToast("Checkpoint storage unavailable", "warning", 2);
+      return;
+    }
     this.stop();
     window.location.reload();
   }

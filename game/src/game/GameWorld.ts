@@ -137,6 +137,7 @@ export class GameWorld {
       weaponCooldown: 0,
       currentWeapon: "shotgun",
       unlockedWeapons: ["shotgun"],
+      weaponLevels: { shotgun: 1, carbine: 0, rifle: 0, flamer: 0, arc: 0, launcher: 0 },
       weaponHeat: 0,
       weaponOverheated: false,
       tetherStrain: 0,
@@ -183,7 +184,14 @@ export class GameWorld {
 
     this.resources = { scrap: ECONOMY.startScrap, fuel: 0 };
 
-    this.progress = { level: 1, xp: 0, xpToNext: 12, pendingLevelUps: 0, chosenUpgrades: [] };
+    this.progress = {
+      level: 1,
+      xp: 0,
+      xpToNext: 12,
+      pendingLevelUps: 0,
+      chosenUpgrades: [],
+      turretUpgrades: { power: 0, volley: 0, range: 0, autoloader: 0 },
+    };
 
     this.stats = {
       seed,
@@ -228,6 +236,14 @@ export class GameWorld {
 
   allocateId(): number {
     return this.nextId++;
+  }
+
+  get nextEntityId(): number {
+    return this.nextId;
+  }
+
+  setNextEntityId(nextId: number): void {
+    this.nextId = Math.max(1, Math.floor(nextId));
   }
 
   findStructure(id: number): Structure | undefined {

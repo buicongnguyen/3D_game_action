@@ -64,6 +64,19 @@ describe("authored house encounters", () => {
     expect(encounters.pendingCount).toBe(0);
   });
 
+  it("announces a boss encounter separately from the white skeleton horde", () => {
+    const world = new GameWorld(31);
+    enter(world, "seg.scrapyard", 252);
+    const encounters = new EncounterSystem(new HordeDirector());
+    const messages: string[] = [];
+    world.events.on("ui.toast", (event) => messages.push(event.message));
+
+    encounters.update(world, SIM.fixedStep);
+    world.events.drain();
+
+    expect(messages.filter((message) => message.includes("BOSS · Bone Colossus"))).toHaveLength(1);
+  });
+
   it("bounds nest reinforcements and stops them permanently after destruction", () => {
     const world = new GameWorld(4);
     enter(world, "seg.scrapyard", 65);

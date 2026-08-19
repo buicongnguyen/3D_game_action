@@ -1,3 +1,5 @@
+import type { WeaponKind } from "../core/types.ts";
+
 /**
  * The permanent HUD.
  *
@@ -13,6 +15,15 @@ export interface HudBlueprintModel {
   cost: number;
   accent: number;
   affordable: boolean;
+  selected: boolean;
+}
+
+export interface HudWeaponModel {
+  kind: WeaponKind;
+  icon: string;
+  name: string;
+  level: number;
+  unlocked: boolean;
   selected: boolean;
 }
 
@@ -51,7 +62,10 @@ export interface HudModel {
   xpToNext: number;
   carried: string | null;
   currentWeapon: string;
+  weaponIndex: number;
+  weaponCount: number;
   weaponHeat: number;
+  weapons: HudWeaponModel[];
   fieldItems: string;
   distanceToCheckpoint: number;
   etaSeconds: number;
@@ -304,6 +318,16 @@ interface BlueprintChip {
   prevSelected: boolean;
 }
 
+interface WeaponChip {
+  root: HTMLElement;
+  icon: HTMLElement;
+  level: HTMLElement;
+  prevIcon: string;
+  prevLevel: number;
+  prevUnlocked: boolean;
+  prevSelected: boolean;
+}
+
 /**
  * Slot hints for a controller. D-pad left/right cycle the selection, so the
  * outer slots advertise the direction that reaches them and the inner ones show
@@ -328,6 +352,13 @@ const TOAST_CAPACITY = 4;
 const TOAST_EXIT_MS = 300;
 
 export class HudController {
+  /** Called when a mouse/touch player presses a visible deployable card. */
+  onBlueprintSelect?: (index: number) => void;
+  /** Called when the current-weapon HUD button is pressed. */
+  onWeaponCycle?: () => void;
+  /** Called when one of the six weapon rack slots is pressed. */
+  onWeaponSelect?: (kind: WeaponKind) => void;
+
   private readonly root: HTMLElement;
   private readonly hud: HTMLElement;
 
@@ -342,6 +373,8 @@ export class HudController {
   private readonly carry: HTMLElement;
   private readonly carryText: HTMLElement;
   private readonly weapon: HTMLElement;
+  private readonly weaponRack: HTMLElement;
+  private readonly weaponChips: WeaponChip[] = [];
   private readonly fieldItems: HTMLElement;
   private readonly trailPanel: HTMLElement;
   private readonly trailState: HTMLElement;
@@ -392,6 +425,8 @@ export class HudController {
   private prevCarried: string | null = "";
   private prevWeapon = "";
   private prevWeaponHeat = -1;
+  private prevWeaponIndex = -1;
+  private prevWeaponCount = -1;
   private prevFieldItems = "";
   private prevDistance = Number.NaN;
   private prevEta = Number.NaN;
@@ -438,7 +473,14 @@ export class HudController {
     const playerTitle = el("span", "hud__title", playerHead);
     playerTitle.textContent = "Engineer";
     this.healthBar = new Bar(player, "health", "Health", false);
-    this.weapon = el("div", "hud__weapon", player);
+    this.weapon = el("button", "hud__weapon", player);
+    (this.weapon as HTMLButtonElement).type = "button";
+    this.weapon.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.onWeaponCycle?.();
+    });
+    this.weaponRack = el("div", "hud__weapon-rack", player);
     this.fieldItems = el("div", "hud__field-items", player);
     this.carry = el("div", "hud__carry", player);
     const carryIcon = el("span", "hud__carry-icon", this.carry);
@@ -531,17 +573,33 @@ export class HudController {
   update(model: HudModel): void {
     this.healthBar.update(model.playerHealth, model.playerMaxHealth, TEXT_VALUE_OF_MAX);
     const heat = Math.round(model.weaponHeat * 100);
-    if (model.currentWeapon !== this.prevWeapon || heat !== this.prevWeaponHeat) {
+    if (
+      model.currentWeapon !== this.prevWeapon ||
+      heat !== this.prevWeaponHeat ||
+      model.weaponIndex !== this.prevWeaponIndex ||
+      model.weaponCount !== this.prevWeaponCount
+    ) {
       this.prevWeapon = model.currentWeapon;
       this.prevWeaponHeat = heat;
-      this.weapon.textContent = heat > 0 ? `${model.currentWeapon} · HEAT ${heat}%` : `${model.currentWeapon} · ↓ / B`;
+      this.prevWeaponIndex = model.weaponIndex;
+      this.prevWeaponCount = model.weaponCount;
+      const slot = model.weaponCount > 1 ? ` ${model.weaponIndex + 1}/${model.weaponCount}` : "";
+      this.weapon.textContent = heat > 0
+        ? `${model.currentWeapon}${slot} · HEAT ${heat}% · CLICK/B/↓ SWITCH`
+        : `${model.currentWeapon}${slot} · CLICK/B/↓ SWITCH`;
+      this.weapon.setAttribute(
+        "aria-label",
+        model.weaponCount > 1 ? `Switch weapon. Current: ${model.currentWeapon}` : `${model.currentWeapon}. More weapons unlock in later stages`,
+      );
       this.weapon.classList.toggle("is-hot", heat >= 75);
+      this.weapon.classList.toggle("is-locked", model.weaponCount <= 1);
     }
     if (model.fieldItems !== this.prevFieldItems) {
       this.prevFieldItems = model.fieldItems;
       this.fieldItems.textContent = model.fieldItems;
       this.fieldItems.classList.toggle("is-on", model.fieldItems.length > 0);
     }
+    this.updateWeapons(model.weapons);
     // The engineer's own health had no low state at all, so a full bar and a
     // nearly-empty one were the same colour: the spider's fuel gauge warned the
     // player about the machine more loudly than anything warned them about
@@ -727,11 +785,18 @@ export class HudController {
     if (device !== this.prevBuildHintDevice) {
       this.prevBuildHintDevice = device;
       this.buildHint.textContent = device === "keyboard"
-        ? "HOLD Q TO BUILD · RELEASE · E TO PLACE"
-        : "HOLD L1 TO BUILD · RELEASE · ✕ TO PLACE";
+        ? "CLICK ITEM OR HOLD Q · E TO PLACE"
+        : "PRESS ITEM OR HOLD L1 · ✕ TO PLACE";
     }
     while (this.chips.length < blueprints.length) {
-      const chipRoot = el("div", "bp", this.blueprintRow);
+      const index = this.chips.length;
+      const chipRoot = el("button", "bp", this.blueprintRow);
+      (chipRoot as HTMLButtonElement).type = "button";
+      chipRoot.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        this.onBlueprintSelect?.(index);
+      });
       this.chips.push({
         root: chipRoot,
         key: el("span", "bp__key", chipRoot),
@@ -757,6 +822,7 @@ export class HudController {
       }
       const model = blueprints[i];
       chip.root.style.display = "";
+      chip.root.setAttribute("aria-label", `Deploy ${model.name}, ${model.cost} scrap`);
 
       // A pad player has no number row. On a controller the slot hint is the
       // D-pad direction that cycles to it, and the selected slot shows L1,
@@ -785,6 +851,58 @@ export class HudController {
       if (model.affordable !== chip.prevAffordable) {
         chip.prevAffordable = model.affordable;
         chip.root.classList.toggle("is-poor", !model.affordable);
+      }
+      if (model.selected !== chip.prevSelected) {
+        chip.prevSelected = model.selected;
+        chip.root.classList.toggle("is-selected", model.selected);
+      }
+    }
+  }
+
+  private updateWeapons(weapons: HudWeaponModel[]): void {
+    while (this.weaponChips.length < weapons.length) {
+      const index = this.weaponChips.length;
+      const root = el("button", "weapon-slot", this.weaponRack);
+      (root as HTMLButtonElement).type = "button";
+      root.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const model = weapons[index];
+        if (model) this.onWeaponSelect?.(model.kind);
+      });
+      this.weaponChips.push({
+        root,
+        icon: el("span", "weapon-slot__icon", root),
+        level: el("span", "weapon-slot__level", root),
+        prevIcon: "",
+        prevLevel: -1,
+        prevUnlocked: false,
+        prevSelected: false,
+      });
+    }
+
+    for (let i = 0; i < this.weaponChips.length; i++) {
+      const chip = this.weaponChips[i];
+      const model = weapons[i];
+      if (!model) {
+        chip.root.style.display = "none";
+        continue;
+      }
+      chip.root.style.display = "";
+      chip.root.setAttribute("aria-label", model.unlocked
+        ? `Equip ${model.name}, Mark ${model.level}`
+        : `${model.name}, locked; buy at a checkpoint shop`);
+      if (model.icon !== chip.prevIcon) {
+        chip.prevIcon = model.icon;
+        chip.icon.textContent = model.unlocked ? model.icon : "▧";
+      }
+      if (model.level !== chip.prevLevel) {
+        chip.prevLevel = model.level;
+        chip.level.textContent = model.unlocked ? `M${model.level}` : "LOCK";
+      }
+      if (model.unlocked !== chip.prevUnlocked) {
+        chip.prevUnlocked = model.unlocked;
+        chip.root.classList.toggle("is-locked", !model.unlocked);
       }
       if (model.selected !== chip.prevSelected) {
         chip.prevSelected = model.selected;

@@ -1,5 +1,6 @@
 import { Game } from "./core/Game.ts";
 import { seedFromString } from "./core/Random.ts";
+import { peekQueuedCheckpoint } from "./core/CheckpointState.ts";
 
 /**
  * Entry point: boot screen, gamepad acquisition gesture, then the run.
@@ -17,9 +18,10 @@ if (!canvas || !uiRoot) {
 }
 
 const params = new URLSearchParams(window.location.search);
+const queuedCheckpoint = peekQueuedCheckpoint();
 const seedParam = params.get("seed");
-const seed = seedParam ? seedFromString(seedParam) : undefined;
-const mode = params.get("mode") === "salvage" ? "salvageRush" : "expedition";
+const seed = queuedCheckpoint?.seed ?? (seedParam ? seedFromString(seedParam) : undefined);
+const mode = queuedCheckpoint?.mode ?? (params.get("mode") === "salvage" ? "salvageRush" : "expedition");
 
 const boot = document.createElement("div");
 boot.className = "boot-screen";

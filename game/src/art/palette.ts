@@ -216,10 +216,10 @@ export const ENEMY_COLORS = {
   ragDark: 0x322e26,
   rustArmor: 0x6a5138,
   rustArmorDark: 0x47341f,
-  /** Golem-only: mossy, heavier stone-bone. */
-  golemStone: 0x8b8874,
-  golemStoneDark: 0x605e4f,
-  golemCore: 0x59ff9d,
+  /** Boss-only: saturated violet armor and a hot magenta core. */
+  golemStone: 0x8050a0,
+  golemStoneDark: 0x422653,
+  golemCore: 0xff4fd8,
 } as const;
 
 // ---------------------------------------------------------------------------

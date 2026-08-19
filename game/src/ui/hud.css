@@ -353,11 +353,90 @@ body {
 }
 
 .hud__weapon {
+  display: block;
+  width: 100%;
   margin-top: 4px;
+  padding: 3px 5px;
+  border: 0;
+  background: rgba(8, 11, 14, 0.48);
   color: var(--cyan);
+  font-family: inherit;
   font-size: var(--fs-tiny);
   letter-spacing: 0.08em;
   text-transform: uppercase;
+  text-align: left;
+  cursor: pointer;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+.hud__weapon:hover,
+.hud__weapon:focus-visible {
+  outline: none;
+  color: var(--hud-text);
+  box-shadow: inset 0 0 0 1px var(--cyan);
+}
+
+.hud__weapon:active {
+  transform: scale(0.98);
+}
+
+.hud__weapon.is-locked {
+  cursor: help;
+  color: var(--hud-dim);
+}
+
+.hud__weapon-rack {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 2px;
+  margin-top: 3px;
+  pointer-events: auto;
+}
+
+.weapon-slot {
+  min-width: 0;
+  padding: 3px 1px 2px;
+  border: 0;
+  background: rgba(8, 11, 14, 0.72);
+  box-shadow: inset 0 0 0 1px var(--hud-edge);
+  color: var(--hud-dim);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.weapon-slot__icon,
+.weapon-slot__level {
+  display: block;
+  line-height: 1;
+}
+
+.weapon-slot__icon {
+  color: var(--cyan);
+  font-size: var(--fs-small);
+}
+
+.weapon-slot__level {
+  margin-top: 2px;
+  font-family: var(--font-num);
+  font-size: 8px;
+  letter-spacing: 0;
+}
+
+.weapon-slot:hover,
+.weapon-slot:focus-visible,
+.weapon-slot.is-selected {
+  outline: none;
+  color: var(--hud-text);
+  box-shadow: inset 0 0 0 1px var(--cyan), 0 0 7px rgba(79, 214, 255, 0.28);
+}
+
+.weapon-slot.is-locked {
+  opacity: 0.46;
+}
+
+.weapon-slot.is-locked .weapon-slot__icon {
+  color: var(--hud-dim);
 }
 
 .hud__weapon.is-hot {
@@ -666,6 +745,7 @@ body {
   display: flex;
   gap: var(--gap);
   padding-top: 20px;
+  pointer-events: auto;
 }
 
 .hud__build-hint {
@@ -703,9 +783,27 @@ body {
     0 calc(100% - var(--cut))
   );
   text-align: center;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
   transition:
     transform 0.12s var(--ease),
     box-shadow 0.12s var(--ease);
+}
+
+.bp:hover,
+.bp:focus-visible {
+  transform: translateY(-4px);
+  outline: none;
+  box-shadow:
+    inset 0 0 0 1px var(--bp-accent, var(--brass)),
+    0 0 12px color-mix(in srgb, var(--bp-accent, var(--brass)) 40%, transparent);
+}
+
+.bp:active {
+  transform: translateY(-1px) scale(0.97);
 }
 
 .bp__icon {
