@@ -17,6 +17,7 @@ import {
 } from "../game/systems/EnemyNavigationSystem.ts";
 import { WeaponSystem } from "../game/systems/WeaponSystem.ts";
 import { FieldItemSystem } from "../game/systems/FieldItemSystem.ts";
+import { MobileStructureSystem } from "../game/systems/MobileStructureSystem.ts";
 import { StructureCombatSystem } from "../game/systems/StructureCombatSystem.ts";
 import { CollisionSystem } from "../game/systems/CollisionSystem.ts";
 import { DamageSystem } from "../game/systems/DamageSystem.ts";
@@ -116,6 +117,7 @@ export class Game {
   private readonly construction = new ConstructionSystem();
   private readonly playerMovement = new PlayerMovementSystem(this.construction);
   private readonly fieldItems = new FieldItemSystem(this.construction);
+  private readonly mobileStructures = new MobileStructureSystem();
   private readonly spiderMovement = new SpiderMovementSystem();
   private readonly interaction: InteractionSystem;
   private readonly pressure = new PressureNetworkSystem();
@@ -627,6 +629,7 @@ export class Game {
 
     // 5. interaction, building, collection
     this.construction.update(world, scaled, input);
+    this.mobileStructures.update(world, scaled);
     this.interaction.update(world, scaled, input);
     this.interaction.collectPickups(world, scaled);
     this.fieldItems.update(world, input);
@@ -984,6 +987,9 @@ export class Game {
         const kit = kits[value as keyof typeof kits] ?? kits.precision;
         world.player.currentWeapon = kit.weapon;
         world.loadout.splice(0, world.loadout.length, ...kit.blueprints);
+        if (world.progress.level >= 3 && !world.loadout.includes("crawlerTurret")) {
+          world.loadout.push("crawlerTurret");
+        }
         world.build.selectedBlueprint = 0;
         this.runState.pendingLoadout = false;
         this.closeModal();

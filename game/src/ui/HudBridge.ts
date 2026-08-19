@@ -74,7 +74,7 @@ export class HudBridge {
     private readonly hud: HudController,
     private readonly radial: RadialMenu,
   ) {
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 5; i++) {
       this.model.blueprints.push({
         icon: "",
         name: "",

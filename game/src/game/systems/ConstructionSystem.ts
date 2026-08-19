@@ -119,6 +119,16 @@ export class ConstructionSystem {
     if (!kind) return false;
 
     const blueprint = getBlueprint(kind);
+    if (
+      kind === "crawlerTurret" &&
+      world.structures.filter((structure) =>
+        structure.kind === "crawlerTurret" && structure.state !== "destroyed"
+      ).length + (world.player.carry.kind === "structure" && world.player.carry.structureType === "crawlerTurret" ? 1 : 0)
+        >= STRUCTURES.crawlerTurret.maxActive
+    ) {
+      world.events.emit({ type: "build.rejected", reason: "Crawler limit reached" });
+      return false;
+    }
     const cost = Math.ceil(blueprint.cost * world.modifiers.structureCost);
     if (world.resources.scrap < cost) {
       world.events.emit({ type: "build.rejected", reason: `Need ${cost} scrap` });

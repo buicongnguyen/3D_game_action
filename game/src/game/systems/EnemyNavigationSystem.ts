@@ -499,7 +499,7 @@ export class EnemyNavigationSystem {
       let roleWeight = 1;
       if (archetype.targetRole === "saboteur") {
         if (structure.kind === "relay") roleWeight *= 1.9;
-        else if (structure.kind === "rivetTurret") roleWeight *= 1.35;
+        else if (structure.kind === "rivetTurret" || structure.kind === "crawlerTurret") roleWeight *= 1.35;
         if (structure.behindSpider) roleWeight *= 1.45;
       }
       const weight = archetype.structurePreference * (decoy ? BARRICADE_TAUNT : roleWeight);

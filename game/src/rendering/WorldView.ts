@@ -850,6 +850,13 @@ export class WorldView {
         gauge = turret.gauge;
         break;
       }
+      case "crawlerTurret": {
+        turret = this.forge.createCrawlerTurret();
+        captureTurretRest(turret);
+        root = turret.root;
+        gauge = turret.gauge;
+        break;
+      }
       case "relay": {
         const relay = this.forge.createRelay();
         root = relay.root;
@@ -939,6 +946,7 @@ export class WorldView {
     dt: number,
   ): void {
     visual.recoil = Math.max(0, visual.recoil - dt * 7);
+    visual.root.rotation.y = structure.heading;
     if (structure.shotsFired !== visual.root.userData.lastShots) {
       visual.root.userData.lastShots = structure.shotsFired;
       visual.recoil = 1;
@@ -981,7 +989,9 @@ export class WorldView {
       // The gauge is the only readout of a structure's remaining autonomy that
       // is visible from the play camera, so it encodes two things at once:
       // height is how much buffer is left, colour is whether it is refilling.
-      const fraction = structure.maxBuffer > 0 ? structure.buffer / structure.maxBuffer : 1;
+      const fraction = structure.kind === "crawlerTurret"
+        ? structure.health / Math.max(1, structure.maxHealth)
+        : structure.maxBuffer > 0 ? structure.buffer / structure.maxBuffer : 1;
       const overloading = structure.state === "overloading";
       visual.gauge.scale.y = clamp(fraction, 0.05, 1);
 
@@ -1058,8 +1068,9 @@ export class WorldView {
     ring.position.set(structure.x, 0.05, structure.z);
     track.position.set(structure.x, 0.048, structure.z);
 
-    const fraction =
-      structure.maxBuffer > 0 ? clamp(structure.buffer / structure.maxBuffer, 0, 1) : 1;
+    const fraction = structure.kind === "crawlerTurret"
+      ? clamp(structure.health / Math.max(1, structure.maxHealth), 0, 1)
+      : structure.maxBuffer > 0 ? clamp(structure.buffer / structure.maxBuffer, 0, 1) : 1;
     const base = Math.max(1.1, getBlueprint(structure.kind).radius * 1.55);
 
     if (structure.state === "destroyed") {
@@ -1108,6 +1119,15 @@ export class WorldView {
 
     ring.visible = true;
     ring.scale.setScalar(base);
+    if (structure.kind === "crawlerTurret") {
+      track.visible = true;
+      track.scale.setScalar(base);
+      this.setRingSweep(visual, fraction);
+      ring.material = this.forge.materials.ringDecal(
+        fraction > 0.5 ? FEEDBACK.network : fraction > 0.25 ? FEEDBACK.unpowered : FEEDBACK.invalid,
+      );
+      return;
+    }
     // The track only exists to make a partial arc legible as partial, so it is
     // hidden for structures that have no buffer to report.
     track.visible = structure.maxBuffer > 0;

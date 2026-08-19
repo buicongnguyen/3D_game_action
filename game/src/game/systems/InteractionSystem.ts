@@ -1,7 +1,7 @@
 import { clamp, distSq } from "../../core/math.ts";
 import type { ContextualActionKind, PickupKind, Structure } from "../../core/types.ts";
 import type { InputSnapshot } from "../../input/InputActions.ts";
-import { ECONOMY, PICKUPS, PLAYER, PRESSURE, STRUCTURES } from "../../data/balance.ts";
+import { ECONOMY, FIELD_MECHANIC, PICKUPS, PLAYER, PRESSURE, STRUCTURES } from "../../data/balance.ts";
 import { getBlueprint, getStructureConfig } from "../../data/structures.ts";
 import type { ConstructionSystem } from "./ConstructionSystem.ts";
 import type { GameWorld } from "../GameWorld.ts";
@@ -17,6 +17,8 @@ import type { GameWorld } from "../GameWorld.ts";
  * feel they bought most of a stretch, not a few more shots.
  */
 export class InteractionSystem {
+  private automaticRepairTimer = 0;
+
   /**
    * The action the HUD should advertise right now. This is the single most
    * useful thing to do, but it is only a suggestion for display.
@@ -45,6 +47,7 @@ export class InteractionSystem {
     this.updateStructureTimers(world, dt);
 
     if (player.downed || world.build.ghostActive || world.build.radialOpen) {
+      this.automaticRepairTimer = 0;
       this.availableAction = null;
       this.availableTargetId = -1;
       this.availableLabel = "";
@@ -55,6 +58,7 @@ export class InteractionSystem {
       return;
     }
 
+    this.updateAutomaticSpiderRepair(world, dt);
     this.resolveAvailableAction(world);
     this.updateHeldAction(world, dt, input);
     this.updateInstantActions(world, input);
@@ -337,6 +341,55 @@ export class InteractionSystem {
     return best;
   }
 
+  /**
+   * Level-four engineers maintain the Spider just by staying beside it. This
+   * is intentionally slower than a manual repair and still spends scrap, so
+   * proximity removes input friction without turning damage into a free reset.
+   */
+  private updateAutomaticSpiderRepair(world: GameWorld, dt: number): void {
+    const player = world.player;
+    const spider = world.spider;
+    const inRange =
+      distSq(player.x, player.z, spider.x, spider.z) <=
+      FIELD_MECHANIC.range * FIELD_MECHANIC.range;
+    const eligible =
+      world.progress.level >= FIELD_MECHANIC.unlockLevel &&
+      inRange &&
+      spider.coreHealth < spider.maxCoreHealth - 1 &&
+      world.resources.scrap >= FIELD_MECHANIC.scrapCost &&
+      !(player.actionKind === "repair" && player.actionTargetId < 0);
+
+    if (!eligible) {
+      this.automaticRepairTimer = 0;
+      return;
+    }
+
+    this.automaticRepairTimer += dt;
+    if (this.automaticRepairTimer < FIELD_MECHANIC.interval) return;
+    this.automaticRepairTimer -= FIELD_MECHANIC.interval;
+
+    world.resources.scrap -= FIELD_MECHANIC.scrapCost;
+    world.events.emit({
+      type: "resource.spent",
+      kind: "scrap",
+      amount: FIELD_MECHANIC.scrapCost,
+      reason: "fieldMechanic",
+    });
+
+    const amount = Math.min(
+      spider.maxCoreHealth - spider.coreHealth,
+      spider.maxCoreHealth * FIELD_MECHANIC.repairFraction * world.modifiers.repairPower,
+    );
+    spider.coreHealth += amount;
+    world.events.emit({
+      type: "structure.repaired",
+      structureId: -1,
+      x: spider.x,
+      z: spider.z,
+      amount,
+    });
+  }
+
   private nearestDroppedStructure(world: GameWorld, rangeSq: number): Structure | null {
     const player = world.player;
     let best: Structure | null = null;
@@ -600,6 +653,16 @@ export class InteractionSystem {
 
     const kind = player.carry.structureType;
     const heading = player.heading;
+
+    if (
+      kind === "crawlerTurret" &&
+      world.structures.filter((structure) =>
+        structure.kind === "crawlerTurret" && structure.state !== "destroyed"
+      ).length >= STRUCTURES.crawlerTurret.maxActive
+    ) {
+      world.events.emit({ type: "build.rejected", reason: "Crawler limit reached" });
+      return;
+    }
 
     // Search outward from straight ahead for somewhere the machine will fit.
     //

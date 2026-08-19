@@ -53,7 +53,7 @@ export class StructureCombatSystem {
 
     for (let i = 0; i < world.structures.length; i++) {
       const structure = world.structures[i];
-      if (structure.kind === "rivetTurret") {
+      if (structure.kind === "rivetTurret" || structure.kind === "crawlerTurret") {
         this.updateTurret(world, structure, dt);
       } else if (structure.kind === "mine") {
         this.updateMine(world, structure);
@@ -68,7 +68,9 @@ export class StructureCombatSystem {
   // -------------------------------------------------------------------------
 
   private updateTurret(world: GameWorld, structure: Structure, dt: number): void {
-    const config = STRUCTURES.rivetTurret;
+    const config = structure.kind === "crawlerTurret"
+      ? STRUCTURES.crawlerTurret
+      : STRUCTURES.rivetTurret;
 
     if (structure.state === "destroyed" || structure.state === "folding") return;
     if (structure.state === "placing" || structure.state === "deploying") {

@@ -37,6 +37,18 @@ export const BLUEPRINTS: Record<StructureKind, BlueprintDefinition> = {
     radius: STRUCTURES.rivetTurret.radius,
     usesPressure: true,
   },
+  crawlerTurret: {
+    kind: "crawlerTurret",
+    name: "Crawler Tank",
+    shortName: "CRAWLER",
+    summary: "Mobile turret. Follows the Spider and can be destroyed.",
+    category: "foldable",
+    cost: STRUCTURES.crawlerTurret.cost,
+    icon: "▰",
+    accent: 0x72d6a0,
+    radius: STRUCTURES.crawlerTurret.radius,
+    usesPressure: false,
+  },
   relay: {
     kind: "relay",
     name: "Pressure Relay",
@@ -80,6 +92,8 @@ export const BLUEPRINTS: Record<StructureKind, BlueprintDefinition> = {
  * starting at the top and going clockwise.
  */
 export const SLICE_LOADOUT: readonly StructureKind[] = ["rivetTurret", "relay", "barricade", "mine"];
+
+export const CRAWLER_UNLOCK_LEVEL = 3;
 
 export function getBlueprint(kind: StructureKind): BlueprintDefinition {
   return BLUEPRINTS[kind];

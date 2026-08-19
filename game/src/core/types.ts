@@ -183,7 +183,7 @@ export interface SpiderState {
 // Structures
 // ---------------------------------------------------------------------------
 
-export type StructureKind = "rivetTurret" | "relay" | "barricade" | "mine";
+export type StructureKind = "rivetTurret" | "crawlerTurret" | "relay" | "barricade" | "mine";
 
 export type StructureCategory = "foldable" | "anchored";
 

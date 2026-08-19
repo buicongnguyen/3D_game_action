@@ -622,6 +622,37 @@ export function buildRivetTurret(materials: MaterialLibrary): TurretRig {
   return { root, yoke, barrel, muzzle, legs, gauge };
 }
 
+function crawlerChassis(): BufferGeometry {
+  const C = STRUCTURE_COLORS;
+  return tint(
+    merge([
+      place(chamferedBox(1.35, 0.34, 1.55, 0.12, C.footing), 0, 0.3, 0),
+      place(chamferedBox(0.28, 0.38, 1.72, 0.08, C.footingDark), 0.72, 0.24, 0),
+      place(chamferedBox(0.28, 0.38, 1.72, 0.08, C.footingDark), -0.72, 0.24, 0),
+      place(plate(1.08, 1.2, 0.12, 0.04, C.turretBodyDark), 0, 0.52, -0.05),
+      place(cylinderish(0.2, 0.2, 0.16, 8, PLAYER_COLORS.brassDark), 0.73, 0.24, 0.55, 0, 0, Math.PI * 0.5),
+      place(cylinderish(0.2, 0.2, 0.16, 8, PLAYER_COLORS.brassDark), 0.73, 0.24, -0.55, 0, 0, Math.PI * 0.5),
+      place(cylinderish(0.2, 0.2, 0.16, 8, PLAYER_COLORS.brassDark), -0.73, 0.24, 0.55, 0, 0, Math.PI * 0.5),
+      place(cylinderish(0.2, 0.2, 0.16, 8, PLAYER_COLORS.brassDark), -0.73, 0.24, -0.55, 0, 0, Math.PI * 0.5),
+    ]),
+    0.06,
+    119,
+  );
+}
+
+/** Rivet turret upper works mounted on a compact self-propelled tracked hull. */
+export function buildCrawlerTurret(materials: MaterialLibrary): TurretRig {
+  const rig = buildRivetTurret(materials);
+  rig.root.name = "crawlerTurret";
+  const base = rig.root.getObjectByName("base");
+  if (base) rig.root.remove(base);
+  for (const leg of rig.legs) rig.root.remove(leg);
+  rig.root.add(meshOf(cached("crawlerChassis", crawlerChassis), materials.surface, "crawlerChassis"));
+  rig.yoke.position.y = 0.88;
+  rig.gauge.position.y = 0.55;
+  return rig;
+}
+
 // ---------------------------------------------------------------------------
 // Relay
 // ---------------------------------------------------------------------------

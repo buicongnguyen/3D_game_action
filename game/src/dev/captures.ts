@@ -30,6 +30,13 @@ function placeTurret(game: Game, world: GameWorld, x: number, z: number, buffer:
   structure.stateTimer = 0;
 }
 
+function placeCrawler(game: Game, world: GameWorld, x: number, z: number): void {
+  const construction = (game as unknown as { construction: ConstructionLike }).construction;
+  const structure = construction.spawnStructure(world, "crawlerTurret", x, z, 0, 0.72, -1);
+  structure.state = "active";
+  structure.stateTimer = 0;
+}
+
 interface ConstructionLike {
   spawnStructure: (
     world: GameWorld,
@@ -77,6 +84,7 @@ export const CAPTURES: CaptureScenario[] = [
       stationPlayer(world, 11, 3);
       world.player.velocityX = 3.4;
       world.player.velocityZ = 3.4;
+      placeCrawler(game, world, world.spider.x + 5, world.spider.z - 3);
       world.trail = 14;
     },
   },

@@ -1,8 +1,9 @@
 import { clamp } from "../../core/math.ts";
 import type { RouteObjectiveDefinition, TrailState } from "../../core/types.ts";
-import { DIRECTOR, SALVAGE_RUSH, TRAIL, XP } from "../../data/balance.ts";
+import { DIRECTOR, FIELD_MECHANIC, SALVAGE_RUSH, TRAIL, XP } from "../../data/balance.ts";
 import { getCheckpoint, type CheckpointDefinition } from "../../data/routes.ts";
 import { rollUpgradeOffers } from "../../data/upgrades.ts";
+import { CRAWLER_UNLOCK_LEVEL } from "../../data/structures.ts";
 import type { GameWorld } from "../GameWorld.ts";
 
 /**
@@ -283,6 +284,24 @@ export class RunStateSystem {
       progress.pendingLevelUps++;
       progress.xpToNext = Math.round(XP.base * Math.pow(XP.growth, progress.level - 1));
       world.events.emit({ type: "run.levelUp", level: progress.level });
+      if (progress.level === FIELD_MECHANIC.unlockLevel) {
+        world.events.emit({
+          type: "ui.toast",
+          message: "Level 4 perk unlocked: Field Mechanic · repair the Spider by staying close",
+          tone: "success",
+          duration: 5,
+        });
+      }
+    }
+
+    if (progress.level >= CRAWLER_UNLOCK_LEVEL && !world.loadout.includes("crawlerTurret")) {
+      world.loadout.push("crawlerTurret");
+      world.events.emit({
+        type: "ui.toast",
+        message: "Level 3 blueprint unlocked: Crawler Tank",
+        tone: "success",
+        duration: 4,
+      });
     }
   }
 

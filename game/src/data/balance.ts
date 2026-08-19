@@ -180,6 +180,30 @@ export const STRUCTURES = {
     explosionDamage: 140,
     explosionRadius: 6.5,
   },
+  crawlerTurret: {
+    cost: 58,
+    category: "foldable" as const,
+    health: 300,
+    maxBuffer: 0,
+    deployTime: 1.1,
+    foldTime: 1.4,
+    range: 11.5,
+    damage: 7,
+    fireInterval: 0.34,
+    traverseSpeed: 3.8,
+    targetLock: 0.55,
+    projectileSpeed: 46,
+    radius: 1.05,
+    muzzleHeight: 1.2,
+    lastShotDuration: 0,
+    lastShotFireRateMultiplier: 1,
+    lastShotDamageMultiplier: 1,
+    explosionDamage: 0,
+    explosionRadius: 0,
+    maxActive: 2,
+    moveSpeed: 5.2,
+    followDistance: 2.1,
+  },
   relay: {
     cost: 18,
     category: "foldable" as const,
@@ -271,6 +295,17 @@ export const ECONOMY = {
   repairFractionPerAction: 0.22,
   /** Fuel transferred per refuel action. */
   refuelPerAction: 18,
+} as const;
+
+/** Passive Spider maintenance unlocked through engineer progression. */
+export const FIELD_MECHANIC = {
+  unlockLevel: 4,
+  /** The engineer must remain close enough to visibly service the Spider. */
+  range: 5.5,
+  /** Small repair packets preserve the value of the faster manual repair. */
+  interval: 2.5,
+  repairFraction: 0.06,
+  scrapCost: 2,
 } as const;
 
 export const WEAPONS = {

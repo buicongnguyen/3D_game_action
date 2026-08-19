@@ -46,6 +46,7 @@ import {
   buildProjectileGeometry,
   buildRelay,
   buildRivetTurret,
+  buildCrawlerTurret,
   buildScrapPile,
   buildSpider,
   machineCache,
@@ -166,6 +167,7 @@ export class MeshForge {
         "Machining deployables",
         () => {
           buildRivetTurret(this.materials);
+          buildCrawlerTurret(this.materials);
           buildRelay(this.materials);
           buildBarricade(this.materials);
           buildMine(this.materials);
@@ -301,6 +303,10 @@ export class MeshForge {
     return buildRivetTurret(this.materials);
   }
 
+  createCrawlerTurret(): TurretRig {
+    return buildCrawlerTurret(this.materials);
+  }
+
   createRelay(): RelayRig {
     return buildRelay(this.materials);
   }
@@ -381,6 +387,8 @@ export class MeshForge {
     switch (kind) {
       case "rivetTurret":
         return this.createTurret().root;
+      case "crawlerTurret":
+        return this.createCrawlerTurret().root;
       case "relay":
         return this.createRelay().root;
       case "mine":
