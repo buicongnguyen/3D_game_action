@@ -5,6 +5,7 @@ import { ECONOMY, FIELD_MECHANIC, PICKUPS, PLAYER, PRESSURE, STRUCTURES } from "
 import { getBlueprint, getStructureConfig } from "../../data/structures.ts";
 import type { ConstructionSystem } from "./ConstructionSystem.ts";
 import type { GameWorld } from "../GameWorld.ts";
+import { rivetRetirementProgress } from "../structureRetirement.ts";
 
 /**
  * Every "sustain" and "abandon" action: repair, refuel, recharge, fold, carry,
@@ -109,7 +110,7 @@ export class InteractionSystem {
     if (!spline) return;
     const spiderDistance = world.spider.distanceAlongRoute;
 
-    for (let i = 0; i < world.structures.length; i++) {
+    for (let i = world.structures.length - 1; i >= 0; i--) {
       const structure = world.structures[i];
       if (structure.state === "destroyed") continue;
       const distance = spline.projectPoint(scratch, structure.x, structure.z);
@@ -127,6 +128,15 @@ export class InteractionSystem {
         }
       } else if (!behind) {
         structure.behindSpider = false;
+      }
+
+      // Rivet Turrets are permanent in combat, but an abandoned one would
+      // otherwise live in the simulation forever. Retire it only after it is
+      // safely beyond the player's tether/recovery window; the renderer uses
+      // the same progress value to sink and shrink it instead of popping out.
+      if (rivetRetirementProgress(world, structure) >= 1) {
+        world.stats.structuresAbandoned++;
+        this.construction.removeStructure(world, structure);
       }
     }
   }

@@ -21,6 +21,11 @@ import { createEmptySnapshot, type InputSnapshot } from "../src/input/InputActio
 import { PICKUPS, PLAYER, PRESSURE, SIM, SPIDER, STRUCTURES, TRAIL } from "../src/data/balance.ts";
 import type { GameEvent } from "../src/core/events.ts";
 import type { RunMode } from "../src/core/types.ts";
+import {
+  RIVET_RETIRE_END_DISTANCE,
+  RIVET_RETIRE_START_DISTANCE,
+  rivetRetirementProgress,
+} from "../src/game/structureRetirement.ts";
 
 /**
  * Whole-loop integration tests.
@@ -638,6 +643,32 @@ describe("the engineering loop", () => {
 
     expect(turret.behindSpider).toBe(true);
     expect(harness.countEvents("structure.leftBehind")).toBeGreaterThan(0);
+  });
+
+  it("gradually retires a rivet turret only after the recovery window", () => {
+    const harness = new Harness(1818, { spawns: false });
+    harness.world.resources.scrap = 200;
+    const turret = buildTurret(harness, 1.2, 0);
+    turret.state = "active";
+    turret.behindSpider = true;
+
+    const spline = harness.world.route.spline!;
+    const projected = spline.projectPoint({ x: 0, z: 0 }, turret.x, turret.z);
+
+    harness.world.spider.distanceAlongRoute = projected + RIVET_RETIRE_START_DISTANCE - 1;
+    expect(rivetRetirementProgress(harness.world, turret)).toBe(0);
+    expect(harness.world.findStructure(turret.id)).toBe(turret);
+
+    harness.world.spider.distanceAlongRoute =
+      projected + (RIVET_RETIRE_START_DISTANCE + RIVET_RETIRE_END_DISTANCE) * 0.5;
+    expect(rivetRetirementProgress(harness.world, turret)).toBeCloseTo(0.5, 5);
+    expect(harness.world.findStructure(turret.id)).toBe(turret);
+
+    harness.world.spider.distanceAlongRoute = projected + RIVET_RETIRE_END_DISTANCE + 1;
+    harness.step();
+    expect(harness.world.findStructure(turret.id)).toBeUndefined();
+    expect(harness.world.stats.structuresAbandoned).toBe(1);
+    expect(harness.countEvents("structure.exploded")).toBe(0);
   });
 });
 

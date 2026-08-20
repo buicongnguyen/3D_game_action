@@ -26,6 +26,7 @@ import type { MeshForge } from "../art/MeshForge.ts";
 import type { PuppetRig } from "../art/characters.ts";
 import type { TurretRig } from "../art/machines.ts";
 import type { GameWorld } from "../game/GameWorld.ts";
+import { rivetRetirementProgress } from "../game/structureRetirement.ts";
 import { TerrainBuilder } from "./TerrainBuilder.ts";
 import { HordeBatch } from "./HordeBatch.ts";
 import type { VfxSystem } from "./VfxSystem.ts";
@@ -957,6 +958,7 @@ export class WorldView {
       ? clamp(1 - structure.stateTimer / Math.max(0.001, STRUCTURES[structure.kind].deployTime), 0, 1)
       : 1;
     const deployScale = lerp(0.35, 1, easeOutBack(deployProgress));
+    const retirement = rivetRetirementProgress(world, structure);
 
     // Recovery is one of the game's four verbs and had no animation at all: the
     // fold was fully implemented in `animateTurret` and every caller passed a
@@ -1041,7 +1043,20 @@ export class WorldView {
       visual.ventTimer = 0;
     }
 
+    // Abandoned Rivet Turrets retire only after they are outside the recovery
+    // window. Sinking and shrinking reads as deliberate cleanup, and avoids
+    // cloning every shared material merely to change one turret's opacity.
+    if (retirement > 0) {
+      visual.root.position.y -= retirement * 0.7;
+      visual.root.scale.multiplyScalar(lerp(1, 0.04, retirement));
+    }
+
     this.updateStructureRing(visual, structure, dt);
+    if (retirement > 0) {
+      const ringScale = lerp(1, 0.04, retirement);
+      visual.ring.scale.multiplyScalar(ringScale);
+      visual.track.scale.multiplyScalar(ringScale);
+    }
 
     // The hierarchy is not in the scene when batched, so its animated pose only
     // reaches the screen through here.
