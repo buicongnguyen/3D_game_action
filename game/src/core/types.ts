@@ -522,6 +522,19 @@ export interface RouteObjectiveDefinition {
   reward: { kind: "scrap" | "fuel" | "core"; amount: number };
 }
 
+export const TERRAIN_STYLES = [
+  "yellow",
+  "brown",
+  "factory",
+  "civil",
+  "mountain",
+  "valley",
+  "flower",
+  "crystal",
+] as const;
+
+export type TerrainStyle = (typeof TERRAIN_STYLES)[number];
+
 export interface RouteSegmentDefinition {
   id: string;
   name: string;
@@ -532,6 +545,8 @@ export interface RouteSegmentDefinition {
   points: Array<[number, number, number]>;
   lengthMeters: number;
   recommendedDuration: number;
+  /** Procedural art direction used by terrain, props and encounter buildings. */
+  terrainStyle: TerrainStyle;
   /** Multiplies ambient horde pressure; authored encounter squads are unaffected. */
   ambientThreatScale?: number;
   /** Guaranteed campaign reward when this stage is first entered. */

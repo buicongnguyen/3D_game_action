@@ -17,7 +17,7 @@ import { ENV } from "../art/palette.ts";
 import { NAVIGATION } from "../data/balance.ts";
 import type { MeshForge } from "../art/MeshForge.ts";
 import type { GameWorld } from "../game/GameWorld.ts";
-import type { RouteSegmentDefinition } from "../core/types.ts";
+import type { RouteSegmentDefinition, TerrainStyle } from "../core/types.ts";
 
 /**
  * Builds the ground and its dressing for one route segment.
@@ -62,6 +62,94 @@ const PROP_TYPES = [
   { name: "scrapHeap", count: 20, minLateral: 6, maxLateral: 24, scaleMin: 0.8, scaleMax: 1.3, blocks: 0.9 },
   { name: "scrapHeapB", count: 16, minLateral: 6, maxLateral: 24, scaleMin: 0.8, scaleMax: 1.25, blocks: 0.85 },
 ] as const;
+
+type PropName = (typeof PROP_TYPES)[number]["name"];
+
+export interface TerrainPalette {
+  groundBase: number;
+  groundDark: number;
+  groundLight: number;
+  path: number;
+  pathEdge: number;
+  propTint: number;
+  houseColors: readonly number[];
+  reliefScale: number;
+}
+
+/** Eight deliberately separated palettes; no stage should read as a recolour of the last. */
+export const TERRAIN_PALETTES: Readonly<Record<TerrainStyle, TerrainPalette>> = {
+  yellow: {
+    groundBase: 0xa88b3d, groundDark: 0x79632f, groundLight: 0xd2b85b,
+    path: 0xc7a35a, pathEdge: 0x75552d, propTint: 0xe4ce79,
+    houseColors: [0xd59a48, 0xb96f3f, 0xe0b85f], reliefScale: 0.7,
+  },
+  brown: {
+    groundBase: 0x76513a, groundDark: 0x4b3329, groundLight: 0xa27550,
+    path: 0x936646, pathEdge: 0x4d3529, propTint: 0xb88a67,
+    houseColors: [0x9e6548, 0x74483b, 0xb47a52], reliefScale: 1.15,
+  },
+  factory: {
+    groundBase: 0x4d514f, groundDark: 0x303433, groundLight: 0x747973,
+    path: 0x62635d, pathEdge: 0x282b2b, propTint: 0xa6aaa2,
+    houseColors: [0x6d7a80, 0x8e603e, 0x59686f], reliefScale: 0.35,
+  },
+  civil: {
+    groundBase: 0x777263, groundDark: 0x504d45, groundLight: 0x9d9786,
+    path: 0x8b8272, pathEdge: 0x4a4742, propTint: 0xc0b8a6,
+    houseColors: [0xc65f4a, 0xd0a455, 0x63859a, 0x8f6cac], reliefScale: 0.25,
+  },
+  mountain: {
+    groundBase: 0x59605b, groundDark: 0x363d3b, groundLight: 0x818982,
+    path: 0x77786d, pathEdge: 0x3c403d, propTint: 0xb6c0b8,
+    houseColors: [0x7d6c5b, 0x586d73, 0x8a765d], reliefScale: 3.3,
+  },
+  valley: {
+    groundBase: 0x476c47, groundDark: 0x2d4c35, groundLight: 0x78a35c,
+    path: 0x88765a, pathEdge: 0x3e563b, propTint: 0xb4d394,
+    houseColors: [0xb36d42, 0x8f4937, 0xc8944d], reliefScale: 1.8,
+  },
+  flower: {
+    groundBase: 0x5f8a4e, groundDark: 0x3e633d, groundLight: 0x96bd68,
+    path: 0xb19a69, pathEdge: 0x536b42, propTint: 0xd9efac,
+    houseColors: [0xe0906f, 0xe4bc62, 0x83a6c9, 0xbb83b7], reliefScale: 0.75,
+  },
+  crystal: {
+    groundBase: 0x343b58, groundDark: 0x22243d, groundLight: 0x596287,
+    path: 0x555b79, pathEdge: 0x242841, propTint: 0xa8c8e8,
+    houseColors: [0x718ac7, 0x8d69b8, 0x4fa5a5], reliefScale: 1.45,
+  },
+};
+
+export function terrainPaletteFor(style: TerrainStyle): TerrainPalette {
+  return TERRAIN_PALETTES[style];
+}
+
+function propDensity(style: TerrainStyle, name: PropName): number {
+  const tree = name.startsWith("tree") || name.startsWith("bareTree");
+  const rock = name.startsWith("rock");
+  const soft = name.startsWith("grass") || name.startsWith("bush");
+  const industrial = name.startsWith("ruin") || name.startsWith("scrap");
+  switch (style) {
+    case "yellow": return tree ? 0.18 : soft ? 0.75 : industrial ? 0.25 : 0.55;
+    case "brown": return tree ? 0.12 : rock ? 1.15 : soft ? 0.16 : industrial ? 0.8 : 0.5;
+    case "factory": return industrial ? 1.65 : rock ? 0.28 : soft ? 0.08 : 0.04;
+    case "civil": return industrial ? 1.2 : tree ? 0.35 : soft ? 0.28 : 0.22;
+    case "mountain": return rock ? 1.7 : name.startsWith("treeConifer") ? 0.72 : soft ? 0.12 : 0.18;
+    case "valley": return tree ? 1.05 : soft ? 1.15 : rock ? 0.55 : 0.25;
+    case "flower": return soft ? 1.55 : tree ? 0.35 : rock ? 0.18 : 0.15;
+    case "crystal": return rock ? 1.75 : industrial ? 0.22 : soft ? 0.12 : 0.04;
+  }
+}
+
+function propInstanceColor(style: TerrainStyle, name: PropName, index: number): number {
+  if (style === "flower" && (name.startsWith("grass") || name.startsWith("bush"))) {
+    return [0xffd34f, 0xf48fb1, 0xc59cff, 0xf7eee0][index % 4];
+  }
+  if (style === "crystal" && name.startsWith("rock")) {
+    return [0x6ee7ff, 0x9f8cff, 0x65ffc7, 0xd486ff][index % 4];
+  }
+  return TERRAIN_PALETTES[style].propTint;
+}
 
 /** Surface-to-surface gap wide enough for the largest regular enemy. */
 export const SOLID_PROP_GAP = 2.2;
@@ -117,6 +205,7 @@ export class TerrainBuilder {
   private readonly position = new Vector3();
   private readonly quaternion = new Quaternion();
   private readonly scaleVector = new Vector3();
+  private readonly instanceColor = new Color();
 
   constructor(
     private readonly forge: MeshForge,
@@ -135,7 +224,7 @@ export class TerrainBuilder {
 
     const random = world.random.fork(hashString(segment.id));
 
-    this.buildBackdrop(world);
+    this.buildBackdrop(world, segment);
 
     this.ground = new Mesh(this.buildGroundGeometry(world, segment), this.forge.materials.surface);
     this.ground.receiveShadow = true;
@@ -158,7 +247,7 @@ export class TerrainBuilder {
    * beneath it, sitting a few centimetres lower and coloured to match what the
    * fog resolves to at that distance, removes the seam for one draw call.
    */
-  private buildBackdrop(world: GameWorld): void {
+  private buildBackdrop(world: GameWorld, segment: RouteSegmentDefinition): void {
     const spline = world.route.spline;
     if (!spline) return;
 
@@ -168,7 +257,7 @@ export class TerrainBuilder {
     // Matched to the strip's own outer value, not to something darker. A
     // backdrop that contrasts with the strip removes the void but replaces it
     // with an equally visible seam; matching makes the transition disappear.
-    const shade = new Color(ENV.groundBase);
+    const shade = new Color(terrainPaletteFor(segment.terrainStyle).groundBase);
     for (let i = 0; i < 4; i++) {
       colors[i * 3] = shade.r;
       colors[i * 3 + 1] = shade.g;
@@ -221,11 +310,12 @@ export class TerrainBuilder {
     const point = { x: 0, z: 0 };
     const tangent = { x: 0, z: 0 };
     const corridor = segment.corridorHalfWidth;
-    const pathColor = new Color(ENV.path);
-    const pathEdge = new Color(ENV.pathEdge);
-    const groundBase = new Color(ENV.groundBase);
-    const groundDark = new Color(ENV.groundDark);
-    const groundLight = new Color(ENV.groundLight);
+    const palette = terrainPaletteFor(segment.terrainStyle);
+    const pathColor = new Color(palette.path);
+    const pathEdge = new Color(palette.pathEdge);
+    const groundBase = new Color(palette.groundBase);
+    const groundDark = new Color(palette.groundDark);
+    const groundLight = new Color(palette.groundLight);
     const blend = new Color();
 
     let vertex = 0;
@@ -253,7 +343,7 @@ export class TerrainBuilder {
         // Relief rises only outside the corridor; the path itself is flat.
         const relief = smoothstep(corridor * 0.85, corridor * 2.6, absLateral);
         const y =
-          relief *
+          relief * palette.reliefScale *
           (valueNoise(x * 0.055, z * 0.055) * 1.9 + valueNoise(x * 0.17, z * 0.17) * 0.55);
 
         positions[vertex * 3] = x;
@@ -362,7 +452,9 @@ export class TerrainBuilder {
         type.name.startsWith("bareTree") ||
         type.name.startsWith("rock") ||
         type.name.startsWith("ruinPillar");
-      const targetCount = maze && heavyNatural ? Math.ceil(type.count * 0.22) : type.count;
+      const styledCount = Math.ceil(type.count * propDensity(segment.terrainStyle, type.name));
+      const targetCount = maze && heavyNatural ? Math.ceil(styledCount * 0.22) : styledCount;
+      if (targetCount <= 0) continue;
 
       const mesh = new InstancedMesh(geometry, this.forge.materials.surface, targetCount);
       // Only silhouette-scale props cast. A grass tuft's shadow is invisible at
@@ -416,9 +508,24 @@ export class TerrainBuilder {
         this.quaternion.setFromAxisAngle(UP, random.angle());
         // Slight non-uniform scale stops a forest of identical clones reading
         // as one repeated object.
-        this.scaleVector.set(scale * random.range(0.92, 1.08), scale, scale * random.range(0.92, 1.08));
+        let widthScale = 1;
+        let heightScale = 1;
+        if (segment.terrainStyle === "crystal" && type.name.startsWith("rock")) {
+          widthScale = 0.48;
+          heightScale = random.range(1.9, 3.2);
+        } else if (segment.terrainStyle === "mountain" && type.name.startsWith("rock")) {
+          widthScale = 1.15;
+          heightScale = random.range(1.35, 2.1);
+        }
+        this.scaleVector.set(
+          scale * widthScale * random.range(0.92, 1.08),
+          scale * heightScale,
+          scale * widthScale * random.range(0.92, 1.08),
+        );
         this.matrix.compose(this.position, this.quaternion, this.scaleVector);
         mesh.setMatrixAt(placed, this.matrix);
+        this.instanceColor.setHex(propInstanceColor(segment.terrainStyle, type.name, placed));
+        mesh.setColorAt(placed, this.instanceColor);
 
         if (type.blocks > 0) {
           const radius = type.blocks * scale;
@@ -438,6 +545,7 @@ export class TerrainBuilder {
 
       mesh.count = placed;
       mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
       this.instanced.push(mesh);
       this.root.add(mesh);
     }
@@ -516,6 +624,7 @@ export class TerrainBuilder {
     mesh.frustumCulled = false;
     const point = { x: 0, z: 0 };
     const tangent = { x: 0, z: 1 };
+    const houseColors = terrainPaletteFor(segment.terrainStyle).houseColors;
     for (let i = 0; i < encounters.length; i++) {
       const encounter = encounters[i];
       spline.positionAt(point, encounter.distance);
@@ -531,9 +640,12 @@ export class TerrainBuilder {
       this.scaleVector.setScalar(scale);
       this.matrix.compose(this.position, this.quaternion, this.scaleVector);
       mesh.setMatrixAt(i, this.matrix);
+      this.instanceColor.setHex(houseColors[i % houseColors.length]);
+      mesh.setColorAt(i, this.instanceColor);
       world.navigation.setStaticBox(x, z, 2.5 * scale, 2.2 * scale, heading);
     }
     mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     this.instanced.push(mesh);
     this.root.add(mesh);
   }

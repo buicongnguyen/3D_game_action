@@ -220,8 +220,8 @@ describe("RouteDirector run structure", () => {
       .map((checkpoint) => checkpoint.arrivalStory)
       .filter((story) => story !== undefined);
 
-    expect(stories).toHaveLength(4);
-    expect(new Set(stories.map((story) => story.text)).size).toBe(4);
+    expect(stories).toHaveLength(8);
+    expect(new Set(stories.map((story) => story.text)).size).toBe(8);
     for (const story of stories) {
       expect(story.speaker.length).toBeGreaterThan(3);
       expect(story.text.length).toBeGreaterThan(80);
@@ -263,22 +263,32 @@ describe("RouteDirector run structure", () => {
     director.enterSegment("seg.flooded");
     expect(director.isSegmentComplete(director.spline!.length)).toBe(true);
     expect(director.currentCheckpointId).toBe("checkpoint.pump");
-    expect(director.offeredSegments()).toEqual(["seg.scrapyard"]);
+    expect(director.offeredSegments()).toEqual(["seg.badlands"]);
 
-    director.enterSegment("seg.scrapyard");
-    expect(director.isSegmentComplete(director.spline!.length + 5)).toBe(true);
-    expect(director.currentCheckpointId).toBe("checkpoint.gate");
-    expect(director.offeredSegments()).toEqual(["seg.escape"]);
+    const middleStages = [
+      ["seg.badlands", "checkpoint.ridge", "seg.mountain"],
+      ["seg.mountain", "checkpoint.summit", "seg.flower"],
+      ["seg.flower", "checkpoint.garden", "seg.scrapyard"],
+      ["seg.scrapyard", "checkpoint.gate", "seg.crystal"],
+      ["seg.crystal", "checkpoint.crystal", "seg.escape"],
+    ] as const;
+    for (const [segmentId, checkpointId, nextSegmentId] of middleStages) {
+      director.enterSegment(segmentId);
+      expect(director.isSegmentComplete(director.spline!.length + 5)).toBe(true);
+      expect(director.currentCheckpointId).toBe(checkpointId);
+      expect(director.offeredSegments()).toEqual([nextSegmentId]);
+    }
 
     director.enterSegment("seg.escape");
     expect(director.isFinalSegment).toBe(true);
     expect(director.destinationCheckpointId()).toBe("gate.final");
     expect(director.isSegmentComplete(director.spline!.length)).toBe(true);
     expect(director.history).toEqual([
-      "seg.approach", "seg.mine", "seg.flooded", "seg.scrapyard", "seg.escape",
+      "seg.approach", "seg.mine", "seg.flooded", "seg.badlands", "seg.mountain",
+      "seg.flower", "seg.scrapyard", "seg.crystal", "seg.escape",
     ]);
     // The gate is not a checkpoint, so the cursor stays on the last one.
-    expect(director.currentCheckpointId).toBe("checkpoint.gate");
+    expect(director.currentCheckpointId).toBe("checkpoint.crystal");
   });
 
   it("reports progress and remaining metres against the measured arc length", () => {

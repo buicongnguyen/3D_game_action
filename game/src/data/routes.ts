@@ -1,13 +1,10 @@
 import type { RouteSegmentDefinition } from "../core/types.ts";
 
 /**
- * Authored route for the vertical slice.
- *
- * Layout: simple opening road -> safe stop -> two-way stage fork -> final escape.
- * At the spider's 1.25 m/s march speed the total is roughly 8.5-9.5 minutes,
- * which is the Stage 5 target. Most splines stay compact corridors with short
- * side pockets. Rust Yard uses repeated switchbacks as the optional mode's
- * maze-like salvage lane without lengthening every branch of the expedition.
+ * Nine-stage campaign route with one valley fork. Each leg carries an explicit
+ * terrain style, allowing the expedition to progress visually from yellow
+ * steppe through settlements, valleys, mountains, flowers, industry and the
+ * crystal frontier before the final escape.
  *
  * Points are control points for a CatmullRom curve. They are deliberately
  * sparse and smooth - the arc-length table does the rest.
@@ -31,6 +28,7 @@ export const ROUTE_SEGMENTS: Record<string, RouteSegmentDefinition> = {
     ],
     lengthMeters: 176,
     recommendedDuration: 140,
+    terrainStyle: "yellow",
     ambientThreatScale: 0.55,
     pursuitStartSeconds: 999,
     corridorHalfWidth: 15,
@@ -76,6 +74,7 @@ export const ROUTE_SEGMENTS: Record<string, RouteSegmentDefinition> = {
     ],
     lengthMeters: 208,
     recommendedDuration: 170,
+    terrainStyle: "civil",
     ambientThreatScale: 0.9,
     weaponUnlock: "rifle",
     blueprintUnlocks: ["relay"],
@@ -120,6 +119,7 @@ export const ROUTE_SEGMENTS: Record<string, RouteSegmentDefinition> = {
     ],
     lengthMeters: 190,
     recommendedDuration: 152,
+    terrainStyle: "valley",
     ambientThreatScale: 1,
     weaponUnlock: "flamer",
     blueprintUnlocks: ["barricade"],
@@ -166,6 +166,7 @@ export const ROUTE_SEGMENTS: Record<string, RouteSegmentDefinition> = {
     ],
     lengthMeters: 184,
     recommendedDuration: 147,
+    terrainStyle: "valley",
     ambientThreatScale: 1.22,
     weaponUnlock: "flamer",
     blueprintUnlocks: ["barricade"],
@@ -203,23 +204,138 @@ export const ROUTE_SEGMENTS: Record<string, RouteSegmentDefinition> = {
     },
   },
 
+  "seg.badlands": {
+    id: "seg.badlands",
+    name: "Ochre Badlands",
+    reward: "Armor plates and dense salvage",
+    danger: "Open sightlines expose the convoy to ranged pressure",
+    points: [
+      [20, 0, 552], [35, 0, 575], [48, 0, 600], [38, 0, 625],
+      [58, 0, 650], [50, 0, 680], [60, 0, 710],
+    ],
+    lengthMeters: 180,
+    recommendedDuration: 145,
+    terrainStyle: "brown",
+    ambientThreatScale: 1.02,
+    pursuitStartSeconds: 999,
+    corridorHalfWidth: 15,
+    spawnZones: [
+      { fromDistance: 12, toDistance: 180, minLateral: 16, maxLateral: 30, weight: 1.35, minTrail: 0 },
+      { fromDistance: 60, toDistance: 180, minLateral: 13, maxLateral: 24, weight: 1.85, minTrail: 38 },
+    ],
+    resourceZones: [
+      { kind: "scrap", fromDistance: 10, toDistance: 174, count: 16, maxLateral: 12 },
+      { kind: "scrapLarge", fromDistance: 35, toDistance: 165, count: 4, maxLateral: 10 },
+      { kind: "armorPlate", fromDistance: 55, toDistance: 155, count: 2, maxLateral: 9 },
+      { kind: "fuel", fromDistance: 20, toDistance: 170, count: 5, maxLateral: 11 },
+    ],
+    encounters: [
+      { id: "house.badlands-depot", kind: "occupiedHouse", distance: 62, lateral: -12, triggerLead: 17, warningSeconds: 1.5, occupants: [{ archetype: "minion", count: 8 }, { archetype: "warrior", count: 2 }] },
+      { id: "nest.badlands-rig", kind: "workshopNest", distance: 132, lateral: 12, triggerLead: 19, warningSeconds: 1.6, occupants: [{ archetype: "minion", count: 9 }, { archetype: "warrior", count: 2 }, { archetype: "golem", count: 1 }] },
+    ],
+    modifiers: ["open"],
+    rewardTable: "scrap",
+    destinationId: "checkpoint.ridge",
+    objective: {
+      kind: "salvage", label: "Recover 30 scrap from the badlands", target: 30,
+      reward: { kind: "core", amount: 18 },
+    },
+  },
+
+  "seg.mountain": {
+    id: "seg.mountain",
+    name: "Ironspine Pass",
+    reward: "High-grade fuel and a repair cache",
+    danger: "Narrow turns and heavy breakers descend from the slopes",
+    points: [
+      [60, 0, 710], [45, 0, 735], [32, 0, 765], [48, 0, 795],
+      [30, 0, 825], [20, 0, 858], [18, 0, 890],
+    ],
+    lengthMeters: 197,
+    recommendedDuration: 158,
+    terrainStyle: "mountain",
+    ambientThreatScale: 1.08,
+    pursuitStartSeconds: 999,
+    corridorHalfWidth: 10,
+    spawnZones: [
+      { fromDistance: 8, toDistance: 197, minLateral: 12, maxLateral: 22, weight: 1.55, minTrail: 0 },
+      { fromDistance: 48, toDistance: 197, minLateral: 11, maxLateral: 20, weight: 2, minTrail: 36 },
+    ],
+    resourceZones: [
+      { kind: "fuel", fromDistance: 10, toDistance: 190, count: 8, maxLateral: 8 },
+      { kind: "fuelBarrel", fromDistance: 45, toDistance: 180, count: 3, maxLateral: 7 },
+      { kind: "scrap", fromDistance: 10, toDistance: 190, count: 13, maxLateral: 8 },
+      { kind: "repairKit", fromDistance: 92, toDistance: 170, count: 2, maxLateral: 7 },
+    ],
+    encounters: [
+      { id: "house.pass-watch", kind: "occupiedHouse", distance: 70, lateral: 9, triggerLead: 17, warningSeconds: 1.5, occupants: [{ archetype: "warrior", count: 4 }, { archetype: "golem", count: 1 }] },
+      { id: "nest.pass-quarry", kind: "workshopNest", distance: 148, lateral: -9, triggerLead: 20, warningSeconds: 1.7, occupants: [{ archetype: "minion", count: 10 }, { archetype: "warrior", count: 3 }, { archetype: "golem", count: 1 }] },
+    ],
+    modifiers: ["narrow", "highlands"],
+    rewardTable: "fuel",
+    destinationId: "checkpoint.summit",
+    objective: {
+      kind: "pressure", label: "Keep a defense powered for 35 seconds", target: 35,
+      reward: { kind: "fuel", amount: 28 },
+    },
+  },
+
+  "seg.flower": {
+    id: "seg.flower",
+    name: "Blooming Vale",
+    reward: "Field supplies and weapon components",
+    danger: "Bright cover conceals fast hunting packs",
+    points: [
+      [18, 0, 890], [28, 0, 915], [16, 0, 940], [30, 0, 968],
+      [22, 0, 995], [36, 0, 1022], [40, 0, 1050],
+    ],
+    lengthMeters: 172,
+    recommendedDuration: 138,
+    terrainStyle: "flower",
+    ambientThreatScale: 1.12,
+    pursuitStartSeconds: 999,
+    corridorHalfWidth: 14,
+    spawnZones: [
+      { fromDistance: 10, toDistance: 172, minLateral: 15, maxLateral: 29, weight: 1.6, minTrail: 0 },
+      { fromDistance: 42, toDistance: 172, minLateral: 12, maxLateral: 24, weight: 2.05, minTrail: 34 },
+    ],
+    resourceZones: [
+      { kind: "scrap", fromDistance: 8, toDistance: 166, count: 17, maxLateral: 11 },
+      { kind: "weaponPart", fromDistance: 30, toDistance: 160, count: 4, maxLateral: 10 },
+      { kind: "pressureCanister", fromDistance: 45, toDistance: 155, count: 3, maxLateral: 9 },
+      { kind: "shockMine", fromDistance: 70, toDistance: 150, count: 2, maxLateral: 10 },
+    ],
+    encounters: [
+      { id: "house.flower-orchard", kind: "occupiedHouse", distance: 56, lateral: -12, triggerLead: 18, warningSeconds: 1.4, occupants: [{ archetype: "minion", count: 11 }, { archetype: "warrior", count: 2 }] },
+      { id: "house.flower-chapel", kind: "occupiedHouse", distance: 126, lateral: 12, triggerLead: 19, warningSeconds: 1.5, occupants: [{ archetype: "minion", count: 12 }, { archetype: "warrior", count: 3 }] },
+    ],
+    modifiers: ["swarm", "meadow"],
+    rewardTable: "basic",
+    destinationId: "checkpoint.garden",
+    objective: {
+      kind: "salvage", label: "Collect 28 scrap through Blooming Vale", target: 28,
+      reward: { kind: "scrap", amount: 24 },
+    },
+  },
+
   "seg.scrapyard": {
     id: "seg.scrapyard",
     name: "Rust Yard",
     reward: "Heaps of scrap - build and rebuild freely",
     danger: "More swarms - the noise carries across open ground",
     points: [
-      [20, 0, 552],
-      [-6, 0, 576],
-      [36, 0, 604],
-      [-8, 0, 632],
-      [38, 0, 660],
-      [-6, 0, 688],
-      [36, 0, 716],
-      [38, 0, 748],
+      [40, 0, 1050],
+      [14, 0, 1078],
+      [56, 0, 1110],
+      [12, 0, 1142],
+      [58, 0, 1174],
+      [14, 0, 1206],
+      [56, 0, 1238],
+      [58, 0, 1280],
     ],
-    lengthMeters: 330,
-    recommendedDuration: 264,
+    lengthMeters: 360,
+    recommendedDuration: 288,
+    terrainStyle: "factory",
     ambientThreatScale: 1.05,
     weaponUnlock: "launcher",
     blueprintUnlocks: ["mine"],
@@ -252,21 +368,61 @@ export const ROUTE_SEGMENTS: Record<string, RouteSegmentDefinition> = {
     },
   },
 
+  "seg.crystal": {
+    id: "seg.crystal",
+    name: "Prism Expanse",
+    reward: "Rare salvage and final-stage supplies",
+    danger: "Crystal spires split sightlines while elite packs close in",
+    points: [
+      [58, 0, 1280], [48, 0, 1308], [62, 0, 1336], [44, 0, 1366],
+      [56, 0, 1398], [38, 0, 1430], [30, 0, 1460],
+    ],
+    lengthMeters: 198,
+    recommendedDuration: 158,
+    terrainStyle: "crystal",
+    ambientThreatScale: 1.18,
+    pursuitStartSeconds: 999,
+    corridorHalfWidth: 12,
+    spawnZones: [
+      { fromDistance: 8, toDistance: 198, minLateral: 13, maxLateral: 26, weight: 1.85, minTrail: 0 },
+      { fromDistance: 45, toDistance: 198, minLateral: 11, maxLateral: 22, weight: 2.3, minTrail: 30 },
+    ],
+    resourceZones: [
+      { kind: "scrap", fromDistance: 8, toDistance: 190, count: 19, maxLateral: 10 },
+      { kind: "scrapLarge", fromDistance: 35, toDistance: 185, count: 5, maxLateral: 9 },
+      { kind: "armorPlate", fromDistance: 60, toDistance: 178, count: 2, maxLateral: 8 },
+      { kind: "repairKit", fromDistance: 88, toDistance: 170, count: 2, maxLateral: 8 },
+      { kind: "weaponPart", fromDistance: 45, toDistance: 175, count: 3, maxLateral: 9 },
+    ],
+    encounters: [
+      { id: "nest.crystal-choir", kind: "workshopNest", distance: 64, lateral: 10, triggerLead: 19, warningSeconds: 1.5, occupants: [{ archetype: "minion", count: 12 }, { archetype: "warrior", count: 3 }, { archetype: "golem", count: 1 }] },
+      { id: "house.crystal-vault", kind: "occupiedHouse", distance: 142, lateral: -10, triggerLead: 20, warningSeconds: 1.6, occupants: [{ archetype: "minion", count: 12 }, { archetype: "warrior", count: 4 }, { archetype: "golem", count: 1 }] },
+    ],
+    modifiers: ["crystal", "elite"],
+    rewardTable: "final",
+    destinationId: "checkpoint.crystal",
+    objective: {
+      kind: "nests", label: "Destroy the Crystal Choir nest", target: 1,
+      reward: { kind: "core", amount: 28 },
+    },
+  },
+
   "seg.escape": {
     id: "seg.escape",
     name: "The Last Gate",
     reward: "The shelter gate",
     danger: "Continuous pursuit",
     points: [
-      [38, 0, 748],
-      [42, 0, 772],
-      [38, 0, 796],
-      [28, 0, 818],
-      [22, 0, 840],
-      [24, 0, 860],
+      [30, 0, 1460],
+      [34, 0, 1484],
+      [30, 0, 1508],
+      [20, 0, 1530],
+      [14, 0, 1552],
+      [16, 0, 1572],
     ],
     lengthMeters: 118,
     recommendedDuration: 100,
+    terrainStyle: "civil",
     ambientThreatScale: 1.2,
     // Pursuit is forced on this segment regardless of Trail; it is the climax.
     pursuitStartSeconds: 12,
@@ -349,22 +505,66 @@ export const CHECKPOINTS: Record<string, CheckpointDefinition> = {
     id: "checkpoint.pump",
     name: "Pump Station",
     duration: 24,
-    nextSegments: ["seg.scrapyard"],
+    nextSegments: ["seg.badlands"],
     moduleOffer: ["module.boiler", "module.reactiveArmor"],
     arrivalStory: {
       speaker: "Pump Engineer Ilya",
       text: "Thank you for reaching the Pump Station. Fresh water will flow behind you because you refused to stop. Rest for a moment—the whole march is counting on you.",
     },
   },
+  "checkpoint.ridge": {
+    id: "checkpoint.ridge",
+    name: "Ridge Camp",
+    duration: 22,
+    nextSegments: ["seg.mountain"],
+    moduleOffer: [],
+    arrivalStory: {
+      speaker: "Badlands Scout Nera",
+      text: "The ochre road is behind us and the supply wagons are safe. You made a path where none remained. The mountains are watching, Engineer—show them the Spider does not bow.",
+    },
+  },
+  "checkpoint.summit": {
+    id: "checkpoint.summit",
+    name: "Summit Relay",
+    duration: 22,
+    nextSegments: ["seg.flower"],
+    moduleOffer: [],
+    arrivalStory: {
+      speaker: "Relay Warden Soren",
+      text: "You carried the Iron Spider over the spine of the world. Every valley beacon is answering again because of you. Breathe the clear air, then lead us onward.",
+    },
+  },
+  "checkpoint.garden": {
+    id: "checkpoint.garden",
+    name: "Garden Refuge",
+    duration: 22,
+    nextSegments: ["seg.scrapyard"],
+    moduleOffer: [],
+    arrivalStory: {
+      speaker: "Keeper Amaya",
+      text: "The flowers still stand after the horde, and so do we. Thank you for bringing hope through the vale. Ahead lies iron and smoke, but your courage is brighter than both.",
+    },
+  },
   "checkpoint.gate": {
     id: "checkpoint.gate",
     name: "Gate Watch",
     duration: 24,
-    nextSegments: ["seg.escape"],
+    nextSegments: ["seg.crystal"],
     moduleOffer: [],
     arrivalStory: {
       speaker: "Captain of the Gate",
       text: "You carried our last hope to Gate Watch. One final road remains, and every defender is standing because of you. We believe you can bring the Spider home.",
+    },
+  },
+  "checkpoint.crystal": {
+    id: "checkpoint.crystal",
+    name: "Prism Watch",
+    duration: 20,
+    nextSegments: ["seg.escape"],
+    moduleOffer: [],
+    arrivalStory: {
+      speaker: "Prism Watch Commander",
+      text: "The crystal road is ours, and its light now marks the way home. One final march remains. Every settlement behind you believes in you—bring the Spider through the gate.",
     },
   },
 };
@@ -378,7 +578,11 @@ export const SLICE_CHECKPOINT_ORDER: readonly string[] = [
   "checkpoint.foundry",
   "checkpoint.settlement",
   "checkpoint.pump",
+  "checkpoint.ridge",
+  "checkpoint.summit",
+  "checkpoint.garden",
   "checkpoint.gate",
+  "checkpoint.crystal",
 ];
 
 export function getSegment(id: string): RouteSegmentDefinition {
