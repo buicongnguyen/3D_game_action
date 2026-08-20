@@ -830,6 +830,7 @@ export class InteractionSystem {
   private consumePickup(world: GameWorld, index: number): void {
     const pickup = world.pickups.at(index);
     const amount = pickup.kind === "scrap" ? pickup.amount * world.modifiers.scrapYield : pickup.amount;
+    const quantity = Math.max(1, Math.floor(pickup.amount));
 
     if (pickup.kind === "scrap") {
       world.resources.scrap += amount;
@@ -840,29 +841,38 @@ export class InteractionSystem {
       world.stats.fuelCollected += amount;
       world.progress.xp += 0.35;
     } else if (pickup.kind === "cylinder" || pickup.kind === "pressureCanister") {
-      world.cylindersReady++;
+      world.cylindersReady += quantity;
+      world.events.emit({
+        type: "ui.toast",
+        message: `Pressure canister stored · CAN×${world.cylindersReady}`,
+        tone: "success",
+        duration: 2.2,
+      });
     } else if (pickup.kind === "repairKit") {
-      world.fieldItems.repairKits++;
-      world.events.emit({ type: "ui.toast", message: "Repair kit stored · R1 to use", tone: "success", duration: 2.2 });
+      world.fieldItems.repairKits += quantity;
+      world.events.emit({ type: "ui.toast", message: `Repair kit stored · KIT×${world.fieldItems.repairKits} · R1 to use`, tone: "success", duration: 2.2 });
     } else if (pickup.kind === "shockMine") {
-      world.fieldItems.shockMines++;
-      world.events.emit({ type: "ui.toast", message: "Shock mine stored · R1 to deploy", tone: "success", duration: 2.2 });
+      world.fieldItems.shockMines += quantity;
+      world.events.emit({ type: "ui.toast", message: `Shock mine stored · MINE×${world.fieldItems.shockMines} · R1 to deploy`, tone: "success", duration: 2.2 });
     } else if (pickup.kind === "armorPlate") {
-      world.fieldItems.armorPlates++;
-      world.events.emit({ type: "ui.toast", message: "Armor plate recovered · bank it at the Spider", tone: "success", duration: 2.5 });
+      world.fieldItems.armorPlates += quantity;
+      world.events.emit({ type: "ui.toast", message: `Armor plate recovered · PLATE×${world.fieldItems.armorPlates} · bank at Spider`, tone: "success", duration: 2.5 });
     } else if (pickup.kind === "weaponPart") {
-      world.fieldItems.weaponParts++;
-      if (world.fieldItems.weaponParts % 3 === 0) {
-        world.modifiers.playerDamage *= 1.08;
-        world.events.emit({ type: "ui.toast", message: "Weapon rebuilt · +8% damage", tone: "success", duration: 2.5 });
+      const before = world.fieldItems.weaponParts;
+      world.fieldItems.weaponParts += quantity;
+      const upgrades =
+        Math.floor(world.fieldItems.weaponParts / 3) - Math.floor(before / 3);
+      if (upgrades > 0) {
+        world.modifiers.playerDamage *= Math.pow(1.08, upgrades);
+        world.events.emit({ type: "ui.toast", message: `Weapon rebuilt · +${upgrades * 8}% damage · PART×${world.fieldItems.weaponParts}`, tone: "success", duration: 2.5 });
       } else {
-        world.events.emit({ type: "ui.toast", message: `Weapon part ${world.fieldItems.weaponParts % 3}/3`, tone: "info", duration: 1.6 });
+        world.events.emit({ type: "ui.toast", message: `Weapon part stored · PART×${world.fieldItems.weaponParts} · ${world.fieldItems.weaponParts % 3}/3`, tone: "info", duration: 1.8 });
       }
     }
 
     world.events.emit({
       type: "pickup.collected",
-      kind: pickup.kind === "fuel" ? "fuel" : "scrap",
+      kind: pickup.kind,
       amount,
       x: pickup.x,
       z: pickup.z,

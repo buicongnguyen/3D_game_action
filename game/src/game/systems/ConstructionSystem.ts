@@ -25,6 +25,8 @@ export class ConstructionSystem {
   private cameraForwardZ = 1;
   private cameraRightX = 1;
   private cameraRightZ = 0;
+  /** Last number-row slot, used to turn a held key into one placement request. */
+  private previousBlueprintSlot = -1;
 
   setCameraBasis(forwardX: number, forwardZ: number, rightX: number, rightZ: number): void {
     this.cameraForwardX = forwardX;
@@ -34,9 +36,10 @@ export class ConstructionSystem {
   }
 
   /**
-   * Starts placement from a pointer-selected HUD card. Keyboard and controller
-   * still use the radial, but mouse/touch players should not have to discover
-   * a separate shortcut for a deployable that is already visible on screen.
+   * Starts placement from a mouse- or touch-selected HUD card. The selection
+   * immediately opens its placement preview; E/Confirm deploys it. The radial
+   * remains an optional controller shortcut, never a prerequisite for pointer
+   * players selecting a deployable that is already visible on screen.
    */
   selectBlueprintForPlacement(world: GameWorld, index: number): boolean {
     if (index < 0 || index >= world.loadout.length || world.player.downed || world.paused) return false;
@@ -53,7 +56,7 @@ export class ConstructionSystem {
   update(world: GameWorld, dt: number, input: InputSnapshot): void {
     const build = world.build;
 
-    this.updateBlueprintCycling(world, input);
+    const directSelection = this.updateBlueprintCycling(world, input);
 
     if (input.buttons.buildRadial.held) {
       if (!build.radialOpen) this.openRadial(world);
@@ -69,13 +72,22 @@ export class ConstructionSystem {
 
     if (build.ghostActive) {
       this.updateGhost(world, dt, input);
+      return;
     }
+
+    // Keyboard players naturally expect a visible number key to act on its
+    // card. Previously it only changed selection, leaving placement dependent
+    // on discovering the Q release flow. E remains contextual because it also
+    // collects, installs and overloads nearby machines when no ghost is active.
+    if (directSelection) this.startSelectedPlacement(world);
   }
 
-  private updateBlueprintCycling(world: GameWorld, input: InputSnapshot): void {
+  private updateBlueprintCycling(world: GameWorld, input: InputSnapshot): boolean {
     const build = world.build;
     const count = world.loadout.length;
-    if (input.blueprintSlot >= 0 && input.blueprintSlot < count) {
+    const validDirectSlot = input.blueprintSlot >= 0 && input.blueprintSlot < count;
+    const directSelection = validDirectSlot && input.blueprintSlot !== this.previousBlueprintSlot;
+    if (validDirectSlot) {
       build.selectedBlueprint = input.blueprintSlot;
       build.radialIndex = input.blueprintSlot;
     }
@@ -85,6 +97,8 @@ export class ConstructionSystem {
     if (input.buttons.blueprintPrev.pressed) {
       build.selectedBlueprint = (build.selectedBlueprint - 1 + count) % count;
     }
+    this.previousBlueprintSlot = input.blueprintSlot;
+    return directSelection;
   }
 
   private openRadial(world: GameWorld): void {

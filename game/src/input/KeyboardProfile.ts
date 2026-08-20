@@ -58,6 +58,7 @@ export const KEYBOARD_BLUEPRINT_SLOTS: Readonly<Partial<Record<string, number>>>
   Digit2: 1,
   Digit3: 2,
   Digit4: 3,
+  Digit5: 4,
 };
 
 const MOVE_UP = "KeyW";

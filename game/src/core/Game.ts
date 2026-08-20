@@ -54,12 +54,14 @@ import { getBlueprint } from "../data/structures.ts";
 import { getModule } from "../data/modules.ts";
 import { getUpgrade } from "../data/upgrades.ts";
 import {
+  hasAffordableWeaponPurchase,
   MAX_WEAPON_LEVEL,
   WEAPON_SHOP,
   purchaseWeaponUpgrade,
   weaponUpgradeCost,
 } from "../data/weaponShop.ts";
 import {
+  hasAffordableTurretUpgrade,
   TURRET_UPGRADES,
   purchaseTurretUpgrade,
   turretUpgradeCost,
@@ -304,7 +306,11 @@ export class Game {
     });
     events.on("structure.repaired", (event) => this.vfx.repairSparks(event.x, event.z));
     events.on("pickup.collected", (event) =>
-      this.vfx.pickupPop(event.x, event.z, event.kind === "fuel"),
+      this.vfx.pickupPop(
+        event.x,
+        event.z,
+        event.kind === "fuel" || event.kind === "cylinder" || event.kind === "pressureCanister",
+      ),
     );
     events.on("player.damaged", (event) => {
       this.camera.shake(0.35, 0.25);
@@ -814,6 +820,8 @@ export class Game {
 
       case "shop": {
         const world = this.world;
+        const shouldLeave =
+          !hasAffordableWeaponPurchase(world) && !hasAffordableTurretUpgrade(world);
         this.screens.show("shop", {
           eyebrow: `Checkpoint workshop · ${Math.floor(world.resources.scrap)} scrap`,
           subtitle: this.shopMessage || "Buy new guns or improve an owned gun. Each Mk adds 16% damage and 4.5% fire rate.",
@@ -846,10 +854,13 @@ export class Game {
             },
             {
               id: "done",
-              label: "Leave workshop",
-              tag: "Continue",
+              label: shouldLeave ? "Return to the march" : "Leave workshop",
+              tag: shouldLeave ? "Recommended" : "Continue",
               glyph: "→",
-              detail: "Return to checkpoint preparations",
+              detail: shouldLeave
+                ? "No affordable upgrades remain · continue the expedition"
+                : "Return to checkpoint preparations",
+              recommendedExit: shouldLeave,
             },
           ],
         });
@@ -858,6 +869,7 @@ export class Game {
 
       case "turretShop": {
         const world = this.world;
+        const shouldGoBack = !hasAffordableTurretUpgrade(world);
         this.screens.show("turretShop", {
           eyebrow: `Turret foundry · ${Math.floor(world.resources.scrap)} scrap`,
           subtitle: this.turretShopMessage || "Permanent run upgrades affect every current and future rivet turret.",
@@ -881,10 +893,13 @@ export class Game {
             }),
             {
               id: "back",
-              label: "Back to weapons",
-              tag: "Workshop",
+              label: shouldGoBack ? "Back to weapon workshop" : "Back to weapons",
+              tag: shouldGoBack ? "Recommended" : "Workshop",
               glyph: "←",
-              detail: "Return to weapon upgrades",
+              detail: shouldGoBack
+                ? "No affordable turret upgrades · check weapons or leave"
+                : "Return to weapon upgrades",
+              recommendedExit: shouldGoBack,
             },
           ],
         });

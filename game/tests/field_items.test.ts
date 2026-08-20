@@ -4,6 +4,7 @@ import { GameWorld } from "../src/game/GameWorld.ts";
 import { ConstructionSystem } from "../src/game/systems/ConstructionSystem.ts";
 import { FieldItemSystem } from "../src/game/systems/FieldItemSystem.ts";
 import { InteractionSystem } from "../src/game/systems/InteractionSystem.ts";
+import { formatFieldItems } from "../src/ui/HudBridge.ts";
 
 function pressTool() {
   const input = createEmptySnapshot();
@@ -13,6 +14,27 @@ function pressTool() {
 }
 
 describe("finite field items", () => {
+  it("increments every blue/special pickup by its quantity and exposes the totals", () => {
+    const world = new GameWorld(9);
+    const interaction = new InteractionSystem(new ConstructionSystem());
+    const x = world.player.x;
+    const z = world.player.z;
+    interaction.spawnPickup(world, "pressureCanister", x, z, 2, 0, 0);
+    interaction.spawnPickup(world, "shockMine", x, z, 2, 0, 0);
+    interaction.spawnPickup(world, "armorPlate", x, z, 2, 0, 0);
+    interaction.spawnPickup(world, "weaponPart", x, z, 2, 0, 0);
+
+    interaction.collectPickups(world, 1 / 60);
+
+    expect(world.cylindersReady).toBe(2);
+    expect(world.fieldItems.shockMines).toBe(2);
+    expect(world.fieldItems.armorPlates).toBe(2);
+    expect(world.fieldItems.weaponParts).toBe(2);
+    expect(formatFieldItems(world.fieldItems)).toContain("MINE×2");
+    expect(formatFieldItems(world.fieldItems)).toContain("PLATE×2");
+    expect(formatFieldItems(world.fieldItems)).toContain("PART×2 (2/3)");
+  });
+
   it("stores a repair kit and applies it to a nearby damaged machine", () => {
     const world = new GameWorld(10);
     const construction = new ConstructionSystem();

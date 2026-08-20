@@ -4,7 +4,7 @@
  * simulation state to interpret one.
  */
 
-import type { DamageSource, StructureKind } from "./types.ts";
+import type { DamageSource, PickupKind, StructureKind } from "./types.ts";
 
 export interface EnemySpawnedEvent {
   type: "enemy.spawned";
@@ -193,7 +193,7 @@ export interface StructureLeftBehindEvent {
 
 export interface PickupCollectedEvent {
   type: "pickup.collected";
-  kind: "scrap" | "fuel";
+  kind: PickupKind;
   amount: number;
   x: number;
   z: number;

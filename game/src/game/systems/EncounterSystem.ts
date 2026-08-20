@@ -9,6 +9,9 @@ interface PendingEncounter {
   z: number;
 }
 
+/** Distance from a building centre to its clear, route-facing release apron. */
+export const ENCOUNTER_EXIT_DISTANCE = 6;
+
 /** Runs finite, telegraphed encounters authored into a route segment. */
 export class EncounterSystem {
   private segmentId = "";
@@ -85,10 +88,11 @@ export class EncounterSystem {
 
   private release(world: GameWorld, pending: PendingEncounter): void {
     const encounter = pending.definition;
+    const exit = encounterExitPosition(world, encounter);
     let spawned = 0;
     for (let i = 0; i < encounter.occupants.length; i++) {
       const group = encounter.occupants[i];
-      spawned += this.director.spawnEncounterGroup(world, group.archetype, group.count, pending.x, pending.z);
+      spawned += this.director.spawnEncounterGroup(world, group.archetype, group.count, exit.x, exit.z);
     }
     this.completed.add(encounter.id);
     const site = world.encounterSites.find((candidate) => candidate.definitionId === encounter.id);
@@ -116,7 +120,9 @@ export class EncounterSystem {
       site.reinforcementTimer -= dt;
       if (site.reinforcementTimer > 0) continue;
       const count = 3 + site.wavesReleased;
-      this.director.spawnEncounterGroup(world, "minion", count, site.x, site.z);
+      const definition = world.route.segment?.encounters?.find((candidate) => candidate.id === site.definitionId);
+      const exit = definition ? encounterExitPosition(world, definition) : site;
+      this.director.spawnEncounterGroup(world, "minion", count, exit.x, exit.z);
       site.wavesReleased++;
       site.reinforcementTimer = 8;
       world.events.emit({ type: "ui.toast", message: "Nest released reinforcements", tone: "warning", duration: 1.5 });
@@ -143,5 +149,20 @@ function encounterPosition(
   return {
     x: point.x - tangent.z * encounter.lateral,
     z: point.z + tangent.x * encounter.lateral,
+  };
+}
+
+/** Returns the open apron between a house doorway and the route centreline. */
+export function encounterExitPosition(
+  world: GameWorld,
+  encounter: RouteEncounterDefinition,
+): { x: number; z: number } {
+  const centre = encounterPosition(world, encounter);
+  const tangent = { x: 0, z: 1 };
+  world.route.spline!.tangentAt(tangent, encounter.distance);
+  const side = Math.sign(encounter.lateral) || 1;
+  return {
+    x: centre.x + tangent.z * side * ENCOUNTER_EXIT_DISTANCE,
+    z: centre.z - tangent.x * side * ENCOUNTER_EXIT_DISTANCE,
   };
 }

@@ -17,6 +17,30 @@ function activeCrawler(world: GameWorld, x: number, z: number) {
 }
 
 describe("crawler tank", () => {
+  it("keeps emplaced rivet turrets invulnerable while crawlers remain vulnerable", () => {
+    const world = new GameWorld(8300);
+    const construction = new ConstructionSystem();
+    const interaction = new InteractionSystem(construction);
+    const damage = new DamageSystem(interaction);
+    const rivet = construction.spawnStructure(world, "rivetTurret", 0, 0, 0, 1, -1);
+    rivet.state = "active";
+    const crawler = activeCrawler(world, 2, 0);
+    const hit = {
+      amount: 50,
+      source: "enemy.melee" as const,
+      originX: 0,
+      originZ: 1,
+      knockback: 0,
+      critical: false,
+    };
+
+    damage.applyToStructure(world, rivet, hit);
+    damage.applyToStructure(world, crawler, hit);
+
+    expect(rivet.health).toBe(rivet.maxHealth);
+    expect(crawler.health).toBe(crawler.maxHealth - hit.amount);
+  });
+
   it("unlocks its blueprint at engineer level 3", () => {
     const world = new GameWorld(8301);
     world.progress.level = 3;

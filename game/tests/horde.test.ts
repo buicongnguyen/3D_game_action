@@ -50,7 +50,7 @@ function runDirector(world: GameWorld, director: HordeDirector, seconds: number,
 function place(
   world: GameWorld,
   construction: ConstructionSystem,
-  kind: "rivetTurret" | "relay" | "barricade" | "mine",
+  kind: "rivetTurret" | "crawlerTurret" | "relay" | "barricade" | "mine",
   x: number,
   z: number,
 ) {
@@ -487,7 +487,7 @@ describe("enemy target scoring", () => {
     expect(enemy.targetId).toBe(-1);
   });
 
-  it("sends a warrior to a structure the golem walked past", () => {
+  it("sends a warrior to a vulnerable crawler but ignores a permanent turret", () => {
     const world = marchingWorld(0x1477);
     const construction = new ConstructionSystem();
     const director = new HordeDirector();
@@ -496,15 +496,17 @@ describe("enemy target scoring", () => {
     const sx = world.spider.x;
     const sz = world.spider.z;
     const enemy = placeEnemy(world, director, "warrior", sx, sz + 12);
-    const turret = place(world, construction, "rivetTurret", sx + 12, sz + 12);
+    const permanentTurret = place(world, construction, "rivetTurret", sx - 12, sz + 12);
+    const crawler = place(world, construction, "crawlerTurret", sx + 12, sz + 12);
 
     navigation.update(world, STEP);
 
     expect(enemy.targetKind).toBe("structure");
-    expect(enemy.targetId).toBe(turret.id);
+    expect(enemy.targetId).toBe(crawler.id);
+    expect(enemy.targetId).not.toBe(permanentTurret.id);
   });
 
-  it("sends saboteurs after relays and rear defenses before ordinary turrets", () => {
+  it("sends saboteurs after relays and rear crawlers, never permanent turrets", () => {
     const world = marchingWorld(0x5ab0);
     const construction = new ConstructionSystem();
     const director = new HordeDirector();
@@ -520,7 +522,7 @@ describe("enemy target scoring", () => {
 
     // Once the relay is gone, an equally placed rear defense has priority.
     construction.removeStructure(world, relay);
-    const rear = place(world, construction, "rivetTurret", sx + 4, sz + 16);
+    const rear = place(world, construction, "crawlerTurret", sx + 4, sz + 16);
     rear.behindSpider = true;
     enemy.targetCooldown = 0;
     enemy.targetId = -1;

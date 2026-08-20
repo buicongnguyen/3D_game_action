@@ -1,7 +1,7 @@
 import { clamp01, distSq } from "../../core/math.ts";
 import type { StructureExplodedEvent } from "../../core/events.ts";
 import type { DamageInfo, DamageSource, Enemy, Structure, StructureKind } from "../../core/types.ts";
-import { PICKUPS, PLAYER, SPIDER, STRUCTURES, TRAIL } from "../../data/balance.ts";
+import { ENEMY_LIFECYCLE, PICKUPS, PLAYER, SPIDER, STRUCTURES, TRAIL } from "../../data/balance.ts";
 import { getArchetype } from "../../data/enemies.ts";
 import { getStructureConfig } from "../../data/structures.ts";
 import type { GameWorld } from "../GameWorld.ts";
@@ -171,6 +171,15 @@ export class DamageSystem {
 
     enemy.health = 0;
     enemy.state = "DEAD";
+    enemy.stateTimer = ENEMY_LIFECYCLE.deathDuration;
+    enemy.velocityX = 0;
+    enemy.velocityZ = 0;
+    enemy.knockX = 0;
+    enemy.knockZ = 0;
+    enemy.targetId = -1;
+    // Keep a nearby rig for the collapse; distant bodies without a rig are
+    // deliberately hidden by WorldView instead of showing an upright card.
+    enemy.lodTier = 0;
     world.stats.enemiesKilled++;
 
     world.events.emit({
@@ -193,7 +202,6 @@ export class DamageSystem {
       );
     }
 
-    releaseEnemy(world, enemy);
   }
 
   // -------------------------------------------------------------------------
@@ -345,6 +353,10 @@ export class DamageSystem {
    */
   applyToStructure(world: GameWorld, structure: Structure, info: DamageInfo): void {
     if (structure.state === "destroyed" || info.amount <= 0) return;
+    // Emplaced rivet turrets are permanent defenses once deployed. The mobile
+    // crawler remains vulnerable, preserving the risk attached to a machine
+    // that follows the Spider into combat.
+    if (structure.kind === "rivetTurret") return;
     if (structure.health <= 0) return;
     structure.health -= info.amount;
     if (structure.health < 0) structure.health = 0;
@@ -428,23 +440,3 @@ const blastInfo: DamageInfo = {
   knockback: 0,
   critical: false,
 };
-
-/**
- * Returns an enemy's slot to the pool. `renderIndex` is the slot for a
- * pool-created enemy, but the render layer is allowed to rebind it, so the
- * fast path is verified before it is trusted.
- */
-export function releaseEnemy(world: GameWorld, enemy: Enemy): void {
-  const guess = enemy.renderIndex;
-  if (guess >= 0 && guess < world.enemies.capacity && world.enemies.at(guess) === enemy) {
-    world.enemies.release(guess);
-    return;
-  }
-  const backing = world.enemies.backing;
-  for (let i = 0; i < backing.length; i++) {
-    if (backing[i] === enemy) {
-      world.enemies.release(i);
-      return;
-    }
-  }
-}

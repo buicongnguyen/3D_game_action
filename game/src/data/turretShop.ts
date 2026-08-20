@@ -64,6 +64,17 @@ export function turretUpgradeCost(kind: TurretUpgradeKind, currentLevel: number)
   return definition.baseCost + Math.max(0, currentLevel) * definition.costStep;
 }
 
+export function hasAffordableTurretUpgrade(world: GameWorld): boolean {
+  const scrap = world.resources.scrap;
+  for (let i = 0; i < TURRET_UPGRADES.length; i++) {
+    const definition = TURRET_UPGRADES[i];
+    const level = world.progress.turretUpgrades[definition.kind] ?? 0;
+    if (level >= definition.maxLevel) continue;
+    if (scrap >= turretUpgradeCost(definition.kind, level)) return true;
+  }
+  return false;
+}
+
 export function purchaseTurretUpgrade(
   world: GameWorld,
   kind: TurretUpgradeKind,

@@ -678,7 +678,7 @@ export class HudController {
     const cylinders = Math.floor(model.cylinders);
     if (cylinders !== this.prevCylinders) {
       this.prevCylinders = cylinders;
-      this.cylinderValue.textContent = `${cylinders}`;
+      this.cylinderValue.textContent = `CAN×${cylinders}`;
     }
     if (model.level !== this.prevLevel) {
       this.prevLevel = model.level;
@@ -785,7 +785,7 @@ export class HudController {
     if (device !== this.prevBuildHintDevice) {
       this.prevBuildHintDevice = device;
       this.buildHint.textContent = device === "keyboard"
-        ? "CLICK ITEM OR HOLD Q · E TO PLACE"
+        ? "CLICK / TOUCH ITEM TO SELECT · E TO DEPLOY"
         : "PRESS ITEM OR HOLD L1 · ✕ TO PLACE";
     }
     while (this.chips.length < blueprints.length) {
@@ -822,7 +822,12 @@ export class HudController {
       }
       const model = blueprints[i];
       chip.root.style.display = "";
-      chip.root.setAttribute("aria-label", `Deploy ${model.name}, ${model.cost} scrap`);
+      chip.root.setAttribute(
+        "aria-label",
+        gamepad
+          ? `Select ${model.name}, ${model.cost} scrap, then press Cross to deploy`
+          : `Select ${model.name}, ${model.cost} scrap, then press E to deploy`,
+      );
 
       // A pad player has no number row. On a controller the slot hint is the
       // D-pad direction that cycles to it, and the selected slot shows L1,

@@ -56,7 +56,14 @@ export class AudioBridge {
 
     add.push(
       events.on("pickup.collected", (e) =>
-        audio.play(e.kind === "fuel" ? "pickup.fuel" : "pickup.scrap", e.x, e.z, 0.5),
+        audio.play(
+          e.kind === "fuel" || e.kind === "cylinder" || e.kind === "pressureCanister"
+            ? "pickup.fuel"
+            : "pickup.scrap",
+          e.x,
+          e.z,
+          0.5,
+        ),
       ),
     );
 

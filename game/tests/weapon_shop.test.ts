@@ -3,6 +3,7 @@ import { WEAPONS } from "../src/data/balance.ts";
 import {
   MAX_WEAPON_LEVEL,
   WEAPON_SHOP,
+  hasAffordableWeaponPurchase,
   purchaseWeaponUpgrade,
   weaponLevelDamage,
   weaponLevelFireRate,
@@ -10,6 +11,14 @@ import {
 import { GameWorld } from "../src/game/GameWorld.ts";
 
 describe("checkpoint weapon shop", () => {
+  it("detects when no non-maxed weapon purchase is affordable", () => {
+    const world = new GameWorld(6100);
+    world.resources.scrap = 0;
+    expect(hasAffordableWeaponPurchase(world)).toBe(false);
+    world.resources.scrap = 18;
+    expect(hasAffordableWeaponPurchase(world)).toBe(true);
+  });
+
   it("offers six distinct functional weapons", () => {
     expect(WEAPON_SHOP).toHaveLength(6);
     expect(new Set(WEAPON_SHOP.map((entry) => entry.kind)).size).toBe(6);

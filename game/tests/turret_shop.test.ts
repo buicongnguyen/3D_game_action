@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { getArchetype } from "../src/data/enemies.ts";
 import {
   TURRET_UPGRADES,
+  hasAffordableTurretUpgrade,
   purchaseTurretUpgrade,
   turretUpgradeCost,
 } from "../src/data/turretShop.ts";
@@ -10,6 +11,14 @@ import { ConstructionSystem } from "../src/game/systems/ConstructionSystem.ts";
 import { StructureCombatSystem } from "../src/game/systems/StructureCombatSystem.ts";
 
 describe("checkpoint turret foundry", () => {
+  it("detects when no non-maxed turret upgrade is affordable", () => {
+    const world = new GameWorld(7200);
+    world.resources.scrap = 0;
+    expect(hasAffordableTurretUpgrade(world)).toBe(false);
+    world.resources.scrap = turretUpgradeCost("range", 0);
+    expect(hasAffordableTurretUpgrade(world)).toBe(true);
+  });
+
   it("offers independent power, volley, range and autoloader tracks", () => {
     expect(TURRET_UPGRADES.map((entry) => entry.kind)).toEqual([
       "power",

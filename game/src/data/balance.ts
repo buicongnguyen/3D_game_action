@@ -308,6 +308,11 @@ export const FIELD_MECHANIC = {
   scrapCost: 2,
 } as const;
 
+export const ENEMY_LIFECYCLE = {
+  /** Time a killed enemy remains solely to show its collapse animation. */
+  deathDuration: 0.9,
+} as const;
+
 export const WEAPONS = {
   shotgun: {
     id: "shotgun",

@@ -358,13 +358,16 @@ describe("the engineering loop", () => {
   it("selects blueprint slots directly from the keyboard number row", () => {
     const harness = new Harness(2025, { spawns: false });
     harness.world.loadout.push("relay", "barricade");
+    harness.world.resources.scrap = 200;
     harness.input.blueprintSlot = 2;
     harness.step();
     expect(harness.world.build.selectedBlueprint).toBe(2);
     expect(harness.world.loadout[2]).toBe("barricade");
+    expect(harness.world.build.ghostActive).toBe(true);
+    expect(harness.world.build.ghostKind).toBe("barricade");
   });
 
-  it("starts placement when a visible HUD blueprint is pressed", () => {
+  it("selects a clicked or touched HUD item and deploys it with E without opening Q", () => {
     const harness = new Harness(2026, { spawns: false });
     harness.world.loadout.push("relay", "mine");
     harness.world.resources.scrap = 200;
@@ -373,8 +376,11 @@ describe("the engineering loop", () => {
     expect(harness.world.build.selectedBlueprint).toBe(1);
     expect(harness.world.build.ghostKind).toBe("relay");
     expect(harness.world.build.ghostActive).toBe(true);
+    expect(harness.world.build.radialOpen).toBe(false);
 
     harness.step();
+    // Keyboard E maps to semantic Confirm. No buildRadial/Q input occurs in
+    // this flow: pointer selection followed by E is sufficient.
     harness.press("confirm");
     harness.step();
     expect(harness.world.structures.some((structure) => structure.kind === "relay")).toBe(true);

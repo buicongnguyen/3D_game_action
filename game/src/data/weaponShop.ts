@@ -40,6 +40,19 @@ export function weaponLevelFireRate(level: number): number {
   return 1 + Math.max(0, level - 1) * 0.045;
 }
 
+export function hasAffordableWeaponPurchase(world: GameWorld): boolean {
+  const scrap = world.resources.scrap;
+  for (let i = 0; i < WEAPON_SHOP.length; i++) {
+    const definition = WEAPON_SHOP[i];
+    const unlocked = world.player.unlockedWeapons.includes(definition.kind);
+    const level = world.player.weaponLevels[definition.kind] ?? 0;
+    if (unlocked && level >= MAX_WEAPON_LEVEL) continue;
+    const cost = unlocked ? weaponUpgradeCost(definition.kind, level) : definition.unlockCost;
+    if (scrap >= cost) return true;
+  }
+  return false;
+}
+
 export type ShopPurchaseResult =
   | { ok: true; message: string }
   | { ok: false; message: string };

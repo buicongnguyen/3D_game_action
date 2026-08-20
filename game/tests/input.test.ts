@@ -9,7 +9,7 @@ import {
 } from "../src/input/GamepadProfile.ts";
 import type { RawGamepadReading } from "../src/input/GamepadProfile.ts";
 import { DUALSHOCK4_PROFILE } from "../src/input/DualShockProfile.ts";
-import { KEYBOARD_BINDINGS } from "../src/input/KeyboardProfile.ts";
+import { KEYBOARD_BINDINGS, KEYBOARD_BLUEPRINT_SLOTS } from "../src/input/KeyboardProfile.ts";
 import { GAMEPLAY_ACTIONS } from "../src/input/InputActions.ts";
 
 const STEP = 1 / 60;
@@ -433,6 +433,16 @@ describe("connection and device tracking", () => {
 });
 
 describe("keyboard fallback", () => {
+  it("binds all five visible blueprint slots to the number row", () => {
+    expect(KEYBOARD_BLUEPRINT_SLOTS).toMatchObject({
+      Digit1: 0,
+      Digit2: 1,
+      Digit3: 2,
+      Digit4: 3,
+      Digit5: 4,
+    });
+  });
+
   it("binds every gameplay action", () => {
     const bound = new Set(Object.values(KEYBOARD_BINDINGS));
     for (const action of GAMEPLAY_ACTIONS) {

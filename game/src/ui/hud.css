@@ -1652,6 +1652,35 @@ body {
   box-shadow: inset 0 0 0 1px rgba(154, 160, 166, 0.3);
 }
 
+/* With no affordable purchase, leaving is the positive action rather than one
+   more muted card competing with prices the player cannot pay. */
+.option.is-recommended-exit {
+  --accent-color: var(--fb-valid);
+  opacity: 1;
+  background: rgba(22, 54, 39, 0.96);
+  box-shadow:
+    inset 0 0 0 2px var(--fb-valid),
+    0 0 22px color-mix(in srgb, var(--fb-valid) 48%, transparent);
+  animation: workshop-exit-blink 1.15s ease-in-out infinite;
+}
+
+.option.is-recommended-exit .option__label,
+.option.is-recommended-exit .option__tag,
+.option.is-recommended-exit .option__glyph {
+  color: var(--fb-valid);
+}
+
+@keyframes workshop-exit-blink {
+  0%, 100% {
+    background: rgba(20, 47, 35, 0.9);
+    filter: brightness(0.9);
+  }
+  50% {
+    background: rgba(29, 78, 52, 0.98);
+    filter: brightness(1.2);
+  }
+}
+
 /* Stats grid for victory / defeat / summary */
 .screen__stats {
   display: grid;
@@ -2075,6 +2104,10 @@ body {
   .flash--pursuit.is-sustained,
   .hud__burn.is-on,
   .bar--fuel.is-low .bar__fill {
+    animation: none !important;
+  }
+
+  .option.is-recommended-exit {
     animation: none !important;
   }
 

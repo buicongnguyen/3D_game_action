@@ -264,7 +264,7 @@ export class EnemyNavigationSystem {
     let full = 0;
     for (let i = 0; i < backing.length; i++) {
       const enemy = backing[i];
-      if (!enemy.active) continue;
+      if (!enemy.active || enemy.state === "DEAD") continue;
       const d2 = distSq(enemy.x, enemy.z, focusX, focusZ);
       if (d2 <= LOD_NEAR_SQ && d2 <= threshold && full < cap) {
         enemy.lodTier = 0;
@@ -324,13 +324,17 @@ export class EnemyNavigationSystem {
       const enemy = backing[i];
       if (!enemy.active) continue;
 
-      if (enemy.health <= 0) {
-        // Death, loot and XP belong to the experience system; this only stops
-        // a corpse from steering while that system gets to it.
+      if (enemy.health <= 0 || enemy.state === "DEAD") {
+        // DamageSystem has already awarded loot/XP and started the collapse.
+        // Keep the body inert just long enough to show that animation, then
+        // clear `active` before returning its slot to the pool.
         enemy.state = "DEAD";
+        enemy.velocityX = 0;
+        enemy.velocityZ = 0;
+        enemy.stateTimer -= dt;
+        if (enemy.stateTimer <= 0) releaseEnemy(world, enemy);
         continue;
       }
-      if (enemy.state === "DEAD") continue;
 
       enemy.prevX = enemy.x;
       enemy.prevZ = enemy.z;
@@ -449,6 +453,9 @@ export class EnemyNavigationSystem {
       const structure = structures[i];
       if (structure.id !== enemy.targetId) continue;
       if (structure.state === "destroyed" || structure.state === "dropped") return false;
+      // Rivet turrets cannot be damaged, so holding one as a target would leave
+      // an enemy attacking forever instead of advancing on a vulnerable target.
+      if (structure.kind === "rivetTurret") return false;
       target.x = structure.x;
       target.z = structure.z;
       target.radius = getBlueprint(structure.kind).radius;
@@ -492,6 +499,7 @@ export class EnemyNavigationSystem {
     for (let i = 0; i < structures.length; i++) {
       const structure = structures[i];
       if (structure.state === "destroyed" || structure.state === "dropped") continue;
+      if (structure.kind === "rivetTurret") continue;
 
       const distance = Math.sqrt(distSq(enemy.x, enemy.z, structure.x, structure.z));
       if (outerRally && distance > PLAYER_THREAT_DISTANCE) continue;
@@ -499,7 +507,7 @@ export class EnemyNavigationSystem {
       let roleWeight = 1;
       if (archetype.targetRole === "saboteur") {
         if (structure.kind === "relay") roleWeight *= 1.9;
-        else if (structure.kind === "rivetTurret" || structure.kind === "crawlerTurret") roleWeight *= 1.35;
+        else if (structure.kind === "crawlerTurret") roleWeight *= 1.35;
         if (structure.behindSpider) roleWeight *= 1.45;
       }
       const weight = archetype.structurePreference * (decoy ? BARRICADE_TAUNT : roleWeight);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Enemy, Projectile, Structure, StructureKind } from "../src/core/types.ts";
-import { PLAYER, SPIDER, STRUCTURES, WEAPONS } from "../src/data/balance.ts";
+import { ENEMY_LIFECYCLE, PLAYER, SPIDER, STRUCTURES, WEAPONS } from "../src/data/balance.ts";
 import { getArchetype } from "../src/data/enemies.ts";
 import { getStructureConfig } from "../src/data/structures.ts";
 import { GameWorld } from "../src/game/GameWorld.ts";
@@ -11,6 +11,7 @@ import { InteractionSystem } from "../src/game/systems/InteractionSystem.ts";
 import { PressureNetworkSystem } from "../src/game/systems/PressureNetworkSystem.ts";
 import { StructureCombatSystem } from "../src/game/systems/StructureCombatSystem.ts";
 import { WeaponSystem } from "../src/game/systems/WeaponSystem.ts";
+import { EnemyNavigationSystem, releaseEnemy } from "../src/game/systems/EnemyNavigationSystem.ts";
 
 const STEP = 1 / 60;
 
@@ -571,6 +572,12 @@ describe("personal weapon", () => {
       originZ: world.spider.z, knockback: 0, critical: false,
     });
 
+    expect(enemy.state).toBe("DEAD");
+    expect(enemy.active).toBe(true);
+    const navigation = new EnemyNavigationSystem();
+    navigation.update(world, ENEMY_LIFECYCLE.deathDuration + STEP);
+    expect(enemy.active).toBe(false);
+    expect(world.findEnemy(enemy.id)).toBeNull();
     expect(world.enemies.active).toBe(0);
     expect(world.enemies.available).toBe(world.enemies.capacity);
     const pickup = world.pickups.backing.find((candidate) => candidate.active)!;
@@ -581,6 +588,33 @@ describe("personal weapon", () => {
     }
     expect(world.pickups.active).toBe(0);
     expect(world.resources.scrap).toBeGreaterThan(scrapBefore);
+  });
+
+  it("makes a lethal hit inert immediately and releases the corpse after its collapse", () => {
+    const rig = createRig(20260821);
+    const enemy = spawnEnemy(rig.world, "minion", 0, 3);
+
+    rig.damage.applyToEnemy(rig.world, enemy, {
+      amount: enemy.health,
+      source: "player.weapon",
+      originX: 0,
+      originZ: 0,
+      knockback: 5,
+      critical: false,
+    });
+
+    expect(enemy.state).toBe("DEAD");
+    expect(enemy.health).toBe(0);
+    expect(enemy.velocityX).toBe(0);
+    expect(enemy.velocityZ).toBe(0);
+    expect(enemy.targetId).toBe(-1);
+
+    const navigation = new EnemyNavigationSystem();
+    navigation.update(rig.world, ENEMY_LIFECYCLE.deathDuration * 0.5);
+    expect(enemy.active).toBe(true);
+    navigation.update(rig.world, ENEMY_LIFECYCLE.deathDuration * 0.5 + STEP);
+    expect(enemy.active).toBe(false);
+    expect(rig.world.enemies.active).toBe(0);
   });
 });
 
@@ -710,7 +744,12 @@ function advanceHorde(world: GameWorld, dt: number): void {
   const backing = world.enemies.backing;
   for (let i = 0; i < backing.length; i++) {
     const enemy = backing[i];
-    if (!enemy.active || enemy.health <= 0) continue;
+    if (!enemy.active) continue;
+    if (enemy.health <= 0) {
+      enemy.stateTimer -= dt;
+      if (enemy.stateTimer <= 0) releaseEnemy(world, enemy);
+      continue;
+    }
     const archetype = getArchetype(enemy.archetype);
     const dx = world.spider.x - enemy.x;
     const dz = world.spider.z - enemy.z;

@@ -1204,6 +1204,10 @@ export class WorldView {
       const visualIndex = this.slotToVisual[slot];
       if (visualIndex >= 0) {
         this.syncEnemyPuppet(this.enemyVisuals[visualIndex], enemy, alpha, dt);
+      } else if (enemy.state === "DEAD") {
+        // Distant impostors have no skeleton to animate. Drawing their upright
+        // card during the death delay makes a killed enemy look alive.
+        continue;
       } else if (enemy.lodTier === 0 && this.bindVisual(slot, enemy)) {
         this.syncEnemyPuppet(this.enemyVisuals[this.slotToVisual[slot]], enemy, alpha, dt);
       } else {

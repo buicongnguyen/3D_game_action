@@ -29,7 +29,7 @@ export const BLUEPRINTS: Record<StructureKind, BlueprintDefinition> = {
     kind: "rivetTurret",
     name: "Rivet Turret",
     shortName: "TURRET",
-    summary: "Sustained fire. 30 s pressure buffer. Foldable.",
+    summary: "Permanent defense. Sustained fire. Cannot be destroyed.",
     category: "foldable",
     cost: STRUCTURES.rivetTurret.cost,
     icon: "◈",

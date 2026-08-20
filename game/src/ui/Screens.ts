@@ -48,6 +48,8 @@ export interface ScreenOption {
   value?: string;
   accent?: number;
   disabled?: boolean;
+  /** Promotes an exit when the current screen has nothing affordable. */
+  recommendedExit?: boolean;
 }
 
 export interface ScreenStat {
@@ -427,6 +429,10 @@ export class ScreenManager {
       button.setAttribute("type", "button");
       button.dataset.optionId = model.id;
       if (model.disabled) button.dataset.disabled = "true";
+      if (model.recommendedExit) {
+        button.classList.add("is-recommended-exit");
+        button.setAttribute("aria-label", `${model.label}. Recommended: no affordable upgrades remain`);
+      }
       if (model.value !== undefined) button.dataset.adjustable = "true";
       if (model.accent !== undefined) {
         button.style.setProperty("--accent-color", hex(model.accent));

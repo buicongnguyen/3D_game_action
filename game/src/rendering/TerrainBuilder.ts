@@ -43,12 +43,12 @@ import type { RouteSegmentDefinition } from "../core/types.ts";
  * that catches on every grass tuft looks broken rather than dense.
  */
 const PROP_TYPES = [
-  { name: "treeConifer", count: 76, minLateral: 13, maxLateral: 46, scaleMin: 0.85, scaleMax: 1.35, blocks: 1.15 },
-  { name: "treeBroadleaf", count: 64, minLateral: 13, maxLateral: 46, scaleMin: 0.9, scaleMax: 1.4, blocks: 1.2 },
-  { name: "treeSpindle", count: 48, minLateral: 12, maxLateral: 44, scaleMin: 0.85, scaleMax: 1.25, blocks: 0.95 },
-  { name: "treeConiferB", count: 44, minLateral: 14, maxLateral: 48, scaleMin: 0.9, scaleMax: 1.3, blocks: 1.1 },
-  { name: "bareTree", count: 62, minLateral: 11, maxLateral: 44, scaleMin: 0.9, scaleMax: 1.45, blocks: 1.0 },
-  { name: "bareTreeB", count: 40, minLateral: 11, maxLateral: 42, scaleMin: 0.85, scaleMax: 1.35, blocks: 0.95 },
+  { name: "treeConifer", count: 54, minLateral: 14, maxLateral: 46, scaleMin: 0.85, scaleMax: 1.35, blocks: 1.15 },
+  { name: "treeBroadleaf", count: 46, minLateral: 14, maxLateral: 46, scaleMin: 0.9, scaleMax: 1.4, blocks: 1.2 },
+  { name: "treeSpindle", count: 34, minLateral: 13, maxLateral: 44, scaleMin: 0.85, scaleMax: 1.25, blocks: 0.95 },
+  { name: "treeConiferB", count: 32, minLateral: 15, maxLateral: 48, scaleMin: 0.9, scaleMax: 1.3, blocks: 1.1 },
+  { name: "bareTree", count: 44, minLateral: 12, maxLateral: 44, scaleMin: 0.9, scaleMax: 1.45, blocks: 1.0 },
+  { name: "bareTreeB", count: 28, minLateral: 12, maxLateral: 42, scaleMin: 0.85, scaleMax: 1.35, blocks: 0.95 },
   { name: "rock", count: 58, minLateral: 6, maxLateral: 40, scaleMin: 0.7, scaleMax: 1.6, blocks: 1.1 },
   { name: "rockB", count: 46, minLateral: 6, maxLateral: 40, scaleMin: 0.7, scaleMax: 1.5, blocks: 1.0 },
   { name: "rockC", count: 38, minLateral: 5, maxLateral: 36, scaleMin: 0.6, scaleMax: 1.2, blocks: 0.8 },
@@ -62,6 +62,28 @@ const PROP_TYPES = [
   { name: "scrapHeap", count: 20, minLateral: 6, maxLateral: 24, scaleMin: 0.8, scaleMax: 1.3, blocks: 0.9 },
   { name: "scrapHeapB", count: 16, minLateral: 6, maxLateral: 24, scaleMin: 0.8, scaleMax: 1.25, blocks: 0.85 },
 ] as const;
+
+/** Surface-to-surface gap wide enough for the largest regular enemy. */
+export const SOLID_PROP_GAP = 2.2;
+const DECORATIVE_PROP_GAP = 0.8;
+
+/** Pure spacing rule shared by generation and deterministic tests. */
+export function propsHaveClearance(
+  existingX: number,
+  existingZ: number,
+  existingRadius: number,
+  existingSolid: boolean,
+  candidateX: number,
+  candidateZ: number,
+  candidateRadius: number,
+  candidateSolid: boolean,
+): boolean {
+  const gap = existingSolid && candidateSolid ? SOLID_PROP_GAP : DECORATIVE_PROP_GAP;
+  const minimum = existingRadius + candidateRadius + gap;
+  const dx = existingX - candidateX;
+  const dz = existingZ - candidateZ;
+  return dx * dx + dz * dz >= minimum * minimum;
+}
 
 /** Prop used for the low posts that mark the drivable corridor. */
 const MARKER_PROP = "ruinPillarC";
@@ -311,6 +333,7 @@ export class TerrainBuilder {
     const occupiedX: number[] = [];
     const occupiedZ: number[] = [];
     const occupiedR: number[] = [];
+    const occupiedSolid: boolean[] = [];
 
     // Reserve authored building footprints before scattering decorative props.
     // Otherwise a deterministic but unlucky tree can grow through a doorway
@@ -323,6 +346,7 @@ export class TerrainBuilder {
       occupiedX.push(point.x - tangent.z * encounter.lateral);
       occupiedZ.push(point.z + tangent.x * encounter.lateral);
       occupiedR.push(encounter.kind === "workshopNest" ? 5.4 : 4.8);
+      occupiedSolid.push(true);
     }
 
     for (let typeIndex = 0; typeIndex < PROP_TYPES.length; typeIndex++) {
@@ -363,6 +387,9 @@ export class TerrainBuilder {
           side * random.range(Math.max(type.minLateral, segment.corridorHalfWidth * 0.9), type.maxLateral);
         const x = point.x + -tangent.z * lateral;
         const z = point.z + tangent.x * lateral;
+        const scale = random.range(type.scaleMin, type.scaleMax);
+        const candidateSolid = type.blocks > 0;
+        const candidateRadius = candidateSolid ? type.blocks * scale : 0.35 * scale;
 
         // A prop generated outside one switchback can still land inside the
         // neighbouring lane. Clear against the globally nearest lane so the
@@ -375,17 +402,16 @@ export class TerrainBuilder {
 
         let rejected = false;
         for (let i = 0; i < occupiedX.length; i++) {
-          const dx = occupiedX[i] - x;
-          const dz = occupiedZ[i] - z;
-          const minimum = occupiedR[i] + 0.8;
-          if (dx * dx + dz * dz < minimum * minimum) {
+          if (!propsHaveClearance(
+            occupiedX[i], occupiedZ[i], occupiedR[i], occupiedSolid[i],
+            x, z, candidateRadius, candidateSolid,
+          )) {
             rejected = true;
             break;
           }
         }
         if (rejected) continue;
 
-        const scale = random.range(type.scaleMin, type.scaleMax);
         this.position.set(x, 0, z);
         this.quaternion.setFromAxisAngle(UP, random.angle());
         // Slight non-uniform scale stops a forest of identical clones reading
@@ -400,10 +426,12 @@ export class TerrainBuilder {
           occupiedX.push(x);
           occupiedZ.push(z);
           occupiedR.push(radius);
+          occupiedSolid.push(true);
         } else {
           occupiedX.push(x);
           occupiedZ.push(z);
-          occupiedR.push(0.35 * scale);
+          occupiedR.push(candidateRadius);
+          occupiedSolid.push(false);
         }
         placed++;
       }

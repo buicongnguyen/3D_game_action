@@ -182,11 +182,7 @@ export class HudBridge {
       slot.selected = player.currentWeapon === kind;
     }
     const items = world.fieldItems;
-    model.fieldItems = [
-      items.repairKits > 0 ? `KIT×${items.repairKits}` : "",
-      items.shockMines > 0 ? `MINE×${items.shockMines}` : "",
-      items.armorPlates > 0 ? `PLATE×${items.armorPlates}` : "",
-    ].filter(Boolean).join(" · ");
+    model.fieldItems = formatFieldItems(items);
 
     model.carried =
       player.carry.kind === "structure"
@@ -410,6 +406,15 @@ export class HudBridge {
     for (const unsubscribe of this.unsubscribes) unsubscribe();
     this.unsubscribes.length = 0;
   }
+}
+
+export function formatFieldItems(items: GameWorld["fieldItems"]): string {
+  return [
+    items.repairKits > 0 ? `KIT×${items.repairKits}` : "",
+    items.shockMines > 0 ? `MINE×${items.shockMines}` : "",
+    items.armorPlates > 0 ? `PLATE×${items.armorPlates}` : "",
+    items.weaponParts > 0 ? `PART×${items.weaponParts} (${items.weaponParts % 3}/3)` : "",
+  ].filter(Boolean).join(" · ");
 }
 
 function holdDuration(world: GameWorld, kind: string): number {
