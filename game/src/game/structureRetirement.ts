@@ -1,4 +1,4 @@
-import { clamp, dist } from "../core/math.ts";
+import { clamp, dist, smoothstep } from "../core/math.ts";
 import { PLAYER } from "../data/balance.ts";
 import type { Structure } from "../core/types.ts";
 import type { GameWorld } from "./GameWorld.ts";
@@ -24,22 +24,19 @@ const projection = { x: 0, z: 0 };
 /** 0 while retained, 1 once the turret should be removed from simulation. */
 export function rivetRetirementProgress(world: GameWorld, structure: Structure): number {
   if (structure.kind !== "rivetTurret" || !structure.behindSpider) return 0;
-  // `dropped` is field salvage lying on the ground - in Salvage Rush it is the
-  // objective itself - and `folding` is a machine the engineer is in the middle
-  // of recovering. Neither is an abandoned turret and neither may be deleted.
+  // `folding` is a machine the engineer is in the middle of recovering, and a
+  // machine cannot be recovered and deleted in the same breath.
   if (
     structure.state === "destroyed" ||
     structure.state === "overloading" ||
-    structure.state === "dropped" ||
     structure.state === "folding"
   ) {
     return 0;
   }
-
-  // Still within reach, whatever the road did in between.
-  if (dist(structure.x, structure.z, world.spider.x, world.spider.z) <= PLAYER.tetherDistance) {
-    return 0;
-  }
+  // Dropped salvage is the objective in Salvage Rush and must never be cleaned
+  // up there. On an expedition it is just a machine the player set down, and
+  // the reach gate below already protects anything they could still walk to.
+  if (structure.state === "dropped" && world.mode === "salvageRush") return 0;
 
   const spline = world.route.spline;
   if (!spline) return 0;
@@ -53,6 +50,18 @@ export function rivetRetirementProgress(world: GameWorld, structure: Structure):
     1,
   );
 
+  // Reach scales the ramp; it does not gate it.
+  //
+  // A hard `return 0` inside the tether looked equivalent and was not: the arc
+  // ramp starts at 26 m while the tether is 32, so by the time a turret left
+  // reach the ramp had already climbed, and the first frame past the line
+  // resumed at that value instead of zero. Measured at 0.202 in a single step -
+  // the turret dropping 15 cm and snapping to 80% size in one frame, which is
+  // exactly what the smoothstep below exists to prevent. Worse, on a curve the
+  // straight-line distance can oscillate across the threshold and flicker it.
+  const reach = dist(structure.x, structure.z, world.spider.x, world.spider.z);
+  const reachGate = smoothstep(PLAYER.tetherDistance, PLAYER.tetherDistance + 8, reach);
+
   // Smooth endpoints prevent the retirement animation from visibly snapping.
-  return linear * linear * (3 - 2 * linear);
+  return linear * linear * (3 - 2 * linear) * reachGate;
 }

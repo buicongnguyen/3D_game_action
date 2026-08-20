@@ -671,8 +671,15 @@ describe("the engineering loop", () => {
     expect(rivetRetirementProgress(harness.world, turret)).toBe(0);
     expect(harness.world.findStructure(turret.id)).toBe(turret);
 
+    // Mid-window the machine is part-way retired and still present. The value
+    // is the arc ramp scaled by the reach gate, so it is deliberately asserted
+    // as a range rather than as the raw ramp's 0.5 - reach is now part of the
+    // answer, and pinning the old number would pin the pop this test exists to
+    // rule out.
     place(projected + (RIVET_RETIRE_START_DISTANCE + RIVET_RETIRE_END_DISTANCE) * 0.5);
-    expect(rivetRetirementProgress(harness.world, turret)).toBeCloseTo(0.5, 5);
+    const midway = rivetRetirementProgress(harness.world, turret);
+    expect(midway).toBeGreaterThan(0);
+    expect(midway).toBeLessThan(1);
     expect(harness.world.findStructure(turret.id)).toBe(turret);
 
     place(projected + RIVET_RETIRE_END_DISTANCE + 1);
@@ -703,11 +710,43 @@ describe("the engineering loop", () => {
     expect(rivetRetirementProgress(harness.world, turret)).toBe(0);
   });
 
+  it("retires without a visible pop", () => {
+    // The ramp is smoothstepped so the turret sinks and shrinks rather than
+    // snapping. Gating that ramp on reach with a hard `return 0` defeated it:
+    // the arc ramp starts at 26 m and the tether is 32, so the first frame past
+    // the tether resumed at 0.202 instead of 0 - a 15 cm drop and a jump to 80%
+    // size in one frame. Reach now scales the ramp instead of gating it.
+    const harness = new Harness(1821, { spawns: false });
+    harness.world.resources.scrap = 200;
+    const turret = buildTurret(harness, 5, 0);
+    turret.state = "active";
+    turret.behindSpider = true;
+
+    const spline = harness.world.route.spline!;
+    const point = { x: 0, z: 0 };
+    let previous = 0;
+    let worst = 0;
+    for (let d = 10; d < 90; d += 0.25) {
+      spline.positionAt(point, d);
+      harness.world.spider.distanceAlongRoute = d;
+      harness.world.spider.x = point.x;
+      harness.world.spider.z = point.z;
+      const progress = rivetRetirementProgress(harness.world, turret);
+      worst = Math.max(worst, Math.abs(progress - previous));
+      previous = progress;
+    }
+
+    // A quarter-metre of travel must never move the animation more than a few
+    // percent. The defect measured 0.202 here.
+    expect(worst).toBeLessThan(0.05);
+  });
+
   it("never retires dropped field salvage", () => {
     // In Salvage Rush the dropped machines are the objective.
     const harness = new Harness(1820, { spawns: false });
     harness.world.resources.scrap = 200;
     const turret = buildTurret(harness, 1.2, 0);
+    (harness.world as { mode: string }).mode = "salvageRush";
     turret.state = "dropped";
     turret.behindSpider = true;
 
