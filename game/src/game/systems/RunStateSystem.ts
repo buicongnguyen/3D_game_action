@@ -1,7 +1,7 @@
 import { clamp } from "../../core/math.ts";
 import type { RouteObjectiveDefinition, TrailState } from "../../core/types.ts";
 import { DIRECTOR, FIELD_MECHANIC, SALVAGE_RUSH, TRAIL, XP } from "../../data/balance.ts";
-import { getCheckpoint, type CheckpointDefinition } from "../../data/routes.ts";
+import { ROUTE_SEGMENTS, getCheckpoint, type CheckpointDefinition } from "../../data/routes.ts";
 import { rollUpgradeOffers } from "../../data/upgrades.ts";
 import { CRAWLER_UNLOCK_LEVEL } from "../../data/structures.ts";
 import type { GameWorld } from "../GameWorld.ts";
@@ -39,6 +39,7 @@ export class RunStateSystem {
 
   update(world: GameWorld, dt: number): void {
     world.phaseTime += dt;
+    world.segmentTime += dt;
     world.elapsed += dt;
     world.stats.elapsedSeconds = world.elapsed;
 
@@ -103,7 +104,7 @@ export class RunStateSystem {
     // The final segment forces Pursuit after a short grace period; the climax
     // is authored, not left to whether the player happened to be noisy.
     const segment = route.segment;
-    if (segment && world.phaseTime > segment.pursuitStartSeconds) {
+    if (segment && world.segmentTime > segment.pursuitStartSeconds) {
       world.trail = TRAIL.max;
     }
 
@@ -133,7 +134,19 @@ export class RunStateSystem {
     this.checkpointTimer = checkpoint.duration;
     this.pendingModules = [...checkpoint.moduleOffer];
     this.pendingRoutes = [...checkpoint.nextSegments];
-    this.pendingLoadout = destination === "checkpoint.gate";
+    // The last chance to change loadout is the stop that opens onto the final
+    // run, and which stop that is belongs to the route data, not to this file.
+    // Hard-coding `checkpoint.gate` was correct until the biome expansion put
+    // Prism Watch between it and the escape, after which the final loadout
+    // screen fired a whole stage early and the actual last stop offered none.
+    // `pursuit` is the same marker the phase machine already uses to recognise
+    // the escape, so the two cannot drift apart again.
+    // Looked up directly rather than through `getSegment`, which throws on an
+    // id it does not know: a typo in one checkpoint's route list should not be
+    // able to take down arrival at that checkpoint.
+    this.pendingLoadout = checkpoint.nextSegments.some(
+      (id) => ROUTE_SEGMENTS[id]?.modifiers.includes("pursuit") ?? false,
+    );
     this.pendingShop = true;
     this.pendingStory = checkpoint.arrivalStory;
 
@@ -182,6 +195,10 @@ export class RunStateSystem {
     if (!chosen) return;
 
     world.route.enterSegment(chosen);
+    // The segment clock starts here and survives every phase change until the
+    // next departure, which is what the departure hold and the pursuit ramp are
+    // actually measured against.
+    world.segmentTime = 0;
     world.spider.docked = false;
     world.spider.distanceAlongRoute = 0;
     world.spider.prevDistanceAlongRoute = 0;

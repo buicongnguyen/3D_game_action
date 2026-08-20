@@ -36,7 +36,7 @@ export class SpiderMovementSystem {
     }
 
     const hold = world.route.segment?.departureHoldSeconds ?? 0;
-    if (hold > 0 && world.phaseTime < hold) {
+    if (hold > 0 && world.segmentTime < hold) {
       spider.speed = 0;
       spider.emergencyBurn = false;
       this.syncTransform(world, dt, true);

@@ -4,6 +4,7 @@ import { angleDelta } from "../src/core/math.ts";
 import type { Vec2 } from "../src/core/math.ts";
 import { DIRECTOR } from "../src/data/balance.ts";
 import { CHECKPOINTS, FINAL_GATE_STORY, ROUTE_SEGMENTS } from "../src/data/routes.ts";
+import { GameWorld } from "../src/game/GameWorld.ts";
 import { RouteDirector } from "../src/game/route/RouteDirector.ts";
 import { RouteGraph } from "../src/game/route/RouteGraph.ts";
 import { RouteSpline } from "../src/game/route/RouteSpline.ts";
@@ -532,5 +533,31 @@ describe("RouteDirector determinism", () => {
     director.enterSegment("seg.approach");
     const second = director.generateResources(new Random(7));
     expect(second).toEqual(first);
+  });
+});
+
+describe("spawn and loot zones cover the whole road", () => {
+  it("reaches the end of every segment", () => {
+    // seg.scrapyard's control points were rewritten and its length went from
+    // 330 m to 360 m, but its spawn zones still stopped at 330 - so the director
+    // could not spawn anything in the last 30 m of the maze stage, and no loot
+    // was authored there either. Nothing caught it because nothing compared the
+    // authored zones against the measured spline.
+    for (const id of Object.keys(ROUTE_SEGMENTS)) {
+      const segment = ROUTE_SEGMENTS[id];
+      const world = new GameWorld(4242);
+      world.route.enterSegment(id);
+      const length = world.route.spline!.length;
+
+      const furthestSpawn = Math.max(...segment.spawnZones.map((z) => z.toDistance));
+      expect(
+        furthestSpawn,
+        `${id}: spawn zones stop at ${furthestSpawn} m of a ${length.toFixed(0)} m segment`,
+      ).toBeGreaterThanOrEqual(length - 12);
+
+      for (const zone of segment.spawnZones) {
+        expect(zone.fromDistance, `${id}: zone starts after it ends`).toBeLessThan(zone.toDistance);
+      }
+    }
   });
 });

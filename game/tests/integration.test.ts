@@ -655,20 +655,72 @@ describe("the engineering loop", () => {
     const spline = harness.world.route.spline!;
     const projected = spline.projectPoint({ x: 0, z: 0 }, turret.x, turret.z);
 
-    harness.world.spider.distanceAlongRoute = projected + RIVET_RETIRE_START_DISTANCE - 1;
+    // The hull has to move with the route distance. Retirement is now gated on
+    // straight-line reach as well as arc length - a turret the engineer could
+    // still walk to must never be deleted - and a spider whose world position
+    // was left at the origin is never actually far from anything.
+    const place = (distance: number) => {
+      const point = { x: 0, z: 0 };
+      spline.positionAt(point, distance);
+      harness.world.spider.distanceAlongRoute = distance;
+      harness.world.spider.x = point.x;
+      harness.world.spider.z = point.z;
+    };
+
+    place(projected + RIVET_RETIRE_START_DISTANCE - 1);
     expect(rivetRetirementProgress(harness.world, turret)).toBe(0);
     expect(harness.world.findStructure(turret.id)).toBe(turret);
 
-    harness.world.spider.distanceAlongRoute =
-      projected + (RIVET_RETIRE_START_DISTANCE + RIVET_RETIRE_END_DISTANCE) * 0.5;
+    place(projected + (RIVET_RETIRE_START_DISTANCE + RIVET_RETIRE_END_DISTANCE) * 0.5);
     expect(rivetRetirementProgress(harness.world, turret)).toBeCloseTo(0.5, 5);
     expect(harness.world.findStructure(turret.id)).toBe(turret);
 
-    harness.world.spider.distanceAlongRoute = projected + RIVET_RETIRE_END_DISTANCE + 1;
+    place(projected + RIVET_RETIRE_END_DISTANCE + 1);
     harness.step();
     expect(harness.world.findStructure(turret.id)).toBeUndefined();
     expect(harness.world.stats.structuresAbandoned).toBe(1);
     expect(harness.countEvents("structure.exploded")).toBe(0);
+  });
+
+  it("never retires a machine the engineer could still walk to", () => {
+    // On a segment that doubles back, a turret far behind along the road can be
+    // a few metres away in a straight line. Retirement used to measure only arc
+    // length, so it deleted recoverable machines out from under the player.
+    const harness = new Harness(1819, { spawns: false });
+    harness.world.resources.scrap = 200;
+    const turret = buildTurret(harness, 1.2, 0);
+    turret.state = "active";
+    turret.behindSpider = true;
+
+    const spline = harness.world.route.spline!;
+    const projected = spline.projectPoint({ x: 0, z: 0 }, turret.x, turret.z);
+
+    // Far back along the road, but the hull is parked right beside the turret.
+    harness.world.spider.distanceAlongRoute = projected + RIVET_RETIRE_END_DISTANCE + 10;
+    harness.world.spider.x = turret.x + 2;
+    harness.world.spider.z = turret.z + 2;
+
+    expect(rivetRetirementProgress(harness.world, turret)).toBe(0);
+  });
+
+  it("never retires dropped field salvage", () => {
+    // In Salvage Rush the dropped machines are the objective.
+    const harness = new Harness(1820, { spawns: false });
+    harness.world.resources.scrap = 200;
+    const turret = buildTurret(harness, 1.2, 0);
+    turret.state = "dropped";
+    turret.behindSpider = true;
+
+    const spline = harness.world.route.spline!;
+    const projected = spline.projectPoint({ x: 0, z: 0 }, turret.x, turret.z);
+    const point = { x: 0, z: 0 };
+    const far = projected + RIVET_RETIRE_END_DISTANCE + 10;
+    spline.positionAt(point, far);
+    harness.world.spider.distanceAlongRoute = far;
+    harness.world.spider.x = point.x;
+    harness.world.spider.z = point.z;
+
+    expect(rivetRetirementProgress(harness.world, turret)).toBe(0);
   });
 });
 
@@ -857,8 +909,19 @@ describe("trail and pursuit", () => {
     harness.world.spider.distanceAlongRoute = harness.world.route.spline!.length;
     harness.runState.update(harness.world, STEP);
 
-    expect(harness.runState.pendingLoadout).toBe(true);
+    // Gate Watch is no longer the last stop before the escape - Prism Watch is -
+    // so the finale loadout must not be offered here. This assertion used to
+    // read `true`, pinning a hard-coded `checkpoint.gate` that the biome
+    // expansion had already made wrong, which is exactly how the final loadout
+    // came to fire a whole stage early.
+    expect(harness.runState.pendingLoadout).toBe(false);
     expect(harness.world.progress.pendingLevelUps).toBe(2);
+
+    // The stop that actually opens onto the escape is the one that offers it.
+    harness.runState.departCheckpoint(harness.world, "seg.crystal");
+    harness.world.spider.distanceAlongRoute = harness.world.route.spline!.length;
+    harness.runState.update(harness.world, STEP);
+    expect(harness.runState.pendingLoadout).toBe(true);
     harness.runState.checkpointTimer = -1;
     harness.runState.update(harness.world, STEP);
     expect(harness.world.phase).toBe("CHECKPOINT_PREP");
@@ -1100,5 +1163,33 @@ describe("pooling", () => {
     expect(harness.world.pickups.exhaustions).toBe(0);
     expect(harness.world.enemies.active).toBeLessThanOrEqual(harness.world.enemies.capacity);
     expect(harness.world.enemies.active).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe("segment-scoped timing", () => {
+  it("does not restart the escape departure hold when the player levels up", () => {
+    // `departureHoldSeconds` and the pursuit ramp are properties of the segment,
+    // but they used to read `world.phaseTime`, which `setPhase` zeroes. A
+    // level-up round-trips through UPGRADE_CHOICE and back, so it reset both:
+    // the machine stopped dead a second time on the final escape, and the
+    // pursuit clock went back to zero with it.
+    const harness = new Harness(4242, { spawns: false });
+    harness.runState.departCheckpoint(harness.world, "seg.escape");
+    const hold = harness.world.route.segment!.departureHoldSeconds ?? 0;
+    expect(hold).toBeGreaterThan(0);
+    expect(harness.world.phase).toBe("FINAL_ESCAPE");
+
+    // Sit out the hold, then confirm the machine is under way.
+    harness.seconds(hold + 1);
+    expect(harness.world.spider.distanceAlongRoute).toBeGreaterThan(0);
+    const distanceBefore = harness.world.spider.distanceAlongRoute;
+
+    // A level-up mid-escape: through UPGRADE_CHOICE and straight back.
+    harness.world.setPhase("UPGRADE_CHOICE");
+    harness.world.setPhase("FINAL_ESCAPE");
+    expect(harness.world.phaseTime).toBe(0);
+
+    harness.seconds(0.5);
+    expect(harness.world.spider.distanceAlongRoute).toBeGreaterThan(distanceBefore);
   });
 });

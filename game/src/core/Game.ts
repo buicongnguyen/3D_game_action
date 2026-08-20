@@ -50,6 +50,7 @@ import {
   restoreCheckpoint,
   type CheckpointSnapshot,
 } from "./CheckpointState.ts";
+import { clamp } from "./math.ts";
 import { getBlueprint } from "../data/structures.ts";
 import { getModule } from "../data/modules.ts";
 import { getUpgrade } from "../data/upgrades.ts";
@@ -69,6 +70,9 @@ import {
 import type { TurretUpgradeKind } from "./types.ts";
 import { FINAL_GATE_STORY } from "../data/routes.ts";
 import { PERFORMANCE, PLAYER, SALVAGE_RUSH, SIM, SPIDER, TRAIL, WEAPONS } from "../data/balance.ts";
+
+/** Reused target for `debugApi.teleportSpider`; the spline writes into it. */
+const teleportScratch = { x: 0, z: 0 };
 
 /** Card glyph per upgrade category, so the three offers read apart at a glance. */
 const UPGRADE_GLYPHS: Record<string, string> = {
@@ -1306,8 +1310,50 @@ export class Game {
       giveScrap: (amount: number) => {
         this.world.resources.scrap += amount;
       },
+      /**
+       * Moves the machine, and everything that has to move with it.
+       *
+       * Setting `distanceAlongRoute` alone is not a teleport: the world position
+       * is derived from the spline by `SpiderMovementSystem.syncTransform`, so
+       * the hull stayed where it was until the next fixed step. Anything the
+       * caller spawned in between - which is exactly what every performance
+       * profile does - landed around the old position, and segments sit
+       * sequentially in world space, so entering a later one moved the machine
+       * hundreds of metres in a single step. Enemies more than 78 m from both
+       * the player and the spider are silently recycled, so the profiles then
+       * measured a field that had been left behind: `combat-100` peaked at 100
+       * enemies and reported 3.
+       *
+       * The engineer comes too. A teleport that stranded the player a thousand
+       * metres away would tear the tether and make the situation nonsense.
+       */
       teleportSpider: (distance: number) => {
-        this.world.spider.distanceAlongRoute = distance;
+        const world = this.world;
+        const spider = world.spider;
+        const spline = world.route.spline;
+        spider.distanceAlongRoute = distance;
+        if (!spline) return;
+
+        const clamped = clamp(distance, 0, spline.length);
+        const previousX = spider.x;
+        const previousZ = spider.z;
+        spline.positionAt(teleportScratch, clamped);
+        spider.x = teleportScratch.x;
+        spider.z = teleportScratch.z;
+        spider.prevX = spider.x;
+        spider.prevZ = spider.z;
+        spider.heading = spline.headingAt(
+          Math.min(spline.length, clamped + SPIDER.headingLookahead),
+        );
+        spider.prevHeading = spider.heading;
+
+        // Carry the engineer by the same offset so their station relative to the
+        // hull survives the jump.
+        const player = world.player;
+        player.x += spider.x - previousX;
+        player.z += spider.z - previousZ;
+        player.prevX = player.x;
+        player.prevZ = player.z;
       },
       enterSegment: (segmentId: string) => {
         this.runState.departCheckpoint(this.world, segmentId);

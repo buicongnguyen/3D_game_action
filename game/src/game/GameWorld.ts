@@ -73,6 +73,17 @@ export class GameWorld {
   previousPhase: RunPhase = "BOOT";
   /** Seconds elapsed in the current phase. */
   phaseTime = 0;
+  /**
+   * Seconds since the current route segment was entered.
+   *
+   * Distinct from `phaseTime`, which `setPhase` zeroes on every transition -
+   * including the round trip through `UPGRADE_CHOICE` that a level-up makes.
+   * Anything scoped to the segment rather than to the phase must use this, or a
+   * level-up silently restarts it: the final escape's 18-second departure hold
+   * began again, stopping the machine dead a second time, and the pursuit
+   * escalation clock went back to zero with it.
+   */
+  segmentTime = 0;
 
   trail = 0;
   trailState: TrailState = "QUIET";

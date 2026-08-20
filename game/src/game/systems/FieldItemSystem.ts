@@ -68,7 +68,21 @@ function nearestDamagedStructure(world: GameWorld) {
   let bestDistance = USE_RANGE_SQ;
   for (let i = 0; i < world.structures.length; i++) {
     const structure = world.structures[i];
-    if (!structure.active || structure.state === "destroyed" || structure.health >= structure.maxHealth) continue;
+    // Same exclusions `InteractionSystem.nearestStructure` already applies. A
+    // repair kit is finite, and spending one on a machine that is detonating,
+    // being folded away, or lying on the ground as salvage is spending it on
+    // nothing - while also shadowing the engineer's own healing, which this
+    // function is checked ahead of.
+    if (
+      !structure.active ||
+      structure.state === "destroyed" ||
+      structure.state === "overloading" ||
+      structure.state === "folding" ||
+      structure.state === "dropped" ||
+      structure.health >= structure.maxHealth
+    ) {
+      continue;
+    }
     const distance = distSq(world.player.x, world.player.z, structure.x, structure.z);
     if (distance < bestDistance) {
       bestDistance = distance;

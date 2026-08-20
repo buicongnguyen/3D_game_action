@@ -112,6 +112,23 @@ interface Scenario {
   setup: (game: Game) => void;
 }
 
+/**
+ * Segment the three hardware-stress profiles run on.
+ *
+ * They are not campaign profiles and only need somewhere long enough that the
+ * spider cannot march off the end while being measured. `seg.scrapyard` is the
+ * longest in the campaign at 360 m, so the furthest teleport (130 m) leaves
+ * over two hundred metres of road ahead of it.
+ *
+ * They used to pin nothing at all, and inherited whatever segment the stage
+ * profile before them had entered - `seg.escape`, the campaign's last and
+ * shortest at 118 m. `pursuit-full` teleported to 130 m, twelve metres past the
+ * gate, so the run completed during its own measurement, the "scenario ended
+ * while being measured" guard threw, and `npm run perf` produced no report at
+ * all for 900 seconds before timing out. The guard was right; the setup was not.
+ */
+const STRESS_SEGMENT = "seg.scrapyard";
+
 const SCENARIOS: Scenario[] = [
   {
     id: "stage-1-departure",
@@ -178,6 +195,12 @@ const SCENARIOS: Scenario[] = [
     id: "combat-100",
     label: "Normal combat, 100 enemies",
     setup: (game) => {
+      // Pinned, like every stage profile above. Without this the three stress
+      // profiles inherited whichever segment ran last - which is seg.escape, at
+      // 118 m the shortest in the campaign - so they measured the wrong terrain,
+      // and pursuit-full teleported clean past its end. See the note on
+      // STRESS_SEGMENT.
+      game.debugApi.enterSegment(STRESS_SEGMENT);
       game.debugApi.teleportSpider(90);
       game.debugApi.setTrail(78);
       game.debugApi.placeStructures("rivetTurret", 3);
@@ -190,6 +213,7 @@ const SCENARIOS: Scenario[] = [
     id: "stress-200",
     label: "Stress test, 200 enemies",
     setup: (game) => {
+      game.debugApi.enterSegment(STRESS_SEGMENT);
       game.debugApi.teleportSpider(110);
       game.debugApi.setTrail(100);
       game.debugApi.forceSpawn("minion", 150);
@@ -201,6 +225,7 @@ const SCENARIOS: Scenario[] = [
     id: "pursuit-full",
     label: "Pursuit with structures, projectiles, VFX and HUD",
     setup: (game) => {
+      game.debugApi.enterSegment(STRESS_SEGMENT);
       game.debugApi.teleportSpider(130);
       game.debugApi.setTrail(100);
       // A late-run defended posture: two racks plus four built in the field.

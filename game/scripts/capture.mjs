@@ -16,14 +16,12 @@
  * unaffected, which is all the visual rubric scores.
  */
 
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
-import { mkdir, rm, stat } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import { mkdir, rm, stat, mkdtemp, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
-
-const run = promisify(execFile);
 
 const CAPTURE_IDS = [
   "march",
@@ -62,6 +60,7 @@ function parseArgs(argv) {
     height: 1080,
     only: null,
     budget: 9000,
+    port: 9222,
   };
   // Both `--width=1280` and `--width 1280` are accepted, and anything else is a
   // hard error. The earlier version took only the `=` form and silently skipped
@@ -90,6 +89,7 @@ function parseArgs(argv) {
     else if (key === "width") args.width = requireNumber(key, value);
     else if (key === "height") args.height = requireNumber(key, value);
     else if (key === "budget") args.budget = requireNumber(key, value);
+    else if (key === "port") args.port = requireNumber(key, value);
     else if (key === "only") args.only = value.split(",").map((s) => s.trim()).filter(Boolean);
     else throw new Error(`unknown flag --${key}`);
   }
@@ -111,51 +111,51 @@ function findBrowser() {
   return null;
 }
 
-async function capture(browser, args, id) {
-  // The screenshot path must be absolute; a relative one fails with an opaque
-  // "Access is denied" on Windows.
+/**
+ * Shoots one scene through an already-open protocol session.
+ *
+ * This used to launch a browser per capture with `--screenshot=<path>`, and
+ * that flag silently stopped producing a file: every invocation exited 0, wrote
+ * nothing, and printed nothing, so a full set failed as twelve identical
+ * "no image produced" lines with no cause to chase. `record.mjs` and
+ * `perf.mjs` already drive the browser over the DevTools protocol, and
+ * `Page.captureScreenshot` returns the bytes rather than trusting the browser
+ * to write them - so there is one mechanism here now instead of two, and the
+ * one that remains is the one under test by two other harnesses.
+ *
+ * It is also far quicker: one browser for the whole set rather than one per
+ * scene, and no virtual-time budget to guess at, because the page says when it
+ * is ready.
+ */
+async function capture(session, args, id) {
   const file = path.resolve(args.out, `${id}-${args.width}x${args.height}.png`);
   await rm(file, { force: true });
 
-  const url = `${args.url}?capture=${encodeURIComponent(id)}&seed=IRONMARCH`;
-  const flags = [
-    "--headless=new",
-    "--disable-gpu",
-    // SwiftShader is what makes WebGL work at all without a display.
-    "--enable-unsafe-swiftshader",
-    "--use-angle=swiftshader",
-    "--no-sandbox",
-    "--disable-dev-shm-usage",
-    "--hide-scrollbars",
-    `--window-size=${args.width},${args.height}`,
-    `--screenshot=${file}`,
-    // Virtual time lets the page finish its synchronous capture setup before
-    // the shot, without guessing at a wall-clock sleep.
-    `--virtual-time-budget=${HEAVY_CAPTURES.has(id) ? args.budget * 4 : args.budget}`,
-    url,
-  ];
+  await session.send("Page.navigate", { url: sceneUrl(args, id) });
+  await waitForScene(session, id, args.budget * (HEAVY_CAPTURES.has(id) ? 8 : 4));
 
-  try {
-    // Generous: the densest scenes rasterise ~200 enemies in software, which is
-    // minutes of CPU work for one frame that a GPU would produce instantly.
-    await run(browser, flags, { timeout: 900000, windowsHide: true });
-  } catch (error) {
-    // Edge exits non-zero on some benign teardown paths; the file is the truth.
-    if (!existsSync(file)) throw error;
+  const shot = await session.send("Page.captureScreenshot", {
+    format: "png",
+    captureBeyondViewport: false,
+  });
+  const buffer = Buffer.from(shot.data, "base64");
+
+  const size = pngSize(buffer);
+  if (!size) throw new Error(`"${id}" did not come back as a PNG`);
+  if (size.width !== args.width || size.height !== args.height) {
+    throw new Error(
+      `"${id}" came back ${size.width}x${size.height}, not ${args.width}x${args.height}`,
+    );
   }
 
-  if (!existsSync(file)) {
-    throw new Error(`no image produced for "${id}"`);
-  }
-  const info = await stat(file);
-  return { id, file, bytes: info.size };
+  await writeFile(file, buffer);
+  return { id, file, bytes: buffer.length };
 }
 
-/**
- * Fails loudly unless the URL serves the game's own page. A 200 from something
- * that is not this app would be just as misleading as no server at all, so the
- * body is checked for the canvas the renderer attaches to.
- */
+function sceneUrl(args, id) {
+  return `${args.url}?capture=${encodeURIComponent(id)}&seed=IRONMARCH`;
+}
+
 async function assertServing(url) {
   let response;
   try {
@@ -211,21 +211,61 @@ async function main() {
   console.log(`output:  ${args.out}`);
   console.log(`size:    ${args.width}x${args.height}`);
 
+  const profile = await mkdtemp(path.join(os.tmpdir(), "marcha-capture-"));
+  const child = spawn(
+    browser,
+    [
+      "--headless=new",
+      "--disable-gpu",
+      "--enable-unsafe-swiftshader",
+      "--use-angle=swiftshader",
+      "--no-sandbox",
+      "--disable-dev-shm-usage",
+      "--hide-scrollbars",
+      "--disable-background-timer-throttling",
+      "--disable-renderer-backgrounding",
+      "--disable-backgrounding-occluded-windows",
+      `--window-size=${args.width},${args.height}`,
+      `--remote-debugging-port=${args.port}`,
+      `--user-data-dir=${profile}`,
+      sceneUrl(args, ids[0]),
+    ],
+    { windowsHide: true, stdio: "ignore" },
+  );
+
   const results = [];
-  for (const id of ids) {
-    process.stdout.write(`  ${id} ... `);
-    try {
-      const result = await capture(browser, args, id);
-      results.push(result);
-      console.log(`${(result.bytes / 1024).toFixed(0)} kB`);
-    } catch (error) {
-      console.log(`FAILED: ${error.message}`);
-      results.push({ id, file: null, bytes: 0, error: error.message });
+  let session = null;
+  try {
+    const target = await waitForTarget(args.port, 30000, "capture=");
+    session = await connect(target.webSocketDebuggerUrl);
+    // The window size flag sets the OS window; the viewport is what renders.
+    await session.send("Emulation.setDeviceMetricsOverride", {
+      width: args.width,
+      height: args.height,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+
+    for (const id of ids) {
+      process.stdout.write(`  ${id} ... `);
+      try {
+        const result = await capture(session, args, id);
+        results.push(result);
+        console.log(`${(result.bytes / 1024).toFixed(0)} kB`);
+      } catch (error) {
+        console.log(`FAILED: ${error.message}`);
+        results.push({ id, file: null, bytes: 0, error: error.message });
+      }
     }
+  } finally {
+    session?.close();
+    child.kill();
+    await rm(profile, { recursive: true, force: true }).catch(() => {});
   }
 
   const failed = results.filter((r) => !r.file);
-  console.log(`\n${results.length - failed.length}/${results.length} captures written.`);
+  console.log(`
+${results.length - failed.length}/${results.length} captures written.`);
   if (failed.length > 0) process.exit(1);
 }
 
@@ -233,3 +273,116 @@ main().catch((error) => {
   console.error(error);
   process.exit(1);
 });
+
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Waits for the browser to open its protocol port and hand over the game's page target. */
+async function waitForTarget(port, timeoutMs, marker) {
+  const deadline = Date.now() + timeoutMs;
+  let lastError = "no page target";
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/json/list`);
+      if (response.ok) {
+        const targets = await response.json();
+        const page = targets.find(
+          (entry) =>
+            entry.type === "page" && entry.webSocketDebuggerUrl && entry.url.includes(marker),
+        );
+        if (page) return page;
+        lastError = `targets: ${targets.map((t) => `${t.type} ${t.url}`).join(", ") || "none"}`;
+      }
+    } catch (error) {
+      lastError = error.message;
+    }
+    await delay(200);
+  }
+  throw new Error(`browser did not expose a page within ${timeoutMs} ms (${lastError})`);
+}
+
+/**
+ * Waits for the scene to finish setting itself up.
+ *
+ * `main.ts` sets `__captureReady` after the scenario has run and been drawn.
+ * The search string is checked as well, because the previous scene's page can
+ * still be current for a moment after `Page.navigate` returns and it would
+ * answer this question with a confident yes about the wrong scene.
+ */
+async function waitForScene(session, id, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  const probe = `window.__captureReady === true && location.search.indexOf("capture=${id}") >= 0`;
+  while (Date.now() < deadline) {
+    if ((await evaluate(session, probe).catch(() => false)) === true) return;
+    await delay(150);
+  }
+  const title = await evaluate(session, "document.title").catch(() => "unreadable");
+  throw new Error(
+    `scene "${id}" was not ready within ${Math.round(timeoutMs / 1000)} s (page title: "${title}"). ` +
+      `Is the dev server serving ?capture=${id}?`,
+  );
+}
+
+async function evaluate(session, expression) {
+  const evaluated = await session.send("Runtime.evaluate", { expression, returnByValue: true });
+  if (evaluated.exceptionDetails) {
+    const details = evaluated.exceptionDetails;
+    throw new Error(details.exception?.description ?? details.text ?? "evaluation failed");
+  }
+  return evaluated.result?.value;
+}
+
+/**
+ * Width and height straight out of the PNG header.
+ *
+ * The image is the artefact, so the image is what gets asked. Trusting the flag
+ * that was passed to the browser is how a set of stills came to be filed under
+ * a resolution none of them had.
+ */
+function pngSize(buffer) {
+  const signature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+  if (buffer.length < 24) return null;
+  for (let i = 0; i < signature.length; i++) if (buffer[i] !== signature[i]) return null;
+  return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
+}
+
+/** Minimal DevTools protocol client, the same shape `perf.mjs` uses. */
+async function connect(wsUrl) {
+  const socket = new WebSocket(wsUrl);
+  const pending = new Map();
+  let nextId = 0;
+  let closed = null;
+
+  socket.addEventListener("message", (event) => {
+    const message = JSON.parse(event.data);
+    const entry = pending.get(message.id);
+    if (!entry) return;
+    pending.delete(message.id);
+    if (message.error) entry.reject(new Error(message.error.message));
+    else entry.resolve(message.result);
+  });
+  const failAll = (error) => {
+    closed = error;
+    for (const entry of pending.values()) entry.reject(error);
+    pending.clear();
+  };
+  socket.addEventListener("error", () => failAll(new Error("protocol socket error")));
+  socket.addEventListener("close", () => failAll(new Error("protocol socket closed")));
+
+  await new Promise((resolve, reject) => {
+    socket.addEventListener("open", resolve, { once: true });
+    socket.addEventListener("error", () => reject(new Error("could not open protocol socket")), {
+      once: true,
+    });
+  });
+
+  return {
+    send: (method, params) =>
+      new Promise((resolve, reject) => {
+        if (closed) return reject(closed);
+        const id = ++nextId;
+        pending.set(id, { resolve, reject });
+        socket.send(JSON.stringify({ id, method, params }));
+      }),
+    close: () => socket.close(),
+  };
+}

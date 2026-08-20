@@ -341,10 +341,7 @@ export class TerrainBuilder {
         const z = baseZ + nz * lateral;
 
         // Relief rises only outside the corridor; the path itself is flat.
-        const relief = smoothstep(corridor * 0.85, corridor * 2.6, absLateral);
-        const y =
-          relief * palette.reliefScale *
-          (valueNoise(x * 0.055, z * 0.055) * 1.9 + valueNoise(x * 0.17, z * 0.17) * 0.55);
+        const y = groundHeightAt(x, z, absLateral, corridor, palette.reliefScale);
 
         positions[vertex * 3] = x;
         positions[vertex * 3 + 1] = y;
@@ -504,7 +501,18 @@ export class TerrainBuilder {
         }
         if (rejected) continue;
 
-        this.position.set(x, 0, z);
+        // Stand it on the ground rather than at y = 0, which on the
+        // high-relief biomes is under it. Same expression the mesh uses.
+        this.position.set(
+          x,
+          groundHeightAt(
+            x, z,
+            Math.abs(spline.lateralOffset(x, z)),
+            segment.corridorHalfWidth,
+            terrainPaletteFor(segment.terrainStyle).reliefScale,
+          ),
+          z,
+        );
         this.quaternion.setFromAxisAngle(UP, random.angle());
         // Slight non-uniform scale stops a forest of identical clones reading
         // as one repeated object.
@@ -667,11 +675,17 @@ export class TerrainBuilder {
     const spline = world.route.spline!;
     const spacing = 6.4;
     const stations = Math.floor(spline.length / spacing);
-    const wallCapacity = stations * 2;
-    const towerCapacity = Math.ceil(stations / 8) * 2;
+    // Every station emits exactly one prop per side, so `stations * 2` is the
+    // only capacity any of the three can need. The tower mesh used to be sized
+    // for `station % 8` alone while the loop also raises a tower at every
+    // corner, which on the one maze stage in the game meant 36 towers written
+    // into 14 slots - 22 matrices past the end of the buffer, silently.
+    const perSideCapacity = stations * 2;
+    const wallCapacity = perSideCapacity;
+    const towerCapacity = perSideCapacity;
     const walls = new InstancedMesh(wallGeometry, this.forge.materials.surface, wallCapacity);
     const towers = new InstancedMesh(towerGeometry, this.forge.materials.surface, towerCapacity);
-    const arches = new InstancedMesh(archGeometry, this.forge.materials.surface, Math.ceil(stations / 4) * 2);
+    const arches = new InstancedMesh(archGeometry, this.forge.materials.surface, perSideCapacity);
     walls.name = "prop.mazeWall";
     towers.name = "prop.mazeTower";
     arches.name = "prop.mazeArch";
@@ -705,6 +719,7 @@ export class TerrainBuilder {
         if (corner || station % 8 === 0) {
           this.scaleVector.setScalar(random.range(0.94, 1.07));
           this.matrix.compose(this.position, this.quaternion, this.scaleVector);
+          if (towerCount >= towerCapacity) continue;
           towers.setMatrixAt(towerCount++, this.matrix);
           world.navigation.setStatic(this.position.x, this.position.z, 1.35);
         } else if (station % 4 === 0) {
@@ -844,6 +859,29 @@ const SIDES = [-1, 1] as const;
  * variation, and far cheaper than importing a simplex implementation for two
  * call sites.
  */
+/**
+ * Ground height at a point, in metres.
+ *
+ * Shared by the terrain mesh and by anything placed on it. The biome pass gave
+ * each palette a `reliefScale` of up to 3.3 but left every scattered prop
+ * pinned at y = 0, so on the high-relief biomes the dressing stood underneath
+ * the ground it was supposed to be standing on. One expression, used by both,
+ * is the only way those two stay in agreement.
+ */
+function groundHeightAt(
+  x: number,
+  z: number,
+  absLateral: number,
+  corridor: number,
+  reliefScale: number,
+): number {
+  const relief = smoothstep(corridor * 0.85, corridor * 2.6, absLateral);
+  return (
+    relief * reliefScale *
+    (valueNoise(x * 0.055, z * 0.055) * 1.9 + valueNoise(x * 0.17, z * 0.17) * 0.55)
+  );
+}
+
 function valueNoise(x: number, z: number): number {
   const xi = Math.floor(x);
   const zi = Math.floor(z);

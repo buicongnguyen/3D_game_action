@@ -191,3 +191,77 @@ are not required by the gameplay plan and remain recorded for a later rendering
 and infrastructure pass. The current publication gate validates assets,
 TypeScript, deterministic tests, production bundling, browser boot, performance
 scenarios, and the deployed GitHub Pages build.
+
+---
+
+## Round 2 - reviewing the Codex campaign expansion
+
+Five lenses over roughly 7,200 new lines: the campaign and its biomes, the
+encounter/field-item/crawler systems, the shops, structure retirement, and the
+tests for all of it. **40 findings.**
+
+**Verification completed: 51 agents, zero errors.** The 23 P1/P2 findings each
+faced two independent skeptics, surviving only on a unanimous verdict:
+**11 confirmed, 12 refuted.** That refutation rate is the point - it is what
+makes the surviving eleven worth acting on. The 17 P3s were recorded as reported
+without adjudication.
+
+Eight of the eleven confirmed findings are now fixed, each pinned by a test that
+was checked against the old code first. The list below is the raw reported set;
+see IMPLEMENTATION_STATUS.md 2b.18-2b.24 for what was done and what was left.
+
+Worth stating plainly: the expansion is good work. Every fix from the previous
+review survived it, four of that review's open findings were closed, and the
+balance hole that let a player win by standing still is gone - an idle run now
+dies in 30 seconds. Most of what follows is the ordinary cost of adding a
+campaign to a vertical slice: things the new content outgrew.
+
+
+### P1 - 6
+
+- `game/src/game/systems/SpiderMovementSystem.ts:39` - The new `departureHoldSeconds` gate keys off `world.phaseTime`, which `GameWorld.setPhase` zeroes on every phase change — so any level-up during the final escape re-freezes the Spider for another full 18 seconds, anywhere on the route.
+- `game/tests/integration.test.ts:42` - The integration harness's comment "The full system stack, wired in the §16.4 order" is no longer true — it omits EncounterSystem, FieldItemSystem and MobileStructureSystem — and since no test constructs Game, all three of Codex's new player
+- `RunStateSystem.ts:136` **[FIXED]** - The one-way "final escape" loadout lock is still hard-coded to `checkpoint.gate`, which since the biome expansion is no longer the checkpoint before the escape — so the player is permanently stripped down to two blueprints one whole stage e
+- `TerrainBuilder.ts:671` - `buildMazePattern` sizes the watchtower InstancedMesh for only the `station % 8 === 0` towers, but corner stations also emit towers, so on the one maze stage in the game it writes 22 instance matrices past the end of the buffer and then tel
+- `structureRetirement.ts:19` - The state guard excludes only `destroyed` and `overloading`, so `dropped` field salvage retires too — which silently deletes the collectibles Salvage Rush is entirely built around.
+- `structureRetirement.ts:25` - Retirement measures how far a turret is behind the Spider in arc length along the spline, while the recovery window it claims to respect (the player tether) is a straight-line radius, so on any segment that doubles back a turret is deleted 
+
+### P2 - 17
+
+- `game/src/game/systems/CollisionSystem.ts:229` - Destroying a workshop nest deactivates the simulation site but leaves the building drawn and still blocking navigation, and nothing anywhere renders a nest's health — so the route objective "Destroy all three workshop nests" completes with 
+- `game/src/game/systems/DamageSystem.ts:359` - `crawler_turret.test.ts` encodes Codex's new unconditional `if (structure.kind === "rivetTurret") return;` as the intended contract, and no test anywhere asserts that any structure takes damage from an enemy — so the whole structure-damage 
+- `game/src/game/systems/FieldItemSystem.ts:19` - R1 resolves field items by a fixed priority with no player choice, so shock mines and armor plates are unreachable for as long as the player holds any repair kit and is not at full health (or stands near any damaged machine) — while the HUD
+- `game/tests/checkpoint_state.test.ts:53` - The checkpoint-restore test names eight fields and leaves the rest of the snapshot unchecked — including every piece of durable state the new work added.
+- `game/tests/encounters.test.ts:55` - The test named "resets authored encounter state on a new route segment" pins one of the four lines in the reset block; the other three — the started set, the completed set, and the encounter-site list — can each be deleted with the suite gr
+- `game/tests/encounters.test.ts:80` - The test titled "bounds nest reinforcements and stops them permanently after destruction" disables the site immediately after the first wave, so it never reaches the bound it names — reinforcement waves 2 and 3 are entirely untested.
+- `game/tests/field_items.test.ts:10` - Every R1 field-item test builds a snapshot with both `pressed` and `held` set and calls `update` exactly once, so the suite cannot tell an edge-triggered R1 from a held-triggered one — the exact latched-edge contract the project's own P1 in
+- `game/tests/field_items.test.ts:141` - Three tests set up a damaged rivet turret by assignment, but rivet-turret invulnerability makes that state unreachable in the shipped game — so the repair verb they certify is dead for the game's primary structure and the suite is green abo
+- `game/tests/hazards.test.ts:23` - The Flooded Works hazard is tested only as a pure function; nothing asserts that standing in water actually slows anything, and the alternate branch segment that shares the mechanic is never entered by any test.
+- `game/tests/turret_shop.test.ts:22` - Three of the four turret upgrade tracks have no behavioural test, two have no test of their effect at all, and the test that claims to cover "independent power, volley, range and autoloader tracks" only echoes the literal order of the TURRE
+- `game/tests/weapon_shop.test.ts:51` - The weapon shop's five upgrade marks — the game's main scrap sink — are pinned only by asserting that a pure formula is monotone; nothing checks that a Mk5 weapon actually hits harder or faster than a Mk1.
+- `FieldItemSystem.ts:71` - `nearestDamagedStructure` accepts any non-destroyed structure below full health within 4.5 m, so it both shadows the only engineer-healing path in the game and happily spends a finite kit on a machine that is already detonating.
+- `SpiderMovementSystem.ts:38` **[FIXED]** - `departureHoldSeconds` is gated on `world.phaseTime`, which is "time since the last phase change", not "time since entering the segment" — so any mid-segment phase transition re-arms the 18-second hold and freezes the Spider dead in the mid
+- `TerrainBuilder.ts:507` - The biome pass multiplied ground relief by a per-palette `reliefScale` of up to 3.3 but left every scattered prop pinned at y = 0, so most of the dressing on the high-relief biomes is rendered underneath the ground it is standing on — and e
+- `TerrainBuilder.ts:513` - The crystal and mountain biomes apply a non-uniform `widthScale` to rock instances but leave the navigation radius at the unscaled `type.blocks * scale`, so a crystal spire blocks a circle roughly three times wider than the shape the player
+- `WorldView.ts:1042` - The Crawler Tank is the only entity in the game that moves during simulation and is drawn straight from its raw fixed-step position, because `Structure` has no previous pose and `syncStructures` is never handed the interpolation alpha.
+- `routes.ts:345` - seg.scrapyard's control points were rewritten and its length raised from 330 m to 360 m, but both spawn zones still stop at `toDistance: 330`, so the horde director cannot spawn anything for the last 30 m — and no authored loot exists there
+
+### P3 - 17
+
+- `game/src/game/systems/CollisionSystem.ts:206` - Explosions damage encounter sites that have not been triggered yet (unlike the direct-hit path, which requires `site.triggered`), and destroying a site does not stop `EncounterSystem` from releasing its authored squad — so a nest can be "de
+- `game/src/game/systems/CollisionSystem.ts:227` - `damageEncounterSite` adds every point of nest damage to `world.stats.damageByPlayer` regardless of the projectile's source, so turret fire is credited to the engineer and the §7.3 damage-share instrument stops being a measurement.
+- `game/src/game/systems/FieldItemSystem.ts:54` - The field-item shock mine is spawned through the default `spawnStructure` options, so it emits `structure.placed` with `source: "build"` and increments `stats.structuresPlaced` — re-opening the free-XP hole that build provenance was added t
+- `game/src/game/systems/HordeDirector.ts:113` - Killed enemies now linger as `active` pool slots for `ENEMY_LIFECYCLE.deathDuration` (0.9 s), and the director still compares `world.enemies.active` against `DIRECTOR.maxActiveEnemies`, so corpses silently consume the live-horde budget.
+- `game/src/rendering/WorldView.ts:682` - `syncStructures` is the only sync pass that does not take the render `alpha`, because structures were static when it was written — the new `crawlerTurret` moves at up to 5.2 m/s and therefore renders un-interpolated, stepping once per fixed
+- `game/tests/crawler_turret.test.ts:51` - The crawler formation test's tolerance admits every failure it is meant to catch, and the two-crawler slot logic — the only configuration the game allows — is never exercised.
+- `game/tests/field_items.test.ts:112` - The weapon-part item's only payoff is never triggered: the test collects exactly two parts and asserts the HUD reads "(2/3)", one short of the threshold.
+- `game/tests/object_pool.test.ts:1` - The new ObjectPool test file (24 lines, one test) covers `releaseAll` and leaves both guarantees the architecture actually rests on unasserted: that `acquire()` returns null at capacity, and that the free list stays consistent — `release()`
+- `game/tests/terrain_spacing.test.ts:26` - `propsHaveClearance` is unit-tested at its exact boundary but its only call site is not, so nothing asserts the property the test is named for — that a generated segment contains no connected wall of solid props.
+- `EncounterSystem.ts:89` - A workshop nest destroyed during its own telegraph still releases its full squad, and splash damage can destroy a nest that direct fire is forbidden from touching — the two damage paths disagree on whether `triggered` is required.
+- `FieldItemSystem.ts:28` - `modifiers.playerMaxHealth` is applied twice — `player.maxHealth` already carries it — so the repair kit's ceiling and the HUD's health bar are both wrong the moment any content sets that modifier.
+- `InteractionSystem.ts:116` - `RouteSpline.projectPoint` is an O(samples) linear scan over ~1025 samples, and the retirement pass makes the simulation run it twice per structure per tick on data it already has, plus a third time per structure per rendered frame.
+- `MobileStructureSystem.ts:39` - `structure.behindSpider = false` is a dead write: the flag is owned by `InteractionSystem.updateLeftBehindFlags`, which runs later in the same fixed step and unconditionally recomputes it.
+- `WorldView.ts:961` - The render path recomputes a spline projection per structure per frame that the fixed step already computed for the same structure in the same tick.
+- `materials.ts:83` - `MaterialLibrary.emissiveUnique` appends to an `owned` array that is only emptied by a full `dispose()`, so every placement ghost rebuild and every structure visual permanently retains one or two materials for the rest of the session.
+- `perf.json:1` - The committed performance record was never regenerated for the expansion: `docs/perf.json` at HEAD still holds the four pre-expansion scenarios, which the committed harness no longer even defines, so every budget claim in PERFORMANCE.md is 
+- `routes.ts:278` - Ironspine Pass's objective label says "Keep a defense powered for 35 seconds" (singular) but the pressure objective is hard-coded to require two simultaneously powered machines, so a player who does exactly what the label says watches the b

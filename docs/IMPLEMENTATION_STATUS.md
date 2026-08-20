@@ -435,6 +435,169 @@ The relay fix also gained the behavioural test the system never had
 relay reads `buffer 45 -> 45, state active` before the fix and `45 -> 0,
 starved` after.
 
+### 2b.18 The performance gate had been dead since the campaign landed
+
+- **Evidence.** `npm run perf` produced no report at all: it ran for the full
+  900-second timeout and exited with "the page never produced #perf-report".
+  Loading `?perf=1` in a browser showed why - an uncaught
+  `scenario "pursuit-full" ended in VICTORY while being measured`.
+- **Cause.** The five new campaign profiles each pin their segment with
+  `enterSegment(...)`. The three older stress profiles never did, so they
+  inherited whichever segment ran last - `seg.escape`, the campaign's final and
+  shortest at **118 m**. `pursuit-full` then teleported to **130 m**, twelve
+  metres past the gate, and completed the run inside its own measurement. The
+  guard from 2b.11 fired correctly and, because it throws, took the whole report
+  with it. The guard was right; the setup was stale.
+- **Change.** All three stress profiles now pin `seg.scrapyard`, the longest
+  segment at 360 m, via a documented `STRESS_SEGMENT` constant.
+
+### 2b.19 The profiles were measuring fields the machine had already left
+
+Fixing the timeout revealed a worse problem underneath it. The first successful
+report read like this:
+
+| Profile | Enemies measured | Peak | Draw calls |
+|---|---:|---:|---:|
+| combat-100 | **3** | 100 | 88 |
+| stage-4-maze | **3** | 100 | 81 |
+| stage-5-gate | **9** | 156 | 85 |
+
+A profile named for its hundred enemies was measuring three.
+
+- **Cause.** `debugApi.teleportSpider` set `distanceAlongRoute` and nothing else.
+  The hull's world position is derived from the spline by
+  `SpiderMovementSystem.syncTransform`, which runs on the *next* fixed step - so
+  everything a profile spawned immediately after the teleport was placed around
+  the machine's **old** position. Route segments sit sequentially in world space,
+  so entering a later one moved the spider hundreds of metres on that next step.
+  Measured live: `teleportSpider(90)` left the hull at (0, 99), and one step
+  later it was at (55, 1107) - a **999 m** jump. Enemies more than 78 m from both
+  the player and the spider are silently recycled, so the horde evaporated
+  between setup and measurement.
+- **Change.** `teleportSpider` now resolves the spline position immediately,
+  sets `prev*` so nothing interpolates across the jump, and carries the engineer
+  by the same offset so the tether is not torn.
+- **Result.** The same profiles, honestly measured:
+
+| Profile | Enemies | Draw calls | Triangles |
+|---|---:|---:|---:|
+| combat-100 | 3 → **106** | 88 → **151** | 189k → **453k** |
+| stage-4-maze | 3 → **103** | 81 → **152** | 183k → **444k** |
+| stage-5-gate | 9 → **156** | 85 → **156** | 126k → **441k** |
+
+  Worst case is now **156 draw calls against the 180 ceiling** - 24 to spare,
+  where the broken report said 85. That gap is the whole point: a budget that
+  reads far below the truth is an invitation to spend headroom that is not there.
+  This is the third time this project has measured the wrong thing (see 2b.7 and
+  2b.10) and the second time the tooling failed by reporting rather than raising.
+
+### 2b.20 The capture harness stopped producing images entirely
+
+- **Evidence.** `npm run capture` reported `0/12 captures written`, every scene
+  failing with "no image produced". Running the harness's exact browser command
+  by hand exited 0, printed nothing and wrote no file.
+- **Cause.** `capture.mjs` was the only harness still using Chromium's
+  `--screenshot=<path>` one-shot flag. In the installed Edge build that flag no
+  longer writes a file, in either `--headless=new` or `--headless=old`, and fails
+  silently. Ruled out first: a stale profile (retested with an isolated
+  `--user-data-dir`) and 76 accumulated Edge processes, 12 of them orphaned
+  headless instances from earlier timed-out runs, which were cleared without
+  changing the result.
+- **Change.** `capture.mjs` now drives the browser over the DevTools protocol
+  and takes `Page.captureScreenshot`, which returns the bytes rather than
+  trusting the browser to write them. That is the mechanism `record.mjs` and
+  `perf.mjs` already use, so there is now one screenshot path in the project
+  instead of two, and the surviving one is exercised by three harnesses. It also
+  opens one browser for the whole set rather than one per scene, and waits on the
+  page's own `__captureReady` instead of guessing a virtual-time budget.
+- **Result.** 12/12 written, including the two new biome scenes. Verified the
+  PNG dimensions come from the image header rather than the flag, as before.
+
+### 2b.21 Three empty blueprint chips reading "0"
+
+- **Evidence.** Visible in the re-shot `houses` capture: the blueprint bar
+  carried five chips, two real ones and three blank ones showing a bare `0`.
+- **Cause.** `HudBridge` always builds five slots and blanks the icon, name and
+  cost of any the loadout has not filled. `HudController.updateBlueprints` hides
+  chips *beyond the model length* but had no case for a slot that exists and is
+  empty, so it rendered the blank with its zero cost.
+- **Change.** A slot with no name and no icon is hidden. An unfilled slot is not
+  a blueprint that costs nothing; it is one the player has not unlocked.
+
+### 2b.22 The finale loadout fired a whole stage early
+
+- **Evidence.** `RunStateSystem` set `pendingLoadout = destination === "checkpoint.gate"`.
+  The biome expansion inserted Prism Watch between Gate Watch and the escape:
+  `checkpoint.gate -> seg.crystal`, and `checkpoint.crystal -> seg.escape`. So
+  the last-chance loadout screen opened one stage too soon, and the stop that
+  actually opens onto the final run offered none at all.
+- **How it survived.** `tests/integration.test.ts` asserted `pendingLoadout`
+  was `true` at `checkpoint.gate` - the test encoded the stale id as the intended
+  contract, which is the third time in this project's history that a test has
+  pinned the bug rather than the behaviour.
+- **Change.** The flag is derived from the route data: a checkpoint offers the
+  finale loadout when one of its `nextSegments` carries the `pursuit` modifier,
+  which is the same marker the phase machine already uses to recognise the
+  escape. The two cannot drift apart again. The test now asserts the intent -
+  no loadout at Gate Watch, loadout at Prism Watch - rather than an id.
+
+### 2b.23 A level-up restarted the final escape
+
+- **Evidence.** `departureHoldSeconds` (18 s on the escape) and
+  `pursuitStartSeconds` were both gated on `world.phaseTime`, which
+  `GameWorld.setPhase` zeroes on every transition. A level-up round-trips
+  through `UPGRADE_CHOICE` and back, so it reset both: the machine stopped dead
+  a second time on the final run, and the pursuit escalation clock went back to
+  zero with it. Found independently by two review lenses.
+- **Change.** Added `world.segmentTime`, reset on segment entry and advanced
+  every step, and moved both segment-scoped gates onto it. `phaseTime` keeps its
+  own meaning for anything genuinely scoped to a phase.
+- **Result.** Pinned by a test that was checked against the old code first:
+  before the fix the spider's distance freezes at 1.2708 m after the level-up
+  and never advances again.
+
+### 2b.24 Findings from the adjudicated review of the expansion
+
+The five-lens review of Codex's campaign work returned 40 findings; 23 were P1/P2
+and went to two independent skeptics each, with a finding surviving only on a
+unanimous verdict. **11 confirmed, 12 refuted** - a genuinely adversarial pass,
+and the refutation rate is the reason the confirmed ones are worth acting on.
+Two of them independently confirmed fixes already made above (2b.22, 2b.23).
+
+Fixed here:
+
+- **Maze watchtowers overran their instance buffer.** `buildMazePattern` sized
+  the tower `InstancedMesh` for `station % 8 === 0` alone while the loop also
+  raises a tower at every corner. Measured on `seg.scrapyard`: 56 stations, a
+  14-slot buffer, **36 towers written** - 22 matrices past the end, silently.
+  Capacity is now `stations * 2`, the only bound that can be correct, with a
+  hard guard in the loop and a test that fails against the old sizing.
+- **Retirement deleted machines the engineer could still reach.** It measured
+  arc length along the spline while the tether it claims to respect is a
+  straight-line radius, and its 26 m start was already inside the 32 m tether.
+  Reviewers measured deletions at 19.8 m on the Rust Yard zigzag. It is now
+  gated on straight-line reach as well, and `dropped` and `folding` are excluded
+  - `dropped` salvage is the objective itself in Salvage Rush.
+- **The repair kit shadowed the engineer's own healing** and would spend a
+  finite kit on a machine that was already detonating. Now applies the same
+  state exclusions `InteractionSystem.nearestStructure` already had.
+- **Scattered props stood underneath the ground.** The biome pass gave each
+  palette a `reliefScale` of up to 3.3 but left every prop pinned at `y = 0`.
+  The relief expression is now a shared `groundHeightAt` helper used by both the
+  terrain mesh and the props, so the two cannot disagree again.
+- **The Rust Yard's spawn zones stopped 30 m short of it.** Its length went
+  330 → 360 m without its zones following, so the director could not spawn in
+  the last 30 m and no loot was authored there. `tests/route.test.ts` now
+  compares every segment's authored zones against its measured spline length,
+  and reports the shortfall by name.
+
+Left deliberately, and why:
+
+- **Field items resolve by a fixed priority with no player choice**, so shock
+  mines and armour plates are unreachable while the player holds a repair kit
+  and is damaged. Confirmed and real, but the fix is a design change - making the
+  item a selected slot with its own cycle binding - not a correction.
+
 ## 3. Phase gate table (Phases A–E, §5 of fable_implementation_plan.md)
 
 All phases are marked "in progress" at the time this document was first

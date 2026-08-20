@@ -342,15 +342,15 @@ export const ROUTE_SEGMENTS: Record<string, RouteSegmentDefinition> = {
     pursuitStartSeconds: 999,
     corridorHalfWidth: 12,
     spawnZones: [
-      { fromDistance: 10, toDistance: 330, minLateral: 14, maxLateral: 17, weight: 1.6, minTrail: 0 },
-      { fromDistance: 30, toDistance: 330, minLateral: 13, maxLateral: 17, weight: 2.2, minTrail: 40 },
+      { fromDistance: 10, toDistance: 360, minLateral: 14, maxLateral: 17, weight: 1.6, minTrail: 0 },
+      { fromDistance: 30, toDistance: 360, minLateral: 13, maxLateral: 17, weight: 2.2, minTrail: 40 },
     ],
     resourceZones: [
-      { kind: "scrap", fromDistance: 12, toDistance: 320, count: 26, maxLateral: 10 },
-      { kind: "scrapLarge", fromDistance: 30, toDistance: 315, count: 6, maxLateral: 9 },
-      { kind: "fuel", fromDistance: 40, toDistance: 305, count: 3, maxLateral: 9 },
-      { kind: "armorPlate", fromDistance: 80, toDistance: 290, count: 2, maxLateral: 9 },
-      { kind: "weaponPart", fromDistance: 50, toDistance: 300, count: 3, maxLateral: 9 },
+      { kind: "scrap", fromDistance: 12, toDistance: 350, count: 26, maxLateral: 10 },
+      { kind: "scrapLarge", fromDistance: 30, toDistance: 345, count: 6, maxLateral: 9 },
+      { kind: "fuel", fromDistance: 40, toDistance: 335, count: 3, maxLateral: 9 },
+      { kind: "armorPlate", fromDistance: 80, toDistance: 320, count: 2, maxLateral: 9 },
+      { kind: "weaponPart", fromDistance: 50, toDistance: 330, count: 3, maxLateral: 9 },
     ],
     encounters: [
       { id: "nest.rust-1", kind: "workshopNest", distance: 82, lateral: -9, triggerLead: 18, warningSeconds: 1.5, occupants: [{ archetype: "minion", count: 8 }, { archetype: "warrior", count: 1 }] },

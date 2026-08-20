@@ -821,6 +821,14 @@ export class HudController {
         continue;
       }
       const model = blueprints[i];
+      // An unfilled loadout slot is not a blueprint costing nothing - it is a
+      // slot the player has not unlocked yet. The bridge blanks the icon and
+      // name and leaves the cost at 0, so rendering it anyway put three empty
+      // chips reading "0" on the bar for the whole first stage.
+      if (!model.name && !model.icon) {
+        chip.root.style.display = "none";
+        continue;
+      }
       chip.root.style.display = "";
       chip.root.setAttribute(
         "aria-label",
