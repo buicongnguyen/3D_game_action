@@ -559,6 +559,61 @@ describe("personal weapon", () => {
     expect(world.resources.scrap).toBe(scrap + 25);
   });
 
+  it("lets aimed fire select a nest while an off-axis enemy is nearer", () => {
+    const rig = createRig();
+    const world = rig.world;
+    world.player.x = world.player.z = 0;
+    world.player.currentWeapon = "rifle";
+    world.player.aimX = 0;
+    world.player.aimZ = 1;
+    const enemy = spawnEnemy(world, "golem", 4, 0);
+    world.encounterSites.push({
+      id: world.allocateId(), definitionId: "test.nest", x: 0, z: 6,
+      health: 180, maxHealth: 180, radius: 2, active: true, triggered: true,
+      wavesReleased: 1, reinforcementTimer: 8,
+    });
+    rig.weapons.update(world, STEP);
+    for (let i = 0; i < 20; i++) rig.collision.update(world, STEP);
+    expect(world.encounterSites[0].health).toBeLessThan(180);
+    expect(enemy.health).toBe(enemy.maxHealth);
+  });
+
+  it("explodes on a nest, hurts nearby enemies, and pays its reward only once", () => {
+    const rig = createRig();
+    const world = rig.world;
+    const neighbour = spawnEnemy(world, "golem", 3, 5);
+    world.encounterSites.push({
+      id: world.allocateId(), definitionId: "test.nest", x: 0, z: 5,
+      health: 10, maxHealth: 180, radius: 2, active: true, triggered: true,
+      wavesReleased: 0, reinforcementTimer: 1,
+    });
+    const scrap = world.resources.scrap;
+    for (let i = 0; i < 2; i++) {
+      const shot = launchProjectile(world, 0, 0, 0, 1, 60, 30, 0);
+      shot.explosionRadius = 5;
+    }
+    for (let i = 0; i < 10; i++) rig.collision.update(world, STEP);
+    expect(neighbour.health).toBeLessThan(neighbour.maxHealth);
+    expect(world.encounterSites[0].active).toBe(false);
+    expect(world.resources.scrap).toBe(scrap + 25);
+    expect(world.stats.nestsDestroyed).toBe(1);
+  });
+
+  it("attributes turret hits on nests to structures", () => {
+    const rig = createRig();
+    const world = rig.world;
+    world.encounterSites.push({
+      id: world.allocateId(), definitionId: "test.nest", x: 0, z: 5,
+      health: 180, maxHealth: 180, radius: 2, active: true, triggered: true,
+      wavesReleased: 1, reinforcementTimer: 8,
+    });
+    const shot = launchProjectile(world, 0, 0, 0, 1, 60, 10, 0);
+    shot.source = "structure.turret";
+    for (let i = 0; i < 10; i++) rig.collision.update(world, STEP);
+    expect(world.stats.damageByPlayer).toBe(0);
+    expect(world.stats.damageByStructures).toBe(10);
+  });
+
   it("pulls distant scrap back when the player tagged the enemy before it died", () => {
     const rig = createRig(20260820);
     const world = rig.world;

@@ -78,6 +78,18 @@
   --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
+.hud__stage-name { color: var(--hud-text); font-size: var(--fs-tiny); margin-top: 4px; }
+.hud__stage-track { height: 3px; margin-top: 3px; background: var(--brass-faint); }
+.hud__stage-fill { height: 100%; background: var(--fb-network); }
+.hud__threat-card { border-top: 1px solid var(--brass-soft); margin-top: 6px; padding-top: 5px; }
+.hud__threat-card[hidden] { display: none; }
+.hud__threat-label { color: var(--fb-warning); font-size: var(--fs-small); font-weight: 700; }
+.hud__threat-detail { color: var(--hud-text); font-size: var(--fs-tiny); margin-top: 3px; }
+@media (max-width: 700px), (max-height: 500px) {
+  .hud__threat-detail { max-width: 240px; line-height: 1.2; }
+  .hud__threat-card { margin-top: 3px; padding-top: 3px; }
+}
+
 /* --------------------------------------------------------------------------
  * Base document. hud.css is the only stylesheet the page links, so the canvas
  * shell lives here too.
@@ -2131,4 +2143,35 @@ body {
   .flash.is-firing {
     animation-duration: 0.18s;
   }
+}
+
+/* Keep the central playfield visible on phone-sized displays. Stage progress
+   replaces the duplicate distance/ETA row; threat remains named by its state. */
+@media (max-height: 500px) {
+  .hud__trail .bar--trail,
+  .hud__trail .hud__checkpoint { display: none; }
+  .hud__trail .hud__title { display: none; }
+  .hud__trail-head { position: absolute; right: 6px; top: 5px; }
+  .hud__stage-name { padding-right: 46px; margin-top: 0; }
+  .hud__threat-card .bar__name { display: none; }
+  .hud__threat-card .bar__head { position: absolute; right: 6px; margin-top: -15px; }
+  .hud__threat-label { padding-right: 68px; font-size: 11px; }
+  .hud__threat-card .bar__value { font-size: 10px; }
+  .hud__threat-detail { font-size: 10px; }
+}
+
+@media (max-width: 540px) and (min-height: 501px) {
+  .hud__trail { top: 100px; width: calc(100% - 2 * var(--edge)); }
+  .hud__trail .bar--trail,
+  .hud__trail .hud__checkpoint { display: none; }
+  .hud__trail .hud__trail-head { float: right; }
+  .hud__trail .hud__title { display: none; }
+  .hud__threat-card { max-width: none; }
+  .hud__blueprints { bottom: 145px; gap: 3px; }
+  .hud__blueprints .bp { width: clamp(56px, 17vw, 72px); }
+  .hud__prompt { bottom: 245px; max-width: 94vw; }
+  .hud__prompt--alt { bottom: 280px; }
+  .hud__toasts { top: auto; bottom: 260px; width: calc(100% - 2 * var(--edge)); }
+  .hud__toasts .toast { font-size: 11px; }
+  .hud__toasts .toast:nth-last-child(n + 3) { display: none; }
 }

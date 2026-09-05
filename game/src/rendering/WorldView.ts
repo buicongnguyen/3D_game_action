@@ -673,6 +673,7 @@ export class WorldView {
 
   sync(world: GameWorld, alpha: number, dt: number): void {
     this.clock += dt;
+    this.terrain.syncEncounters(world);
     // The contact-shadow layer is shared by the player, the structures and the
     // horde, so its counter is reset here and committed at the end rather than
     // inside any one of them.

@@ -102,6 +102,11 @@ export class WeaponSystem {
     const config = WEAPONS[player.currentWeapon];
     const range = config.range;
 
+    // Deliberate directional aim can shut a nest down during a swarm. Without
+    // aim, retain automatic enemy defense as the default for touch players.
+    const aimedSite = this.acquireSite(world, range, true);
+    if (aimedSite) return aimedSite;
+
     refreshEnemyHash(world);
     const count = world.enemyHash.query(
       this.candidates,
@@ -198,14 +203,21 @@ export class WeaponSystem {
     return true;
   }
 
-  private acquireSite(world: GameWorld, range: number): { id: number; x: number; z: number } | null {
+  private acquireSite(world: GameWorld, range: number, aimedOnly = false): { id: number; x: number; z: number } | null {
     const player = world.player;
+    const aimLength = Math.hypot(player.aimX, player.aimZ);
+    if (aimedOnly && aimLength < 0.001) return null;
     let best = null as { id: number; x: number; z: number } | null;
     let bestDistance = range * range;
     for (let i = 0; i < world.encounterSites.length; i++) {
       const site = world.encounterSites[i];
       if (!site.active || !site.triggered) continue;
       const distance = distSq(player.x, player.z, site.x, site.z);
+      if (aimedOnly && distance > 0.001) {
+        const alignment = ((site.x - player.x) * player.aimX + (site.z - player.z) * player.aimZ)
+          / (Math.sqrt(distance) * aimLength);
+        if (alignment < Math.cos(Math.PI / 10)) continue;
+      }
       if (distance < bestDistance) {
         bestDistance = distance;
         best = site;

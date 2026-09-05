@@ -1,4 +1,4 @@
-import type { DamageInfo, EncounterSite, Projectile } from "../../core/types.ts";
+import type { DamageInfo, DamageSource, EncounterSite, Projectile } from "../../core/types.ts";
 import { PLAYER, SPIDER } from "../../data/balance.ts";
 import { getBlueprint } from "../../data/structures.ts";
 import type { GameWorld } from "../GameWorld.ts";
@@ -174,7 +174,11 @@ export class CollisionSystem {
       closestApproach(ax, az, bx, bz, site.x, site.z);
       const reach = site.radius + projectile.radius;
       if (sweep.distSq > reach * reach) continue;
-      this.damageEncounterSite(world, site, projectile.damage);
+      if (projectile.explosionRadius > 0) {
+        this.applyExplosion(world, projectile, site.x, site.z);
+      } else {
+        this.damageEncounterSite(world, site, projectile.damage, projectile.source);
+      }
       world.events.emit({ type: "projectile.hit", x: site.x, z: site.z, y: projectile.y, source: projectile.source });
       return true;
     }
@@ -206,7 +210,7 @@ export class CollisionSystem {
       if (!site.active) continue;
       const distance = Math.hypot(site.x - x, site.z - z);
       if (distance > radius + site.radius) continue;
-      this.damageEncounterSite(world, site, projectile.damage * 0.8);
+      this.damageEncounterSite(world, site, projectile.damage * 0.8, projectile.source);
     }
     world.events.emit({
       type: "vfx.request",
@@ -220,11 +224,12 @@ export class CollisionSystem {
     world.events.emit({ type: "camera.shake", intensity: 0.22, duration: 0.18 });
   }
 
-  private damageEncounterSite(world: GameWorld, site: EncounterSite, amount: number): void {
-    if (!site.active) return;
+  private damageEncounterSite(world: GameWorld, site: EncounterSite, amount: number, source: DamageSource): void {
+    if (!site.active || amount <= 0) return;
     const applied = Math.min(site.health, amount);
     site.health -= applied;
-    world.stats.damageByPlayer += applied;
+    if (source === "player.weapon") world.stats.damageByPlayer += applied;
+    else world.stats.damageByStructures += applied;
     if (site.health > 0) return;
     site.active = false;
     world.resources.scrap += 25;

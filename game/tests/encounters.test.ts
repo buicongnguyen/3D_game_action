@@ -17,6 +17,23 @@ function enter(world: GameWorld, segmentId: string, distance: number): void {
 }
 
 describe("authored house encounters", () => {
+  it("cancels the first wave when a nest is destroyed during its warning", () => {
+    const world = new GameWorld(41);
+    enter(world, "seg.scrapyard", 65);
+    const encounters = new EncounterSystem(new HordeDirector());
+    encounters.update(world, SIM.fixedStep);
+    const site = world.encounterSites[0];
+    expect(site.triggered).toBe(true);
+    expect(site.wavesReleased).toBe(0);
+    site.health = 0;
+    site.active = false;
+    for (let i = 0; i < 60 * 30; i++) encounters.update(world, SIM.fixedStep);
+    expect(world.enemies.active).toBe(0);
+    expect(encounters.pendingCount).toBe(0);
+    expect(encounters.hasCompleted(site.definitionId)).toBe(true);
+    expect(site.wavesReleased).toBe(0);
+  });
+
   it("keeps the opening cache house peaceful", () => {
     const world = new GameWorld(1);
     enter(world, "seg.approach", 100);

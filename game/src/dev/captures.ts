@@ -75,6 +75,32 @@ function stationPlayer(world: GameWorld, aheadMetres: number, lateral: number): 
 
 export const CAPTURES: CaptureScenario[] = [
   {
+    id: "nest",
+    label: "Awakened nest health and reinforcement countdown",
+    settle: 0.1,
+    setup: (game, world) => {
+      game.debugApi.enterSegment("seg.scrapyard");
+      game.debugApi.teleportSpider(65);
+      game.advance(0.05);
+      stationPlayer(world, 7, -2);
+      const site = world.encounterSites[0];
+      if (site) site.health = site.maxHealth * 0.55;
+    },
+  },
+  {
+    id: "nest-cleared",
+    label: "Destroyed nest stays as subdued solid ruins",
+    settle: 0.1,
+    setup: (game, world) => {
+      game.debugApi.enterSegment("seg.scrapyard");
+      game.debugApi.teleportSpider(65);
+      game.advance(0.05);
+      stationPlayer(world, 7, -2);
+      const site = world.encounterSites[0];
+      if (site) { site.health = 0; site.active = false; }
+    },
+  },
+  {
     id: "march",
     label: "Normal march, engineer running ahead",
     settle: 1.2,

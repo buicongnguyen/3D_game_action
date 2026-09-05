@@ -1,4 +1,5 @@
 import type { WeaponKind } from "../core/types.ts";
+import type { ThreatReadout } from "./ThreatReadout.ts";
 
 /**
  * The permanent HUD.
@@ -46,6 +47,9 @@ export interface HudLeftBehindModel {
 }
 
 export interface HudModel {
+  stageName: string;
+  stageProgress: number;
+  threat: ThreatReadout;
   playerHealth: number;
   playerMaxHealth: number;
   coreHealth: number;
@@ -383,6 +387,12 @@ export class HudController {
   private readonly objective: HTMLElement;
   private readonly objectiveLabel: HTMLElement;
   private readonly objectiveValue: HTMLElement;
+  private readonly stageName: HTMLElement;
+  private readonly stageFill: HTMLElement;
+  private readonly threatCard: HTMLElement;
+  private readonly threatLabel: HTMLElement;
+  private readonly threatDetail: HTMLElement;
+  private readonly threatHealth: Bar;
   private readonly salvage: HTMLElement;
   private readonly salvageTime: HTMLElement;
   private readonly salvageScore: HTMLElement;
@@ -502,12 +512,19 @@ export class HudController {
     checkpointLabel.textContent = "Next halt";
     this.distanceValue = el("span", "hud__checkpoint-value", checkpoint);
     this.etaValue = el("span", "hud__checkpoint-value", checkpoint);
+    this.stageName = el("div", "hud__stage-name", trail);
+    const stageTrack = el("div", "hud__stage-track", trail);
+    this.stageFill = el("div", "hud__stage-fill", stageTrack);
     this.objective = el("div", "hud__objective", trail);
     this.objectiveLabel = el("span", "hud__objective-label", this.objective);
     this.objectiveValue = el("span", "hud__objective-value", this.objective);
     this.salvage = el("div", "hud__salvage", trail);
     this.salvageTime = el("span", "hud__salvage-time", this.salvage);
     this.salvageScore = el("span", "hud__salvage-score", this.salvage);
+    this.threatCard = el("div", "hud__threat-card", trail);
+    this.threatLabel = el("div", "hud__threat-label", this.threatCard);
+    this.threatHealth = new Bar(this.threatCard, "health", "Target", false);
+    this.threatDetail = el("div", "hud__threat-detail", this.threatCard);
 
     // --- resources, top right ----------------------------------------------
     const resources = panel(this.hud, "hud__resources panel--right");
@@ -656,6 +673,15 @@ export class HudController {
     }
 
     const hasObjective = model.objectiveLabel !== null;
+    const stageText = `${model.stageName} · ${Math.floor(model.stageProgress * 100)}%`;
+    if (this.stageName.textContent !== stageText) this.stageName.textContent = stageText;
+    this.stageFill.style.width = `${Math.round(model.stageProgress * 100)}%`;
+    this.threatCard.hidden = !model.threat.label;
+    if (model.threat.label) {
+      if (this.threatLabel.textContent !== model.threat.label) this.threatLabel.textContent = model.threat.label;
+      if (this.threatDetail.textContent !== model.threat.detail) this.threatDetail.textContent = model.threat.detail;
+      this.threatHealth.update(model.threat.health, model.threat.maxHealth, 0);
+    }
     this.objective.classList.toggle("is-on", hasObjective);
     if (hasObjective) {
       this.objectiveLabel.textContent = model.objectiveLabel ?? "";

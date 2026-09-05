@@ -6,14 +6,17 @@ import {
   InstancedMesh,
   Matrix4,
   Mesh,
+  MeshBasicMaterial,
   Object3D,
   PlaneGeometry,
   Quaternion,
+  RingGeometry,
   Vector3,
 } from "three";
 import { Random } from "../core/Random.ts";
 import { angleDelta, clamp, smoothstep } from "../core/math.ts";
 import { ENV } from "../art/palette.ts";
+import { FEEDBACK } from "../art/palette.ts";
 import { NAVIGATION } from "../data/balance.ts";
 import type { MeshForge } from "../art/MeshForge.ts";
 import type { GameWorld } from "../game/GameWorld.ts";
@@ -206,6 +209,11 @@ export class TerrainBuilder {
   private readonly quaternion = new Quaternion();
   private readonly scaleVector = new Vector3();
   private readonly instanceColor = new Color();
+  private readonly signalMaterial = new MeshBasicMaterial({ color: 0xffffff, depthWrite: false, toneMapped: false });
+  private readonly nestSignalMaterial = new MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, depthTest: false, depthWrite: false, toneMapped: false });
+  private encounterMesh: InstancedMesh | null = null;
+  private nestSignals: InstancedMesh | null = null;
+  private readonly nestVisuals: Array<{ id: string; house: number; x: number; z: number; state: string }> = [];
 
   constructor(
     private readonly forge: MeshForge,
@@ -235,8 +243,71 @@ export class TerrainBuilder {
     this.scatterProps(world, segment, random);
     this.buildWaterAndBridges(world, segment);
     this.buildEncounterSites(world, segment);
+    this.buildRouteArrows(world);
     if (segment.modifiers.includes("maze")) this.buildMazePattern(world, segment, random);
     else this.buildCorridorMarkers(world, segment, random);
+  }
+
+  /** A single draw for sparse markings; forward follows the authored spline. */
+  private buildRouteArrows(world: GameWorld): void {
+    const spline = world.route.spline!;
+    const geometry = new BufferGeometry();
+    geometry.setAttribute("position", new BufferAttribute(new Float32Array([
+      -0.85, 0, -0.6, 0, 0, 0.8, 0, 0, 0.2,
+      -0.85, 0, -0.6, 0, 0, 0.2, -0.85, 0, -1.2,
+      0, 0, 0.8, 0.85, 0, -0.6, 0.85, 0, -1.2,
+      0, 0, 0.8, 0.85, 0, -1.2, 0, 0, 0.2,
+    ]), 3));
+    this.ownedGeometries.push(geometry);
+    const count = Math.floor(spline.length / 12);
+    const arrows = new InstancedMesh(geometry, this.signalMaterial, count);
+    arrows.name = "route.forwardChevrons";
+    arrows.frustumCulled = false;
+    const point = { x: 0, z: 0 };
+    const tangent = { x: 0, z: 1 };
+    for (let i = 0; i < count; i++) {
+      spline.positionAt(point, i * 12 + 6);
+      spline.tangentAt(tangent, i * 12 + 6);
+      this.position.set(point.x, 0.12, point.z);
+      this.quaternion.setFromAxisAngle(UP, Math.atan2(tangent.x, tangent.z));
+      this.scaleVector.setScalar(1);
+      this.matrix.compose(this.position, this.quaternion, this.scaleVector);
+      arrows.setMatrixAt(i, this.matrix);
+      arrows.setColorAt(i, this.instanceColor.setHex(0xb9ae84));
+    }
+    this.instanced.push(arrows);
+    this.root.add(arrows);
+  }
+
+  /** Update only changed nests; houses remain solid ruins after shutdown. */
+  syncEncounters(world: GameWorld): void {
+    if (!this.nestSignals || !this.encounterMesh) return;
+    let changed = false;
+    for (let i = 0; i < this.nestVisuals.length; i++) {
+      const visual = this.nestVisuals[i];
+      const site = world.encounterSites.find((candidate) => candidate.definitionId === visual.id);
+      const active = site?.active ?? true;
+      const triggered = site?.triggered ?? false;
+      const healthSegments = active ? Math.ceil(16 * (site ? site.health / site.maxHealth : 1)) : 16;
+      const state = `${active}:${triggered}:${healthSegments}`;
+      if (visual.state === state) continue;
+      changed = true;
+      visual.state = state;
+      const color = !active ? FEEDBACK.heal : triggered ? FEEDBACK.invalid : FEEDBACK.warningPulse;
+      for (let j = 0; j < 16; j++) {
+        this.position.set(visual.x, 0.14, visual.z);
+        this.quaternion.setFromAxisAngle(UP, -j * Math.PI * 2 / 16);
+        this.scaleVector.setScalar(j < healthSegments ? 3.9 : 0);
+        this.matrix.compose(this.position, this.quaternion, this.scaleVector);
+        this.nestSignals.setMatrixAt(i * 16 + j, this.matrix);
+        this.nestSignals.setColorAt(i * 16 + j, this.instanceColor.setHex(color));
+      }
+      this.encounterMesh.setColorAt(visual.house, this.instanceColor.setHex(!active ? 0x555d59 : 0xca8b62));
+    }
+    if (!changed) return;
+    this.nestSignals.instanceMatrix.needsUpdate = true;
+    if (this.nestSignals.instanceColor) this.nestSignals.instanceColor.needsUpdate = true;
+    if (this.encounterMesh.instanceColor) this.encounterMesh.instanceColor.needsUpdate = true;
   }
 
   /**
@@ -626,6 +697,7 @@ export class TerrainBuilder {
     if (!geometry) return;
     const spline = world.route.spline!;
     const mesh = new InstancedMesh(geometry, this.forge.materials.surface, encounters.length);
+    this.encounterMesh = mesh;
     mesh.name = "prop.ruinedHouse";
     mesh.castShadow = true;
     mesh.receiveShadow = true;
@@ -639,6 +711,7 @@ export class TerrainBuilder {
       spline.tangentAt(tangent, encounter.distance);
       const x = point.x - tangent.z * encounter.lateral;
       const z = point.z + tangent.x * encounter.lateral;
+      if (encounter.kind === "workshopNest") this.nestVisuals.push({ id: encounter.id, house: i, x, z, state: "" });
       // The front doorway faces the route centreline.
       const towardRoute = encounter.lateral > 0 ? Math.PI * 0.5 : -Math.PI * 0.5;
       const heading = Math.atan2(tangent.x, tangent.z) + towardRoute;
@@ -656,6 +729,18 @@ export class TerrainBuilder {
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     this.instanced.push(mesh);
     this.root.add(mesh);
+    if (this.nestVisuals.length > 0) {
+      const ring = new RingGeometry(0.93, 1, 3, 1, 0, Math.PI * 2 / 16 * 0.82);
+      ring.rotateX(-Math.PI / 2);
+      this.ownedGeometries.push(ring);
+      this.nestSignals = new InstancedMesh(ring, this.nestSignalMaterial, this.nestVisuals.length * 16);
+      this.nestSignals.name = "encounter.nestHealth";
+      this.nestSignals.renderOrder = 2;
+      this.nestSignals.frustumCulled = false;
+      this.instanced.push(this.nestSignals);
+      this.root.add(this.nestSignals);
+      this.syncEncounters(world);
+    }
   }
 
   /**
@@ -822,6 +907,9 @@ export class TerrainBuilder {
   private readonly reportedMissing = new Set<string>();
 
   clear(): void {
+    this.encounterMesh = null;
+    this.nestSignals = null;
+    this.nestVisuals.length = 0;
     if (this.backdrop) {
       this.backdrop.geometry.dispose();
       this.root.remove(this.backdrop);
@@ -843,6 +931,8 @@ export class TerrainBuilder {
 
   dispose(): void {
     this.clear();
+    this.signalMaterial.dispose();
+    this.nestSignalMaterial.dispose();
     this.root.removeFromParent();
   }
 

@@ -55,7 +55,14 @@ export class EncounterSystem {
       const hasBoss = encounter.occupants.some((group) => group.archetype === "golem");
       this.started.add(encounter.id);
       const site = world.encounterSites.find((candidate) => candidate.definitionId === encounter.id);
-      if (site) site.triggered = true;
+      if (site && !site.active) {
+        this.completed.add(encounter.id);
+        continue;
+      }
+      if (site) {
+        site.triggered = true;
+        site.reinforcementTimer = encounter.warningSeconds;
+      }
       this.pending.push({ definition: encounter, timer: encounter.warningSeconds, ...position });
       world.events.emit({
         type: "ui.toast",
@@ -76,14 +83,21 @@ export class EncounterSystem {
       });
     }
 
+    this.updateReinforcements(world, dt);
     for (let i = this.pending.length - 1; i >= 0; i--) {
       const pending = this.pending[i];
+      const site = world.encounterSites.find((candidate) => candidate.definitionId === pending.definition.id);
+      if (site && !site.active) {
+        this.completed.add(pending.definition.id);
+        this.pending.splice(i, 1);
+        continue;
+      }
       pending.timer -= dt;
+      if (site) site.reinforcementTimer = Math.max(0, pending.timer);
       if (pending.timer > 0) continue;
       this.release(world, pending);
       this.pending.splice(i, 1);
     }
-    this.updateReinforcements(world, dt);
   }
 
   private release(world: GameWorld, pending: PendingEncounter): void {

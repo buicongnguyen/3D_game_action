@@ -10,6 +10,7 @@ import { PLAYER, SPIDER, STRUCTURES, WEAPONS } from "../data/balance.ts";
 import type { HudController, HudModel } from "./HudController.ts";
 import type { RadialMenu } from "./RadialMenu.ts";
 import { WEAPON_SHOP } from "../data/weaponShop.ts";
+import { updateThreatReadout } from "./ThreatReadout.ts";
 
 /**
  * Builds the HUD's view model from world state each frame and pipes feedback
@@ -64,6 +65,9 @@ export class HudBridge {
     lastDevice: "gamepad",
     emergencyBurn: false,
     cylinders: 0,
+    stageName: "",
+    stageProgress: 0,
+    threat: { label: "", detail: "", health: 0, maxHealth: 1 },
   };
 
   private readonly promptSlot = { text: "", button: "", progress: 0 };
@@ -204,6 +208,10 @@ export class HudBridge {
     model.salvageMode = world.mode === "salvageRush";
     model.salvageSeconds = world.salvageTimeRemaining;
     model.salvageScore = world.salvageScore;
+    model.stageName = world.route.segment?.name ?? "Expedition";
+    model.stageProgress = world.route.spline
+      ? clamp(spider.distanceAlongRoute / Math.max(1, world.route.spline.length), 0, 1) : 0;
+    updateThreatReadout(world, model.threat);
 
     this.updateBlueprints(world);
     this.updatePrompt(world, interaction, input);
