@@ -176,8 +176,7 @@ export class WeaponSystem {
     if (player.downed || world.paused || player.unlockedWeapons.length <= 1) return false;
     const current = player.unlockedWeapons.indexOf(player.currentWeapon);
     player.currentWeapon = player.unlockedWeapons[(current + 1) % player.unlockedWeapons.length];
-    player.weaponCooldown = Math.min(player.weaponCooldown, 0.18);
-    player.weaponOverheated = false;
+    // Switching does not refund the previous shot's recovery or clear heat.
     world.events.emit({
       type: "ui.toast",
       message: `Equipped ${WEAPONS[player.currentWeapon].name}`,
@@ -192,8 +191,7 @@ export class WeaponSystem {
     if (player.downed || world.paused || !player.unlockedWeapons.includes(kind)) return false;
     if (player.currentWeapon === kind) return true;
     player.currentWeapon = kind;
-    player.weaponCooldown = Math.min(player.weaponCooldown, 0.18);
-    player.weaponOverheated = false;
+    // Cooldown and heat are shared player state and must survive selection.
     world.events.emit({
       type: "ui.toast",
       message: `Equipped ${WEAPONS[kind].name} · Mk ${player.weaponLevels[kind] || 1}`,

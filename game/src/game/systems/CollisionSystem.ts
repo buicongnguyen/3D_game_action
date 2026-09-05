@@ -116,15 +116,16 @@ export class CollisionSystem {
 
         this.stats.projectileChecks++;
         const reach = enemy.radius + projectile.radius;
-        closestApproach(ax, az, bx, bz, enemy.x, enemy.z);
-        if (sweep.distSq > reach * reach) continue;
-        if (sweep.t < bestT) {
-          bestT = sweep.t;
+        const entry = segmentCircleEntry(ax, az, bx, bz, enemy.x, enemy.z, reach);
+        if (entry < bestT) {
+          bestT = entry;
           victim = index;
         }
       }
 
-      if (victim < 0) return this.sweepEncounterSites(world, projectile, ax, az, bx, bz);
+      // Nests and enemies participate in the same front-to-back hit order.
+      if (this.sweepEncounterSites(world, projectile, ax, az, bx, bz, bestT)) return true;
+      if (victim < 0) return false;
 
       const enemy = backing[victim];
       this.struck.push(enemy.id);
@@ -167,22 +168,30 @@ export class CollisionSystem {
     az: number,
     bx: number,
     bz: number,
+    beforeT = Infinity,
   ): boolean {
+    let closest: EncounterSite | null = null;
+    let closestT = beforeT;
     for (let i = 0; i < world.encounterSites.length; i++) {
       const site = world.encounterSites[i];
       if (!site.active || !site.triggered) continue;
-      closestApproach(ax, az, bx, bz, site.x, site.z);
       const reach = site.radius + projectile.radius;
-      if (sweep.distSq > reach * reach) continue;
-      if (projectile.explosionRadius > 0) {
-        this.applyExplosion(world, projectile, site.x, site.z);
-      } else {
-        this.damageEncounterSite(world, site, projectile.damage, projectile.source);
+      const entry = segmentCircleEntry(ax, az, bx, bz, site.x, site.z, reach);
+      if (entry < closestT) {
+        closest = site;
+        closestT = entry;
       }
-      world.events.emit({ type: "projectile.hit", x: site.x, z: site.z, y: projectile.y, source: projectile.source });
-      return true;
     }
-    return false;
+    if (!closest) return false;
+    const hitX = ax + (bx - ax) * closestT;
+    const hitZ = az + (bz - az) * closestT;
+    if (projectile.explosionRadius > 0) {
+      this.applyExplosion(world, projectile, hitX, hitZ);
+    } else {
+      this.damageEncounterSite(world, closest, projectile.damage, projectile.source);
+    }
+    world.events.emit({ type: "projectile.hit", x: hitX, z: hitZ, y: projectile.y, source: projectile.source });
+    return true;
   }
 
   private applyExplosion(world: GameWorld, projectile: Projectile, x: number, z: number): void {
@@ -327,6 +336,23 @@ const hitInfo: DamageInfo = {
 
 /** Closest approach of a point to a segment. Writes into `sweep`; no sqrt. */
 const sweep = { t: 0, distSq: 0 };
+
+/** First contact with a body's expanded circle; Infinity means no segment hit. */
+function segmentCircleEntry(ax: number, az: number, bx: number, bz: number, px: number, pz: number, radius: number): number {
+  const ox = ax - px;
+  const oz = az - pz;
+  const c = ox * ox + oz * oz - radius * radius;
+  if (c <= 0) return 0;
+  const dx = bx - ax;
+  const dz = bz - az;
+  const a = dx * dx + dz * dz;
+  if (a < 1e-9) return Infinity;
+  const b = ox * dx + oz * dz;
+  const discriminant = b * b - a * c;
+  if (discriminant < 0) return Infinity;
+  const t = (-b - Math.sqrt(discriminant)) / a;
+  return t >= 0 && t <= 1 ? t : Infinity;
+}
 
 function closestApproach(
   ax: number,

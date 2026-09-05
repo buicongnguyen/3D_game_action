@@ -630,6 +630,14 @@ export class Game {
     this.runState.update(world, scaled);
     this.syncSegmentPresentation();
 
+    // A final arrival must not be overwritten by combat later in this tick.
+    if (["VICTORY", "DEFEAT"].includes(world.phase)) {
+      this.updatePhaseTransitions();
+      world.events.drain();
+      world.tick++;
+      return;
+    }
+
     // 3. spider
     this.spiderMovement.update(world, scaled);
     if (input.buttons.overdrive.pressed) this.spiderMovement.toggleOverdrive(world);

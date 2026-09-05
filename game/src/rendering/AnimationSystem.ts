@@ -503,7 +503,8 @@ export function animateSpider(
   furnaceHeat: number,
 ): void {
   const normalized = clamp(speed / SPIDER.speedOverdrive, 0, 1.3);
-  const cadence = docked ? 0 : 1.55 + normalized * 1.5;
+  const moving = !docked && speed > 0.001;
+  const cadence = moving ? 1.55 + normalized * 1.5 : 0;
   rig.gaitPhase = (rig.gaitPhase + cadence * dt) % TAU;
   const t = rig.gaitPhase;
 
@@ -514,7 +515,7 @@ export function animateSpider(
     const phase = t + (group ? Math.PI : 0) + i * 0.06;
     const lift = Math.max(0, Math.sin(phase));
     const reach = Math.cos(phase);
-    const amount = docked ? 0 : clamp(normalized + 0.25, 0, 1);
+    const amount = moving ? clamp(normalized + 0.25, 0, 1) : 0;
 
     // Every joint offsets from the authored stance. The forge builds the legs
     // arched like an insect's, femur up and tibia down; writing absolute
@@ -548,7 +549,7 @@ export function animateSpider(
   // and rolls slightly onto whichever group is planted. Both are exaggerated
   // past physical accuracy because at this distance the body's motion is the
   // main cue that the machine has weight at all.
-  const gaitAmount = docked ? 0 : clamp(normalized + 0.3, 0, 1);
+  const gaitAmount = moving ? clamp(normalized + 0.3, 0, 1) : 0;
   rig.body.position.y = restY(rig.body) + (docked ? -0.35 : Math.sin(t * 2) * 0.3 * gaitAmount);
   rig.body.rotation.z = docked ? 0 : Math.sin(t) * 0.075 * gaitAmount;
   rig.body.rotation.x = docked ? -0.1 : Math.sin(t * 2 + 1.1) * 0.05 * gaitAmount;

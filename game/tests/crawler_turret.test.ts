@@ -8,6 +8,7 @@ import { MobileStructureSystem } from "../src/game/systems/MobileStructureSystem
 import { RunStateSystem } from "../src/game/systems/RunStateSystem.ts";
 import { StructureCombatSystem } from "../src/game/systems/StructureCombatSystem.ts";
 import { createEmptySnapshot } from "../src/input/InputActions.ts";
+import { STRUCTURES } from "../src/data/balance.ts";
 
 function activeCrawler(world: GameWorld, x: number, z: number) {
   const crawler = new ConstructionSystem().spawnStructure(world, "crawlerTurret", x, z, 0, 1, -1);
@@ -17,6 +18,21 @@ function activeCrawler(world: GameWorld, x: number, z: number) {
 }
 
 describe("crawler tank", () => {
+  it("routes around a building without entering its blocked footprint", () => {
+    const world = new GameWorld(8305);
+    world.spider.x = 0;
+    world.spider.z = 20;
+    world.spider.heading = 0;
+    world.navigation.setStaticBox(0, 5, 3, 2, 0);
+    world.flowField.rebuild(0, 20);
+    const crawler = activeCrawler(world, 0, -5);
+    const movement = new MobileStructureSystem();
+    for (let i = 0; i < 900; i++) {
+      movement.update(world, 1 / 60);
+      expect(world.navigation.isBlockedCircle(crawler.x, crawler.z, STRUCTURES.crawlerTurret.radius)).toBe(false);
+    }
+    expect(crawler.z).toBeGreaterThan(10);
+  });
   it("keeps emplaced rivet turrets invulnerable while crawlers remain vulnerable", () => {
     const world = new GameWorld(8300);
     const construction = new ConstructionSystem();

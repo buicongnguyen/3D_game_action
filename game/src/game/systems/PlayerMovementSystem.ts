@@ -204,8 +204,12 @@ export class PlayerMovementSystem {
 
     const dx = (spider.x - player.x) / distance;
     const dz = (spider.z - player.z) / distance;
-    player.x += dx * PLAYER.tetherPullSpeed * dt;
-    player.z += dz * PLAYER.tetherPullSpeed * dt;
+    // Forced movement must obey the same terrain collision as walking.
+    const pull = Math.min(distance - PLAYER.tetherDistance, PLAYER.tetherPullSpeed * dt);
+    const nextX = player.x + dx * pull;
+    if (!world.navigation.isBlockedCircle(nextX, player.z, PLAYER.radius)) player.x = nextX;
+    const nextZ = player.z + dz * pull;
+    if (!world.navigation.isBlockedCircle(player.x, nextZ, PLAYER.radius)) player.z = nextZ;
 
     const droppedCarry = player.carry.kind !== "none";
     if (player.carry.kind === "structure") {

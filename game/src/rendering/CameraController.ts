@@ -78,7 +78,9 @@ export class CameraController {
 
   private applyProjection(): void {
     const aspect = this.renderer.aspect;
-    const halfHeight = this.viewSize;
+    // Preserve the gameplay width on portrait screens instead of cropping the
+    // convoy to a narrow strip. Landscape framing is unchanged.
+    const halfHeight = this.viewSize / Math.min(1, Math.max(0.1, aspect));
     const halfWidth = halfHeight * aspect;
     this.camera.left = -halfWidth;
     this.camera.right = halfWidth;
@@ -92,6 +94,7 @@ export class CameraController {
     this.focusX = this.targetX;
     this.focusZ = this.targetZ;
     this.viewSize = this.targetViewSize;
+    this.applyProjection();
     this.commit();
   }
 
@@ -132,7 +135,7 @@ export class CameraController {
     const screenRight = dx * this.rightX + dz * this.rightZ;
     const screenUp = (dx * this.forwardX + dz * this.forwardZ) * Math.sin(CAMERA.pitch);
     const limitX = this.halfWidth * CAMERA.playerSafeFraction;
-    const limitY = this.viewSize * CAMERA.playerSafeFraction;
+    const limitY = this.camera.top * CAMERA.playerSafeFraction;
 
     const overX = Math.abs(screenRight) - limitX;
     if (overX > 0) {
@@ -228,11 +231,11 @@ export class CameraController {
 
   /** Half-height of the view in world units; used for culling and HUD anchors. */
   get halfHeight(): number {
-    return this.viewSize;
+    return this.viewSize / Math.min(1, Math.max(0.1, this.renderer.aspect));
   }
 
   get halfWidth(): number {
-    return this.viewSize * this.renderer.aspect;
+    return this.viewSize * Math.max(1, this.renderer.aspect);
   }
 
   /**

@@ -269,7 +269,7 @@ export class DamageSystem {
 
     const spider = world.spider;
     player.downed = false;
-    player.health = player.maxHealth * PLAYER.reviveHealthFraction;
+    player.health = player.maxHealth * world.modifiers.playerMaxHealth * PLAYER.reviveHealthFraction;
     player.invulnerability = PLAYER.hitInvulnerability + REVIVE_IMMUNITY;
     player.animState = "idle";
     player.animLock = 0;

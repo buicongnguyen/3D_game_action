@@ -140,6 +140,35 @@ function countActiveProjectiles(world: GameWorld): number {
 // ---------------------------------------------------------------------------
 
 describe("projectile sweeping", () => {
+  it.each([false, true])("hits the first nest or enemy along the sweep (enemy first: %s)", (enemyFirst) => {
+    const rig = createRig();
+    const world = rig.world;
+    const site = {
+      id: world.allocateId(), definitionId: "order", x: 0, z: enemyFirst ? 4 : 0,
+      health: 180, maxHealth: 180, radius: 2.7, active: true, triggered: true,
+      wavesReleased: 1, reinforcementTimer: 8,
+    };
+    world.encounterSites.push(site);
+    const enemy = spawnEnemy(world, "minion", 0, -1.8);
+    launchProjectile(world, 0, -3, 0, 1, 360, 5, 0);
+    rig.collision.update(world, STEP);
+    expect(site.health).toBe(enemyFirst ? 180 : 175);
+    expect(enemy.health).toBe(enemyFirst ? 15 : 20);
+  });
+
+  it("selects the nearer nest even when the farther nest is first in the array", () => {
+    const rig = createRig();
+    const world = rig.world;
+    for (const z of [5, 1]) world.encounterSites.push({
+      id: world.allocateId(), definitionId: `nest.${z}`, x: 0, z,
+      health: 180, maxHealth: 180, radius: 1, active: true, triggered: true,
+      wavesReleased: 1, reinforcementTimer: 8,
+    });
+    launchProjectile(world, 0, -3, 0, 1, 600, 5, 0);
+    rig.collision.update(world, STEP);
+    expect(world.encounterSites.map((site) => site.health)).toEqual([180, 175]);
+  });
+
   it("registers a hit on an enemy the projectile crosses entirely within one step", () => {
     const rig = createRig();
     const enemy = spawnEnemy(rig.world, "minion", 0, 3);
@@ -226,12 +255,13 @@ describe("player damage", () => {
     expect(player.invulnerability).toBeCloseTo(PLAYER.hitInvulnerability, 6);
   });
 
-  it("downs the engineer, spends the rescue charge, and revives at the spider", () => {
+  it.each([1, 1.5, 2])("revives at the Spider with the upgraded health fraction (%s)", (healthMultiplier) => {
     const rig = createRig();
     const world = rig.world;
     world.spider.x = 12;
     world.spider.z = -5;
     world.resources.scrap = 60;
+    world.modifiers.playerMaxHealth = healthMultiplier;
 
     rig.damage.applyToPlayer(world, {
       amount: 999,
@@ -250,7 +280,7 @@ describe("player damage", () => {
     }
 
     expect(world.player.downed).toBe(false);
-    expect(world.player.health).toBeCloseTo(PLAYER.health * PLAYER.reviveHealthFraction, 6);
+    expect(world.player.health).toBeCloseTo(PLAYER.health * healthMultiplier * PLAYER.reviveHealthFraction, 6);
     expect(world.resources.scrap).toBe(60 - PLAYER.reviveScrapPenalty);
     expect(world.spider.coreHealth).toBe(SPIDER.coreHealth - PLAYER.reviveCoreDamage);
     // Dropped next to the spider, not where they fell.
@@ -557,6 +587,33 @@ describe("personal weapon", () => {
     for (let i = 0; i < 20; i++) rig.collision.update(world, STEP);
     expect(world.encounterSites[0].active).toBe(false);
     expect(world.resources.scrap).toBe(scrap + 25);
+  });
+
+  it.each(["cycle", "select"])("preserves recovery and overheat through %s switching", (method) => {
+    const rig = createRig();
+    const world = rig.world;
+    world.player.unlockedWeapons = ["launcher", "flamer"];
+    world.player.currentWeapon = "launcher";
+    world.player.weaponCooldown = WEAPONS.launcher.fireInterval;
+    world.player.weaponHeat = 1;
+    world.player.weaponOverheated = true;
+    if (method === "cycle") {
+      rig.weapons.cycleUnlockedWeapon(world);
+      rig.weapons.cycleUnlockedWeapon(world);
+    } else {
+      rig.weapons.selectUnlockedWeapon(world, "flamer");
+      rig.weapons.selectUnlockedWeapon(world, "launcher");
+    }
+    expect(world.player.weaponCooldown).toBe(WEAPONS.launcher.fireInterval);
+    expect(world.player.weaponHeat).toBe(1);
+    expect(world.player.weaponOverheated).toBe(true);
+    spawnEnemy(world, "golem", world.player.x, world.player.z + 5);
+    rig.weapons.update(world, STEP);
+    expect(rig.weapons.stats.shotsFired).toBe(0);
+    // Natural cooling still unlocks firing; the fix must not lock the gun forever.
+    for (let i = 0; i < 120; i++) rig.weapons.update(world, STEP);
+    expect(world.player.weaponOverheated).toBe(false);
+    expect(rig.weapons.stats.shotsFired).toBeGreaterThan(0);
   });
 
   it("lets aimed fire select a nest while an off-axis enemy is nearer", () => {

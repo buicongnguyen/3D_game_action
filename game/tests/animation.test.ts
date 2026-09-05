@@ -15,6 +15,8 @@ import {
 } from "../src/rendering/AnimationSystem.ts";
 import type { PuppetRig } from "../src/art/characters.ts";
 import type { SpiderRig, TurretRig } from "../src/art/machines.ts";
+import { WorldView } from "../src/rendering/WorldView.ts";
+import { GameWorld } from "../src/game/GameWorld.ts";
 
 /**
  * Animation regression tests.
@@ -194,6 +196,36 @@ describe("gait phase continuity", () => {
 });
 
 describe("spider gait continuity", () => {
+  it("shows a fallen engineer, then clears the death pose on revival", () => {
+    const world = new GameWorld(53);
+    const rig = makeRig();
+    const state = createPuppetState(0);
+    const view = Object.create(WorldView.prototype) as {
+      syncPlayer(world: GameWorld, alpha: number, dt: number): void;
+    };
+    Object.assign(view, { playerRig: rig, playerState: state, clock: 0,
+      weaponKind: world.player.currentWeapon, weaponVisuals: [], carriedKind: "none" });
+    world.player.downed = true;
+    for (let i = 0; i < 90; i++) view.syncPlayer(world, 1, STEP);
+    expect(state.action).toBe("death");
+    expect(rig.root.visible).toBe(true);
+    expect(Math.abs(rig.root.rotation.x)).toBeGreaterThan(0.5);
+    world.player.downed = false;
+    view.syncPlayer(world, 1, STEP);
+    expect(state.action).toBe("none");
+    expect(rig.root.rotation.x).toBe(0);
+    expect(rig.root.position.y).toBe(0);
+  });
+  it("holds its gait during departure pauses and resumes when moving", () => {
+    const rig = makeSpiderRig();
+    animateSpider(rig, STEP, 1.25, false, false, 1);
+    const phase = rig.gaitPhase;
+    for (let i = 0; i < 120; i++) animateSpider(rig, STEP, 0, false, false, 1);
+    expect(rig.gaitPhase).toBe(phase);
+    expect(rig.body.rotation.z).toBe(0);
+    animateSpider(rig, STEP, 1.25, false, false, 1);
+    expect(rig.gaitPhase).toBeGreaterThan(phase);
+  });
   it("does not jump when the speed mode steps", () => {
     // The spider's speed is assigned from discrete constants with no smoothing,
     // so a gear change is a step function - the worst possible input to the

@@ -776,6 +776,12 @@ body {
   white-space: nowrap;
 }
 
+/* The contextual action already explains placement; do not print two prompts
+   into the same slot when an actionable prompt is visible. */
+.hud:has(.hud__prompt.is-on) .hud__build-hint {
+  display: none;
+}
+
 .bp {
   position: relative;
   /* Wide enough for the longest blueprint name at the smallest type size.
@@ -2171,7 +2177,7 @@ body {
   .hud__blueprints .bp { width: clamp(56px, 17vw, 72px); }
   .hud__prompt { bottom: 245px; max-width: 94vw; }
   .hud__prompt--alt { bottom: 280px; }
-  .hud__toasts { top: auto; bottom: 260px; width: calc(100% - 2 * var(--edge)); }
+  .hud__toasts { top: auto; bottom: 330px; width: calc(100% - 2 * var(--edge)); }
   .hud__toasts .toast { font-size: 11px; }
   .hud__toasts .toast:nth-last-child(n + 3) { display: none; }
 }

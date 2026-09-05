@@ -704,7 +704,7 @@ export class WorldView {
       lerp(player.prevZ, player.z, alpha),
     );
     rig.root.rotation.y = lerpAngle(player.prevHeading, player.heading, alpha);
-    rig.root.visible = !player.downed || Math.sin(this.clock * 18) > 0;
+    rig.root.visible = true;
 
     const speed = Math.hypot(player.velocityX, player.velocityZ);
     const carrying = player.carry.kind !== "none";
@@ -719,7 +719,12 @@ export class WorldView {
       for (let i = 0; i < this.weaponVisuals.length; i++) this.weaponVisuals[i].visible = i === index;
     }
 
-    if (player.animState === "dodge" && this.playerState.action !== "dodge") {
+    if (!player.downed && this.playerState.action === "death") {
+      Object.assign(this.playerState, createPuppetState(this.playerState.phase));
+    }
+    if (player.downed) {
+      playAction(this.playerState, "death", 0.65);
+    } else if (player.animState === "dodge" && this.playerState.action !== "dodge") {
       playAction(this.playerState, "dodge", 0.28);
     } else if (player.actionKind !== null && this.playerState.action === "none") {
       playAction(this.playerState, "work", 0.6);
@@ -1135,6 +1140,7 @@ export class WorldView {
 
     ring.visible = true;
     ring.scale.setScalar(base);
+    track.scale.setScalar(base);
     if (structure.kind === "crawlerTurret") {
       track.visible = true;
       track.scale.setScalar(base);
