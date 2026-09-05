@@ -14,6 +14,7 @@ import {
   Vector3,
 } from "three";
 import { Random } from "../core/Random.ts";
+import { StaticInstanceCuller } from "./StaticInstanceCuller.ts";
 import { angleDelta, clamp, smoothstep } from "../core/math.ts";
 import { ENV } from "../art/palette.ts";
 import { FEEDBACK } from "../art/palette.ts";
@@ -25,8 +26,7 @@ import type { RouteSegmentDefinition, TerrainStyle } from "../core/types.ts";
 /**
  * Builds the ground and its dressing for one route segment.
  *
- * The terrain is a single vertex-coloured mesh generated along the spline
- * rather than a tile grid. That buys three things at once: the corridor reads
+ * The terrain is a single vertex-coloured world-space heightfield. The corridor reads
  * as a trodden path because the vertex colour blends from path to undergrowth
  * with lateral distance, there are no tile seams to spot, and the whole ground
  * is one draw call.
@@ -179,28 +179,17 @@ export function propsHaveClearance(
 /** Prop used for the low posts that mark the drivable corridor. */
 const MARKER_PROP = "ruinPillarC";
 
-/** Longitudinal and lateral tessellation of the ground strip. */
-const STEP_ALONG = 3.6;
-const LATERAL_SEGMENTS = 30;
-/**
- * The strip must cover the visible ground, not just the corridor.
- *
- * At maximum zoom-out the camera's cull radius reaches roughly 70 m, and because
- * the route curves, the strip has to exceed that by a wide margin or its own
- * edge enters frame as a straight diagonal against the backdrop. Three reviewers
- * measured that line before this was widened. Widening costs no vertices — the
- * same lateral segment count simply spreads further — and everything past the
- * corridor is low-detail ground anyway.
- */
+/** World-space grid spacing; generated only when entering a stage. */
+const GROUND_GRID_STEP = 6;
+/** Margin around sampled route bounds, beyond the zoomed-out camera footprint. */
 const HALF_WIDTH = 155;
 
-/** Metres of ground carried past each end of the segment, to clear the view. */
-const END_MARGIN = 120;
-
 export class TerrainBuilder {
+  readonly sceneryVisibility = new StaticInstanceCuller();
   readonly root = new Group();
 
   private ground: Mesh | null = null;
+  private groundGrid: { positions: Float32Array; minX: number; minZ: number; cols: number; rows: number } | null = null;
   private backdrop: Mesh | null = null;
   private readonly instanced: InstancedMesh[] = [];
   private readonly ownedGeometries: BufferGeometry[] = [];
@@ -364,22 +353,26 @@ export class TerrainBuilder {
   private buildGroundGeometry(world: GameWorld, segment: RouteSegmentDefinition): BufferGeometry {
     const spline = world.route.spline!;
     const length = spline.length;
-    // Run the strip well past both ends of the segment. The camera sees ~70 m
-    // in every direction, so a strip that stops exactly where the route does
-    // puts its own end in frame as a dead-straight line whenever the spider is
-    // near either end — which in the Pursuit scene it always is. Positions
-    // outside [0, length] are extrapolated along the end tangent.
-    const rows = Math.ceil((length + END_MARGIN * 2) / STEP_ALONG) + 1;
-    const cols = LATERAL_SEGMENTS + 1;
+    // A swept ribbon folds over itself in switchbacks, covering the road with
+    // raised outer terrain. A world-space grid has exactly one surface per XZ.
+    const point = { x: 0, z: 0 };
+    let minX = Infinity, minZ = Infinity, maxX = -Infinity, maxZ = -Infinity;
+    for (let d = 0; d <= length + GROUND_GRID_STEP; d += GROUND_GRID_STEP) {
+      spline.positionAt(point, Math.min(d, length));
+      minX = Math.min(minX, point.x); maxX = Math.max(maxX, point.x);
+      minZ = Math.min(minZ, point.z); maxZ = Math.max(maxZ, point.z);
+    }
+    minX -= HALF_WIDTH; minZ -= HALF_WIDTH;
+    maxX += HALF_WIDTH; maxZ += HALF_WIDTH;
+    const rows = Math.ceil((maxZ - minZ) / GROUND_GRID_STEP) + 1;
+    const cols = Math.ceil((maxX - minX) / GROUND_GRID_STEP) + 1;
     const vertexCount = rows * cols;
 
     const positions = new Float32Array(vertexCount * 3);
     const colors = new Float32Array(vertexCount * 3);
     const normals = new Float32Array(vertexCount * 3);
-    const indices = new Uint32Array((rows - 1) * LATERAL_SEGMENTS * 6);
+    const indices = new Uint32Array((rows - 1) * (cols - 1) * 6);
 
-    const point = { x: 0, z: 0 };
-    const tangent = { x: 0, z: 0 };
     const corridor = segment.corridorHalfWidth;
     const palette = terrainPaletteFor(segment.terrainStyle);
     const pathColor = new Color(palette.path);
@@ -391,28 +384,16 @@ export class TerrainBuilder {
 
     let vertex = 0;
     for (let row = 0; row < rows; row++) {
-      const along = row * STEP_ALONG - END_MARGIN;
-      const distance = clamp(along, 0, length);
-      spline.positionAt(point, distance);
-      spline.tangentAt(tangent, distance);
-      // Beyond either end, carry straight on along the end tangent.
-      const overshoot = along - distance;
-      const baseX = point.x + tangent.x * overshoot;
-      const baseZ = point.z + tangent.z * overshoot;
-      // Left normal of the tangent on the XZ plane.
-      const nx = -tangent.z;
-      const nz = tangent.x;
-
       for (let col = 0; col < cols; col++) {
-        const t = col / LATERAL_SEGMENTS;
-        const lateral = (t * 2 - 1) * HALF_WIDTH;
-        const absLateral = Math.abs(lateral);
-
-        const x = baseX + nx * lateral;
-        const z = baseZ + nz * lateral;
+        const x = minX + col * GROUND_GRID_STEP;
+        const z = minZ + row * GROUND_GRID_STEP;
+        spline.projectPoint(point, x, z);
+        const absLateral = Math.hypot(x - point.x, z - point.z);
 
         // Relief rises only outside the corridor; the path itself is flat.
-        const y = groundHeightAt(x, z, absLateral, corridor, palette.reliefScale);
+        // Pad by a cell diagonal so triangles cannot interpolate raised
+        // vertices across the flat walking corridor (including the feet).
+        const y = groundHeightAt(x, z, Math.max(0, absLateral - GROUND_GRID_STEP * Math.SQRT2), corridor, palette.reliefScale);
 
         positions[vertex * 3] = x;
         positions[vertex * 3 + 1] = y;
@@ -446,20 +427,18 @@ export class TerrainBuilder {
 
     let index = 0;
     for (let row = 0; row < rows - 1; row++) {
-      for (let col = 0; col < LATERAL_SEGMENTS; col++) {
+      for (let col = 0; col < cols - 1; col++) {
         const a = row * cols + col;
         const b = a + 1;
         const c = a + cols;
         const d = c + 1;
-        // Counter-clockwise seen from above. The lateral axis is the LEFT normal
-        // of the tangent, so the naive a-c-b order winds the strip face-down and
-        // back-face culling makes the whole ground invisible.
+        // Counter-clockwise from above on the world XZ grid.
         indices[index++] = a;
-        indices[index++] = b;
         indices[index++] = c;
         indices[index++] = b;
+        indices[index++] = b;
+        indices[index++] = c;
         indices[index++] = d;
-        indices[index++] = c;
       }
     }
 
@@ -470,7 +449,24 @@ export class TerrainBuilder {
     geometry.setIndex(new BufferAttribute(indices, 1));
     geometry.computeVertexNormals();
     geometry.computeBoundingSphere();
+    this.groundGrid = { positions, minX, minZ, cols, rows };
     return geometry;
+  }
+
+  /** Interpolate the very same triangle used by the rendered ground. */
+  private groundHeightAtPosition(x: number, z: number): number {
+    const grid = this.groundGrid;
+    if (!grid) return 0;
+    const gx = clamp((x - grid.minX) / GROUND_GRID_STEP, 0, grid.cols - 1);
+    const gz = clamp((z - grid.minZ) / GROUND_GRID_STEP, 0, grid.rows - 1);
+    const col = Math.min(Math.floor(gx), grid.cols - 2);
+    const row = Math.min(Math.floor(gz), grid.rows - 2);
+    const u = gx - col, v = gz - row;
+    const a = row * grid.cols + col;
+    const h = (i: number): number => grid.positions[i * 3 + 1];
+    return u + v <= 1
+      ? h(a) * (1 - u - v) + h(a + 1) * u + h(a + grid.cols) * v
+      : h(a + 1) * (1 - v) + h(a + grid.cols) * (1 - u) + h(a + grid.cols + 1) * (u + v - 1);
   }
 
   /**
@@ -572,16 +568,10 @@ export class TerrainBuilder {
         }
         if (rejected) continue;
 
-        // Stand it on the ground rather than at y = 0, which on the
-        // high-relief biomes is under it. Same expression the mesh uses.
+        // Match the rendered triangle, including relief and nearby switchbacks.
         this.position.set(
           x,
-          groundHeightAt(
-            x, z,
-            Math.abs(spline.lateralOffset(x, z)),
-            segment.corridorHalfWidth,
-            terrainPaletteFor(segment.terrainStyle).reliefScale,
-          ),
+          this.groundHeightAtPosition(x, z),
           z,
         );
         this.quaternion.setFromAxisAngle(UP, random.angle());
@@ -625,6 +615,7 @@ export class TerrainBuilder {
       mesh.count = placed;
       mesh.instanceMatrix.needsUpdate = true;
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      this.sceneryVisibility.add(mesh);
       this.instanced.push(mesh);
       this.root.add(mesh);
     }
@@ -837,6 +828,9 @@ export class TerrainBuilder {
     towers.instanceMatrix.needsUpdate = true;
     arches.instanceMatrix.needsUpdate = true;
     this.instanced.push(walls, towers, arches);
+    this.sceneryVisibility.add(walls);
+    this.sceneryVisibility.add(towers);
+    this.sceneryVisibility.add(arches);
     this.root.add(walls, towers, arches);
   }
 
@@ -907,6 +901,8 @@ export class TerrainBuilder {
   private readonly reportedMissing = new Set<string>();
 
   clear(): void {
+    this.groundGrid = null;
+    this.sceneryVisibility.clear();
     this.encounterMesh = null;
     this.nestSignals = null;
     this.nestVisuals.length = 0;

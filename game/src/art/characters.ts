@@ -445,10 +445,11 @@ function skeletonSkull(): BufferGeometry {
   return tint(
     merge([
       place(cylinderish(0.045, 0.045, 0.11, 6, E.boneDark), 0, 0.04, 0),
-      place(chamferedBox(0.19, 0.21, 0.21, 0.05, E.bone), 0, 0.21, 0),
+      place(sphereish(0.13, 8, E.bone), 0, 0.235, -0.012, 0, 0, 0, 0.85, 1.05, 0.93),
       place(plate(0.2, 0.07, 0.055, 0.02, E.boneDark), 0, 0.25, 0.09),
       place(taperedBox(0.16, 0.175, 0.075, 0.16, 0.175, 0.025, E.boneDark), 0, 0.125, 0.028),
-      place(plate(0.17, 0.18, 0.04, 0.02, E.boneDark), 0, 0.315, -0.01),
+      place(chamferedBox(0.14, 0.038, 0.11, 0.012, E.bone), 0, 0.105, 0.04),
+      place(coneish(0.026, 0.055, 3, E.boneShadow), 0, 0.17, 0.113),
       place(chamferedBox(0.065, 0.06, 0.03, 0.012, E.boneShadow), 0.046, 0.212, 0.09),
       place(chamferedBox(0.065, 0.06, 0.03, 0.012, E.boneShadow), -0.046, 0.212, 0.09),
       place(chamferedBox(0.045, 0.042, 0.028, 0.01, E.ember), 0.046, 0.212, 0.101),

@@ -1,6 +1,7 @@
 import type { Game } from "../core/Game.ts";
 import type { GameWorld } from "../game/GameWorld.ts";
 import { SPIDER, STRUCTURES, TRAIL } from "../data/balance.ts";
+import { setupAssetReview } from "./assetReview.ts";
 
 /**
  * Scripted scenes for visual QA.
@@ -74,6 +75,7 @@ function stationPlayer(world: GameWorld, aheadMetres: number, lateral: number): 
 }
 
 export const CAPTURES: CaptureScenario[] = [
+  { id: "asset-review", label: "Procedural asset contact sheet", settle: 0, setup: setupAssetReview },
   {
     id: "nest",
     label: "Awakened nest health and reinforcement countdown",

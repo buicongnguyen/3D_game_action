@@ -3,6 +3,7 @@ import { clamp, lerp } from "../core/math.ts";
 import { SPIDER } from "../data/balance.ts";
 import type { PuppetRig } from "../art/characters.ts";
 import type { SpiderRig, TurretRig } from "../art/machines.ts";
+import { solveSpiderLegs, SPIDER_STRIDE } from "./SpiderLegSolver.ts";
 
 /**
  * Procedural animation for the rigid-segment puppets.
@@ -504,55 +505,18 @@ export function animateSpider(
 ): void {
   const normalized = clamp(speed / SPIDER.speedOverdrive, 0, 1.3);
   const moving = !docked && speed > 0.001;
-  const cadence = moving ? 1.55 + normalized * 1.5 : 0;
+  const cadence = moving ? TAU * speed / SPIDER_STRIDE : 0;
   rig.gaitPhase = (rig.gaitPhase + cadence * dt) % TAU;
   const t = rig.gaitPhase;
 
-  for (let i = 0; i < rig.legs.length; i++) {
-    // Groups alternate around the body, not down one side, or the spider
-    // would look like it was rowing.
-    const group = (i % 2) ^ (i < 4 ? 0 : 1);
-    const phase = t + (group ? Math.PI : 0) + i * 0.06;
-    const lift = Math.max(0, Math.sin(phase));
-    const reach = Math.cos(phase);
-    const amount = moving ? clamp(normalized + 0.25, 0, 1) : 0;
-
-    // Every joint offsets from the authored stance. The forge builds the legs
-    // arched like an insect's, femur up and tibia down; writing absolute
-    // rotations here would straighten them into flat rods and the machine
-    // would read as a table rather than as something that walks.
-    //
-    // The amplitudes are large on purpose. At this camera height a forty-tonne
-    // walker is about two hundred pixels across, so a subtle gait is simply not
-    // visible - an earlier pass with a third of this range read, correctly, as
-    // a sliding table with decorative legs.
-    rig.legUpper[i].rotation.x = restRotX(rig.legUpper[i]) + reach * 0.52 * amount;
-    // The knee folds hard as the foot lifts and straightens as it plants.
-    rig.legLower[i].rotation.x = restRotX(rig.legLower[i]) - lift * 0.95 * amount;
-    rig.legFoot[i].rotation.x = restRotX(rig.legFoot[i]) + lift * 0.7 * amount;
-    // Sharpened lift curve: a leg spends most of its cycle planted and crosses
-    // quickly, which is what separates a walk from a wave.
-    rig.legs[i].position.y = restY(rig.legs[i]) + lift * lift * 0.95 * amount;
-    // A little lateral reach, so the stride is legible from directly above.
-    rig.legs[i].position.z = restZ(rig.legs[i]) + reach * 0.34 * amount;
-  }
-
-  // A crouched machine settles onto its legs; this is the safe-stop pose.
-  if (docked) {
-    for (let i = 0; i < rig.legs.length; i++) {
-      rig.legUpper[i].rotation.x = restRotX(rig.legUpper[i]) - 0.24;
-      rig.legLower[i].rotation.x = restRotX(rig.legLower[i]) + 0.3;
-    }
-  }
-
-  // The hull settles twice per stride, a half cycle out of phase with the legs,
-  // and rolls slightly onto whichever group is planted. Both are exaggerated
-  // past physical accuracy because at this distance the body's motion is the
-  // main cue that the machine has weight at all.
+  // Restrained hull motion; the solver compensates at the joints instead of
+  // dragging the planted feet along with the body. Crouching blends on stop.
   const gaitAmount = moving ? clamp(normalized + 0.3, 0, 1) : 0;
-  rig.body.position.y = restY(rig.body) + (docked ? -0.35 : Math.sin(t * 2) * 0.3 * gaitAmount);
-  rig.body.rotation.z = docked ? 0 : Math.sin(t) * 0.075 * gaitAmount;
-  rig.body.rotation.x = docked ? -0.1 : Math.sin(t * 2 + 1.1) * 0.05 * gaitAmount;
+  rig.body.position.y = lerp(rig.body.position.y,
+    restY(rig.body) + (docked ? -0.2 : Math.sin(t * 2) * 0.06 * gaitAmount), clamp(dt * 8, 0, 1));
+  rig.body.rotation.z = docked ? 0 : Math.sin(t) * 0.015 * gaitAmount;
+  rig.body.rotation.x = docked ? 0 : Math.sin(t * 2 + 1.1) * 0.012 * gaitAmount;
+  solveSpiderLegs(rig, dt, speed, moving);
 
   // The furnace is the game's clearest state light: it breathes at march,
   // roars in overdrive, and dims when the tank is dry.

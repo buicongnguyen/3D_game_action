@@ -1234,6 +1234,7 @@ export class Game {
       this.camera.rightZ,
     );
 
+    this.view.updateSceneryVisibility(this.camera.focusX, this.camera.focusZ, this.camera.cullRadius);
     this.view.sync(world, alpha, dt);
     this.vfx.update(dt);
     this.renderer.setTrailMood(world.trailState, dt);

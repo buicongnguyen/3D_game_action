@@ -24,6 +24,7 @@ import path from "node:path";
 import process from "node:process";
 
 const CAPTURE_IDS = [
+  "asset-review",
   "nest",
   "nest-cleared",
   "march",

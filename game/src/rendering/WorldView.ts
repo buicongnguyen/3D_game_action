@@ -2,6 +2,7 @@ import {
   AdditiveBlending,
   CircleGeometry,
   Color,
+  DynamicDrawUsage,
   ConeGeometry,
   Group,
   InstancedBufferAttribute,
@@ -467,10 +468,12 @@ export class WorldView {
     this.projectileMesh.frustumCulled = false;
     this.projectileMesh.count = 0;
     this.projectileMesh.name = "projectiles";
+    this.projectileMesh.instanceMatrix.setUsage(DynamicDrawUsage);
     this.projectileMesh.instanceColor = new InstancedBufferAttribute(
       new Float32Array(PERFORMANCE.projectilePoolCapacity * 3),
       3,
     );
+    this.projectileMesh.instanceColor.setUsage(DynamicDrawUsage);
     this.root.add(this.projectileMesh);
   }
 
@@ -490,6 +493,7 @@ export class WorldView {
       mesh.frustumCulled = false;
       mesh.count = 0;
       mesh.name = `pickup.${kind}`;
+      mesh.instanceMatrix.setUsage(DynamicDrawUsage);
       this.pickupMeshes.set(kind, mesh);
       this.root.add(mesh);
     }
@@ -498,14 +502,14 @@ export class WorldView {
     // ten-pixel prop at this camera height and reviewers could not find them
     // at all; the disc is what makes "there is something to collect over
     // there" answerable across the frame. One draw call for every pickup.
-    const discGeometry = new CircleGeometry(0.5, 14);
+    const discGeometry = new RingGeometry(0.38, 0.5, 14);
     discGeometry.rotateX(-Math.PI / 2);
     this.pickupGlow = new InstancedMesh(
       discGeometry,
       new MeshBasicMaterial({
         color: 0xffffff,
         transparent: true,
-        opacity: 0.55,
+        opacity: 0.38,
         depthWrite: false,
         toneMapped: false,
         blending: AdditiveBlending,
@@ -518,6 +522,8 @@ export class WorldView {
       new Float32Array(PERFORMANCE.pickupPoolCapacity * 3),
       3,
     );
+    this.pickupGlow.instanceMatrix.setUsage(DynamicDrawUsage);
+    this.pickupGlow.instanceColor.setUsage(DynamicDrawUsage);
     this.pickupGlow.frustumCulled = false;
     this.pickupGlow.renderOrder = 2;
     this.pickupGlow.count = 0;
@@ -665,6 +671,10 @@ export class WorldView {
 
   buildSegment(world: GameWorld): void {
     this.terrain.build(world);
+  }
+
+  updateSceneryVisibility(x: number, z: number, radius: number): void {
+    this.terrain.sceneryVisibility.update(x, z, radius);
   }
 
   // -------------------------------------------------------------------------
@@ -1424,7 +1434,8 @@ export class WorldView {
       // where the causal chain is legible.
       const life = clamp(projectile.lifetime / PROJECTILE_FADE_SECONDS, 0, 1);
       const bright = 0.25 + life * 0.75;
-      this.scale.set(1.15 * bright, 1.15 * bright, 6.5 * (0.55 + life * 0.45));
+      const streak = clamp(projectile.speed * 0.055, 1.3, 4.5);
+      this.scale.set(1.15 * bright, 1.15 * bright, streak * (0.55 + life * 0.45));
       this.matrix.compose(this.position, this.quaternion, this.scale);
       mesh.setMatrixAt(count, this.matrix);
       colors[count * 3] = bright;
@@ -1435,6 +1446,10 @@ export class WorldView {
 
     mesh.count = count;
     if (count > 0) {
+      mesh.instanceMatrix.clearUpdateRanges();
+      mesh.instanceMatrix.addUpdateRange(0, count * 16);
+      mesh.instanceColor!.clearUpdateRanges();
+      mesh.instanceColor!.addUpdateRange(0, count * 3);
       mesh.instanceMatrix.needsUpdate = true;
       mesh.instanceColor!.needsUpdate = true;
     }
@@ -1442,7 +1457,6 @@ export class WorldView {
 
   private syncPickups(world: GameWorld): void {
     for (const mesh of this.pickupMeshes.values()) mesh.count = 0;
-    const counts = new Map<string, number>();
     const backing = world.pickups.backing;
     const glow = this.pickupGlow;
     const glowColors = glow ? (glow.instanceColor!.array as Float32Array) : null;
@@ -1453,12 +1467,12 @@ export class WorldView {
       if (!pickup.active) continue;
       const mesh = this.pickupMeshes.get(pickup.kind);
       if (!mesh) continue;
-      const index = counts.get(pickup.kind) ?? 0;
+      const index = mesh.count;
       if (index >= mesh.instanceMatrix.count) continue;
 
-      const bob = Math.sin(this.clock * 2.4 + pickup.phase * 6.283) * 0.08;
-      this.position.set(pickup.x, 0.32 + bob, pickup.z);
-      this.quaternion.setFromAxisAngle(UP, this.clock * 0.8 + pickup.phase * 6.283);
+      const bob = Math.sin(this.clock * 2.4 + pickup.phase * 6.283) * 0.035;
+      this.position.set(pickup.x, 0.14 + bob, pickup.z);
+      this.quaternion.setFromAxisAngle(UP, this.clock * 0.35 + pickup.phase * 6.283);
       const pop = pickup.attracted ? 1.18 : 1;
       // Consumables deliberately keep different profiles even at gameplay
       // camera height: low/wide plate, squat mine, tall parts, boxed kit.
@@ -1466,13 +1480,13 @@ export class WorldView {
       this.scale.set(profile[0] * pop, profile[1] * pop, profile[2] * pop);
       this.matrix.compose(this.position, this.quaternion, this.scale);
       mesh.setMatrixAt(index, this.matrix);
-      counts.set(pickup.kind, index + 1);
+      mesh.count = index + 1;
 
       if (glow && glowColors && glowCount < glow.instanceMatrix.count) {
         // Breathes gently, and brightens as it is drawn to the player, so the
         // magnet's pull is legible as well as felt.
         const breathe = 0.85 + Math.sin(this.clock * 3 + pickup.phase * 6.283) * 0.15;
-        const size = (pickup.attracted ? 1.9 : 1.45) * breathe;
+        const size = (pickup.attracted ? 1.6 : 1.2) * breathe;
         this.position.set(pickup.x, 0.045, pickup.z);
         this.quaternion.identity();
         this.scale.set(size, 1, size);
@@ -1487,15 +1501,21 @@ export class WorldView {
       }
     }
 
-    for (const [kind, mesh] of this.pickupMeshes) {
-      const count = counts.get(kind) ?? 0;
-      mesh.count = count;
-      if (count > 0) mesh.instanceMatrix.needsUpdate = true;
+    for (const mesh of this.pickupMeshes.values()) {
+      if (mesh.count > 0) {
+        mesh.instanceMatrix.clearUpdateRanges();
+        mesh.instanceMatrix.addUpdateRange(0, mesh.count * 16);
+        mesh.instanceMatrix.needsUpdate = true;
+      }
     }
 
     if (glow) {
       glow.count = glowCount;
       if (glowCount > 0) {
+        glow.instanceMatrix.clearUpdateRanges();
+        glow.instanceMatrix.addUpdateRange(0, glowCount * 16);
+        glow.instanceColor!.clearUpdateRanges();
+        glow.instanceColor!.addUpdateRange(0, glowCount * 3);
         glow.instanceMatrix.needsUpdate = true;
         glow.instanceColor!.needsUpdate = true;
       }
@@ -1695,15 +1715,15 @@ function applyGaugeColor(gauge: Object3D, color: Color, brightness: number): voi
   }
 }
 
+const PICKUP_PROFILES: Record<PickupKind, readonly [number, number, number]> = {
+  scrap: [1, 1, 1], fuel: [1, 1, 1], cylinder: [1, 1, 1],
+  repairKit: [1.1, 1.1, 1.1], pressureCanister: [0.9, 1.35, 0.9],
+  shockMine: [1.2, 1.2, 1.2], armorPlate: [1.15, 1.15, 1.15],
+  weaponPart: [1.15, 1.15, 1.15],
+};
+
 function pickupProfile(kind: PickupKind): readonly [number, number, number] {
-  switch (kind) {
-    case "repairKit": return [1.25, 0.72, 0.9];
-    case "pressureCanister": return [0.9, 1.35, 0.9];
-    case "shockMine": return [1.4, 0.48, 1.4];
-    case "armorPlate": return [1.45, 0.42, 0.78];
-    case "weaponPart": return [0.7, 1.55, 0.7];
-    default: return [1, 1, 1];
-  }
+  return PICKUP_PROFILES[kind];
 }
 
 function pickupGlowColor(kind: PickupKind): number {

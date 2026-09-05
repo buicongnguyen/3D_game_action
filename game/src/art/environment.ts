@@ -43,7 +43,7 @@ export function buildTreeGeometry(variant: number, random: Random): BufferGeomet
     // Conifer: three stacked skirts. Reads as a triangle from every angle.
     const height = random.range(4.6, 6.4);
     const trunkH = height * 0.32;
-    parts.push(place(taperedBox(0.46, 0.28, trunkH, 0.46, 0.28, 0.07, ENV.treeTrunk), 0, trunkH * 0.5, 0));
+    parts.push(place(cylinderish(0.24, 0.12, trunkH, 7, ENV.treeTrunk), 0, trunkH * 0.5, 0));
     parts.push(place(taperedBox(0.7, 0.5, 0.3, 0.7, 0.5, 0.08, ENV.treeTrunkDark), 0, 0.13, 0));
     const skirts = 3;
     for (let i = 0; i < skirts; i++) {
@@ -54,7 +54,7 @@ export function buildTreeGeometry(variant: number, random: Random): BufferGeomet
       const color = i === 0 ? ENV.foliageDeep : i === 1 ? ENV.foliageMid : ENV.foliageLight;
       parts.push(
         place(
-          taperedBox(wide, wide * 0.42, tall, wide, wide * 0.42, 0.12, color),
+          coneish(wide * 0.62, tall * 1.4, 9, color),
           random.signed(0.08),
           y,
           random.signed(0.08),
@@ -70,7 +70,7 @@ export function buildTreeGeometry(variant: number, random: Random): BufferGeomet
     const height = random.range(3.8, 5.2);
     const trunkH = height * 0.52;
     parts.push(
-      place(taperedBox(0.5, 0.32, trunkH, 0.5, 0.32, 0.08, ENV.treeTrunk), 0, trunkH * 0.5, 0, lean, 0, lean * 0.6),
+      place(cylinderish(0.28, 0.14, trunkH, 7, ENV.treeTrunk), 0, trunkH * 0.5, 0, lean, 0, lean * 0.6),
     );
     parts.push(place(taperedBox(0.86, 0.54, 0.34, 0.86, 0.54, 0.1, ENV.treeTrunkDark), 0, 0.15, 0));
     parts.push(
@@ -84,7 +84,7 @@ export function buildTreeGeometry(variant: number, random: Random): BufferGeomet
       const color = i === 0 ? ENV.foliageMid : i === 1 ? ENV.foliageDeep : ENV.foliageLight;
       parts.push(
         place(
-          taperedBox(size, size * 0.78, size * 0.72, size * 0.92, size * 0.7, 0.16, color),
+          sphereish(size * 0.64, 8, color),
           Math.cos(angle) * spread,
           trunkH + size * 0.3 + random.range(-0.12, 0.3),
           Math.sin(angle) * spread,
@@ -98,13 +98,13 @@ export function buildTreeGeometry(variant: number, random: Random): BufferGeomet
     // Tall spindle, for breaking up the skyline over the corridor.
     const height = random.range(6.0, 7.6);
     const trunkH = height * 0.66;
-    parts.push(place(taperedBox(0.4, 0.2, trunkH, 0.4, 0.2, 0.06, ENV.treeTrunk), 0, trunkH * 0.5, 0, lean, 0, lean));
+    parts.push(place(cylinderish(0.22, 0.1, trunkH, 7, ENV.treeTrunk), 0, trunkH * 0.5, 0, lean, 0, lean));
     parts.push(place(taperedBox(0.62, 0.42, 0.28, 0.62, 0.42, 0.08, ENV.treeTrunkDark), 0, 0.12, 0));
     for (let i = 0; i < 2; i++) {
       const size = 1.5 - i * 0.42;
       parts.push(
         place(
-          taperedBox(size, size * 0.6, size * 1.15, size, size * 0.6, 0.13, i === 0 ? ENV.foliageDeep : ENV.foliageMid),
+          place(sphereish(size * 0.6, 8, i === 0 ? ENV.foliageDeep : ENV.foliageMid), 0, 0, 0, 0, 0, 0, 0.85, 1.35, 0.85),
           random.signed(0.1),
           trunkH * 0.86 + i * height * 0.19,
           random.signed(0.1),
@@ -173,24 +173,36 @@ export function buildRockGeometry(variant: number, random: Random): BufferGeomet
     const size = baseSize * (i === 0 ? 1 : random.range(0.34, 0.62));
     // The large mass takes the darker stone: a bright cold boulder competes
     // with the enemy lane for attention and reads as ice, not rock.
-    const geometry = sphereish(size, 6, i === 0 ? ENV.rockDark : ENV.rock);
-    jitter(geometry, size * 0.11, 300 + variant * 7 + i);
+    // Give the main stone enough facets to read as weathered rock instead of
+    // a flattened twenty-sided die. Chips retain the cheap twenty-face shell.
+    const geometry = sphereish(size, i === 0 ? 8 : 6, i === 0 ? ENV.rockDark : ENV.rock);
+    jitter(geometry, size * 0.09, 300 + variant * 7 + i);
     parts.push(
       place(
         geometry,
         i === 0 ? 0 : random.signed(baseSize * 1.1),
-        size * random.range(0.34, 0.5),
+        0,
         i === 0 ? 0 : random.signed(baseSize * 1.1),
         random.signed(0.22),
         random.angle(),
         random.signed(0.22),
-        1,
-        random.range(0.48, 0.68),
-        1,
+        variant === 1 ? 1.18 : 1,
+        variant === 2 ? 0.82 : random.range(0.58, 0.74),
+        variant === 1 ? 0.78 : 1,
       ),
     );
+    // Cut a shallow, irregular buried underside AFTER tilt/scale. Independent
+    // random height offsets used to leave some stones suspended above the soil.
+    const positions = geometry.getAttribute("position");
+    let bottom = Infinity;
+    for (let v = 0; v < positions.count; v++) bottom = Math.min(bottom, positions.getY(v));
+    for (let v = 0; v < positions.count; v++) {
+      positions.setY(v, Math.max(-0.08, positions.getY(v) - bottom - size * 0.22));
+    }
+    positions.needsUpdate = true;
+    geometry.computeVertexNormals();
   }
-  parts.push(place(plate(baseSize * 2.1, baseSize * 1.9, 0.14, 0.05, ENV.rockDark), 0, 0.07, 0, 0, random.angle(), 0));
+  // No separate pedestal: each stone meets the ground directly.
   return tint(merge(parts), 0.11, 300 + variant);
 }
 
@@ -203,7 +215,7 @@ export function buildBushGeometry(variant: number, random: Random): BufferGeomet
     const size = radius * random.range(0.7, 1.05);
     parts.push(
       place(
-        taperedBox(size * 1.5, size * 1.1, size * 1.2, size * 1.4, size, 0.09, i % 2 === 0 ? ENV.bush : ENV.foliageDeep),
+        sphereish(size * 0.78, 6, i % 2 === 0 ? ENV.bush : ENV.foliageDeep),
         Math.cos(angle) * radius * 0.45,
         size * 0.56,
         Math.sin(angle) * radius * 0.45,
@@ -263,12 +275,22 @@ export function buildRuinedHouseGeometry(variant: number, random: Random): Buffe
     // Deep doorway reads as the release point for an occupied building.
     place(chamferedBox(2.2, 2.45, 0.18, 0.04, ENV.ruinStoneDark), 0, 1.25, 2.1),
     // Broken roof slopes and deliberately leaves the front-right corner open.
-    place(taperedBox(2.85, 2.55, 0.34, 2.85, 2.55, 0.1, ENV.rustMetalDark), -1.25, 3.25, -0.15, 0, 0, 0.28),
-    place(taperedBox(2.35, 2.05, 0.3, 2.35, 2.05, 0.1, ENV.rustMetal), 1.35, 3.18, -0.35, 0, 0, -0.3),
+    place(chamferedBox(2.95, 0.18, 4.7, 0.025, ENV.rustMetalDark), -1.28, 3.38, 0, 0, 0, 0.4),
+    place(chamferedBox(2.95, 0.18, 3.7, 0.025, ENV.rustMetal), 1.28, 3.38, -0.5, 0, 0, -0.4),
+    place(cylinderish(0.12, 0.12, 4.8, 6, ENV.rustMetalDark), 0, 3.95, 0, Math.PI / 2),
     place(chamferedBox(0.72, 2.4, 0.72, 0.08, ENV.rustMetalDark), -1.45, 4.15, -0.9, 0, random.signed(0.04), 0.04),
     place(chamferedBox(0.22, 3.0, 0.22, 0.04, ENV.rustMetal), 2.38, 1.7, -1.8, 0, 0, -0.12),
   ];
-  return tint(merge(parts), 0.055, 510);
+  // Dark window recesses, lintels and visible timber give the wall a human
+  // scale; these are merged into the existing single instanced house draw.
+  for (const z of [-1.05, 0.95]) {
+    parts.push(place(chamferedBox(0.055, 0.78, 0.92, 0.015, 0x18252a), 2.54, 1.95, z));
+    parts.push(place(chamferedBox(0.09, 0.08, 1.1, 0.015, ENV.treeTrunk), 2.58, 2.4, z));
+    parts.push(place(chamferedBox(0.08, 0.8, 0.07, 0.01, ENV.treeTrunk), 2.58, 1.95, z));
+  }
+  parts.push(place(chamferedBox(2.7, 0.2, 0.5, 0.03, ENV.treeTrunk), 0, 2.75, 2.05));
+  parts.push(place(chamferedBox(0.86, 0.18, 0.86, 0.025, ENV.ruinStoneDark), -1.45, 5.38, -0.9));
+  return tint(merge(parts), 0.09, 510 + variant);
 }
 
 /** Wide timber-and-steel crossing used to make shallow channels readable. */

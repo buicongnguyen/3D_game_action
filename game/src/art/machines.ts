@@ -1039,6 +1039,48 @@ export function buildScrapPile(materials: MaterialLibrary, large: boolean): Grou
   return root;
 }
 
+/** Distinct tool-sized silhouettes; cached and merged before instancing. */
+export function buildSpecialPickup(materials: MaterialLibrary, kind: string): Group {
+  const root = new Group();
+  root.name = kind;
+  const geometry = cached(`special:${kind}`, () => {
+    const P = PLAYER_COLORS;
+    const parts: BufferGeometry[] = [];
+    if (kind === "repairKit") {
+      parts.push(place(chamferedBox(0.7, 0.42, 0.46, 0.065, 0x547367), 0, 0.25, 0));
+      parts.push(place(chamferedBox(0.74, 0.09, 0.5, 0.03, P.steelDark), 0, 0.48, 0));
+      // Handle and pale service cross, visible from the overhead camera.
+      parts.push(place(chamferedBox(0.34, 0.06, 0.07, 0.01, P.steel), 0, 0.61, 0));
+      for (const x of [-0.14, 0.14]) parts.push(place(chamferedBox(0.06, 0.12, 0.07, 0.01, P.steel), x, 0.56, 0));
+      parts.push(place(chamferedBox(0.1, 0.2, 0.025, 0.005, 0xeee9d3), 0, 0.27, 0.239));
+      parts.push(place(chamferedBox(0.26, 0.07, 0.025, 0.005, 0xeee9d3), 0, 0.27, 0.24));
+    } else if (kind === "armorPlate") {
+      parts.push(place(chamferedBox(0.68, 0.15, 0.82, 0.06, P.steelDark), 0, 0.1, 0));
+      parts.push(place(chamferedBox(0.55, 0.09, 0.67, 0.04, P.steel), 0, 0.21, 0, 0, 0.12));
+      for (const x of [-0.22, 0.22]) for (const z of [-0.25, 0.25]) {
+        parts.push(place(cylinderish(0.035, 0.035, 0.035, 6, P.brass), x, 0.27, z));
+      }
+    } else if (kind === "shockMine") {
+      parts.push(place(cylinderish(0.4, 0.31, 0.18, 10, P.steelDark), 0, 0.12, 0));
+      parts.push(place(cylinderish(0.29, 0.25, 0.1, 10, 0x668b94), 0, 0.25, 0));
+      parts.push(place(cylinderish(0.075, 0.075, 0.045, 8, 0x86ddf0), 0, 0.325, 0));
+      for (let i = 0; i < 4; i++) {
+        const a = i * Math.PI / 2;
+        parts.push(place(cylinderish(0.045, 0.045, 0.16, 6, P.brass), Math.sin(a) * 0.3, 0.24, Math.cos(a) * 0.3));
+      }
+    } else {
+      // Spare receiver, barrel and toothed drive wheel rather than scrap.
+      parts.push(place(chamferedBox(0.25, 0.23, 0.62, 0.03, P.steel), 0, 0.2, 0));
+      parts.push(place(cylinderish(0.07, 0.07, 0.6, 8, P.steelDark), 0, 0.22, 0.38, Math.PI / 2));
+      parts.push(place(cylinderish(0.19, 0.19, 0.08, 8, P.brass), 0.19, 0.35, -0.14));
+      parts.push(place(cylinderish(0.07, 0.07, 0.09, 8, P.steelDark), 0.19, 0.36, -0.14));
+    }
+    return tint(merge(parts), 0.06, 740 + kind.length);
+  });
+  root.add(meshOf(geometry, materials.surface, kind));
+  return root;
+}
+
 // ---------------------------------------------------------------------------
 // Projectile
 // ---------------------------------------------------------------------------
@@ -1049,7 +1091,7 @@ export function buildProjectileGeometry(): BufferGeometry {
   return cached("projectile", () =>
     merge([
       place(cylinderish(0.05, 0.042, 0.18, 6, P.brass), 0, 0, -0.02, Math.PI * 0.5),
-      place(coneish(0.042, 0.1, 6, P.brassDark), 0, 0, 0.12, -Math.PI * 0.5),
+      place(coneish(0.042, 0.1, 6, P.brassDark), 0, 0, 0.12, Math.PI * 0.5),
       place(cylinderish(0.062, 0.062, 0.035, 6, P.brassDark), 0, 0, -0.1, Math.PI * 0.5),
     ]),
   );

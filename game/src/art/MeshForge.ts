@@ -48,6 +48,7 @@ import {
   buildRivetTurret,
   buildCrawlerTurret,
   buildScrapPile,
+  buildSpecialPickup,
   buildSpider,
   machineCache,
   type SpiderRig,
@@ -325,6 +326,9 @@ export class MeshForge {
 
   /** `kind` accepts the PickupKind union plus "scrapLarge" and "fuelBarrel". */
   createPickup(kind: string, large: boolean): Group {
+    if (["repairKit", "armorPlate", "shockMine", "weaponPart"].includes(kind)) {
+      return buildSpecialPickup(this.materials, kind);
+    }
     if (kind === "cylinder" || kind === "pressureCanister") return buildCylinder(this.materials);
     if (kind === "fuel" || kind === "fuelBarrel") {
       return large || kind === "fuelBarrel" ? buildFuelBarrel(this.materials) : buildJerrycan(this.materials);
@@ -451,6 +455,8 @@ function flattenToGeometry(group: Group): BufferGeometry {
   });
   if (parts.length === 0) return place(merge([]), 0, 0, 0);
   const merged = merge(parts);
-  for (const part of parts) part.dispose();
+  // merge([geometry]) returns that same geometry. Only dispose intermediates,
+  // never the result that the forge is about to cache and hand to the renderer.
+  for (const part of parts) if (part !== merged) part.dispose();
   return merged;
 }
