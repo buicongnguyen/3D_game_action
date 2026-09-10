@@ -1,11 +1,10 @@
 /**
  * The mesh forge: the single façade the rest of the game asks for visuals.
  *
- * Every asset in Marcha de Ferro is generated here in code. The original plan
- * pointed at a local KayKit + Kenney library; that library does not exist on
- * this machine, so the art direction is delivered procedurally instead. The
- * style target is unchanged: chamfered low-poly forms, chunky heroic
- * proportions, flat-ish shading, one authored palette.
+ * Shared Blender geometry upgrades houses, enemies, guns and effects. Native
+ * procedural models supply the other objects, distant enemies and a complete
+ * fallback. Both paths keep chamfered low-poly forms, readable proportions,
+ * flat-ish shading and vertex-colored palettes.
  *
  * `build` runs once at load and fills every geometry cache. After that the
  * create* methods only allocate Object3Ds and Meshes, because geometry and
@@ -17,6 +16,7 @@
 import { Group, Mesh, RingGeometry } from "three";
 import type { BufferGeometry, Object3D } from "three";
 import { Random } from "../core/Random.ts";
+import { BlenderLibrary, BLENDER_IDS } from "./BlenderLibrary.ts";
 import { MaterialLibrary } from "./materials.ts";
 import { merge, place, vertexCount } from "./geometry.ts";
 import {
@@ -131,6 +131,24 @@ export class MeshForge {
   private gatePrototype: Group | null = null;
   private checkpointPrototype: Group | null = null;
   private built = false;
+  private blender: BlenderLibrary | null = null;
+  get blenderAssetCount(): number { return this.blender?.size ?? 0; }
+
+  /** Install once before any render-layer geometry is bound to a batch. */
+  installBlenderLibrary(library: BlenderLibrary): void {
+    if (this.blender) throw new Error("Blender library already installed");
+    this.blender = library;
+    this.refreshStats();
+  }
+
+  async loadBlenderLibrary(): Promise<void> {
+    const library = await BlenderLibrary.load();
+    if (library) this.installBlenderLibrary(library);
+  }
+
+  effectGeometry(name: string): BufferGeometry | undefined {
+    return this.blender?.get(`fx_${name}`);
+  }
 
   /** Builds every shared geometry. Call once; progress is reported per stage. */
   build(onProgress?: (fraction: number, label: string) => void): void {
@@ -220,6 +238,10 @@ export class MeshForge {
   private refreshStats(): void {
     let geometries = characterCache.geometries().length + machineCache.geometries().length;
     let vertices = characterCache.vertices() + machineCache.vertices();
+    for (const id of BLENDER_IDS) {
+      const geometry = this.blender?.get(id);
+      if (geometry) { geometries++; vertices += vertexCount(geometry); }
+    }
     for (const geometry of this.props.values()) {
       geometries++;
       vertices += vertexCount(geometry);
@@ -246,11 +268,21 @@ export class MeshForge {
   }
 
   createEnemy(archetype: string): PuppetRig {
-    if (archetype === "golem") return buildSkeletonGolem(this.materials);
-    // The necromancer shares the warrior chassis; it is post-slice content and
-    // does not earn its own silhouette budget yet.
-    if (archetype === "warrior" || archetype === "necromancer") return buildSkeletonWarrior(this.materials);
-    return buildSkeletonMinion(this.materials);
+    const kind = archetype === "golem" ? "golem" : archetype === "warrior" || archetype === "necromancer" ? "warrior" : "minion";
+    const rig = kind === "golem" ? buildSkeletonGolem(this.materials)
+      : kind === "warrior" ? buildSkeletonWarrior(this.materials) : buildSkeletonMinion(this.materials);
+    const joints: Array<[Object3D, string]> = [
+      [rig.pelvis, "pelvis"], [rig.torso, "torso"], [rig.head, "head"],
+      [rig.armL, "upperArm"], [rig.armR, "upperArm"],
+      [rig.forearmL, "forearm"], [rig.forearmR, "forearm"],
+      [rig.legL, "thigh"], [rig.legR, "thigh"], [rig.shinL, "shin"], [rig.shinR, "shin"],
+    ];
+    for (const [joint, part] of joints) {
+      const geometry = this.blender?.get(`${kind}_${part}`);
+      const mesh = joint.children.find((child) => (child as Mesh).isMesh) as Mesh | undefined;
+      if (geometry && mesh) mesh.geometry = geometry;
+    }
+    return rig;
   }
 
   /** Single merged low-detail mesh geometry for distant enemies. */
@@ -265,27 +297,33 @@ export class MeshForge {
   }
 
   createScattergun(): Object3D {
-    return buildScattergun(this.materials);
+    return this.replaceGun(buildScattergun(this.materials), "shotgun");
   }
 
   createGearburstCarbine(): Object3D {
-    return buildGearburstCarbine(this.materials);
+    return this.replaceGun(buildGearburstCarbine(this.materials), "carbine");
   }
 
   createRivetRifle(): Object3D {
-    return buildRivetRifle(this.materials);
+    return this.replaceGun(buildRivetRifle(this.materials), "rifle");
   }
 
   createSteamFlamer(): Object3D {
-    return buildSteamFlamer(this.materials);
+    return this.replaceGun(buildSteamFlamer(this.materials), "flamer");
   }
 
   createArcProjector(): Object3D {
-    return buildArcProjector(this.materials);
+    return this.replaceGun(buildArcProjector(this.materials), "arc");
   }
 
   createMagneticLauncher(): Object3D {
-    return buildMagneticLauncher(this.materials);
+    return this.replaceGun(buildMagneticLauncher(this.materials), "launcher");
+  }
+
+  private replaceGun(root: Object3D, kind: string): Object3D {
+    const geometry = this.blender?.get(`gun_${kind}`);
+    if (geometry) root.traverse((node) => { if ((node as Mesh).isMesh) (node as Mesh).geometry = geometry; });
+    return root;
   }
 
   createSkeletonAxe(): Object3D {
@@ -345,6 +383,9 @@ export class MeshForge {
 
   /** Shared geometry for InstancedMesh use. */
   propGeometry(name: string): BufferGeometry {
+    const authored = this.blender?.get(name === "ruinedHouse" ? "house_cottage" : name);
+    if (authored) return authored;
+    if (name.startsWith("house_")) name = "ruinedHouse";
     const geometry = this.props.get(name);
     if (!geometry) throw new Error(`Unknown prop geometry: ${name}`);
     return geometry;
@@ -413,6 +454,8 @@ export class MeshForge {
   }
 
   dispose(): void {
+    this.blender?.dispose();
+    this.blender = null;
     characterCache.dispose();
     machineCache.dispose();
     for (const geometry of this.props.values()) geometry.dispose();

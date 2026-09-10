@@ -30,9 +30,9 @@ describe("finite field items", () => {
     expect(world.fieldItems.shockMines).toBe(2);
     expect(world.fieldItems.armorPlates).toBe(2);
     expect(world.fieldItems.weaponParts).toBe(2);
-    expect(formatFieldItems(world.fieldItems)).toContain("MINE×2");
-    expect(formatFieldItems(world.fieldItems)).toContain("PLATE×2");
-    expect(formatFieldItems(world.fieldItems)).toContain("PART×2 (2/3)");
+    expect(formatFieldItems(world.fieldItems)).toContain("Mines: 2");
+    expect(formatFieldItems(world.fieldItems)).toContain("Armor plates: 2");
+    expect(formatFieldItems(world.fieldItems)).toContain("2/3 parts to next +8%");
   });
 
   it("stores a repair kit and applies it to a nearby damaged machine", () => {

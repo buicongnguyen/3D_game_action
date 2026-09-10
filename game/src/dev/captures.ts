@@ -2,7 +2,9 @@ import type { Game } from "../core/Game.ts";
 import type { GameWorld } from "../game/GameWorld.ts";
 import { SPIDER, STRUCTURES, TRAIL } from "../data/balance.ts";
 import { setupAssetReview } from "./assetReview.ts";
+import { setupBlenderModels, setupBlenderEffects } from "./blenderReview.ts";
 import { chooseOperation } from "../game/systems/CampaignSystem.ts";
+import type { InteractionSystem } from "../game/systems/InteractionSystem.ts";
 
 /**
  * Scripted scenes for visual QA.
@@ -76,6 +78,20 @@ function stationPlayer(world: GameWorld, aheadMetres: number, lateral: number): 
 }
 
 export const CAPTURES: CaptureScenario[] = [
+  { id: "blender-models", label: "Blender house, enemy and weapon contact sheet", settle: 0, setup: setupBlenderModels },
+  { id: "blender-effects", label: "Pooled Blender combat events", settle: 0, setup: setupBlenderEffects },
+  { id: "pickups", label: "Named mixed loot and visible reserve", settle: 0.05, setup: (game, world) => {
+    game.debugApi.teleportSpider(50); stationPlayer(world, 7, 4);
+    const interaction = (game as unknown as { interaction: InteractionSystem }).interaction;
+    for (const kind of ["repairKit", "shockMine", "armorPlate", "pressureCanister", "scrap", "fuel", "weaponPart"] as const) {
+      interaction.spawnPickup(world, kind, world.player.x, world.player.z, kind === "scrap" ? 12 : kind === "fuel" ? 8 : 2, 0, 0);
+    }
+  } },
+  { id: "inventory", label: "Inventory totals and readable number guide", settle: 0.05, setup: (game, world) => {
+    Object.assign(world.fieldItems, { repairKits: 2, shockMines: 3, armorPlates: 1, weaponParts: 7 });
+    world.resources.fuel = 28; world.resources.scrap = 42.5; world.cylindersReady = 2;
+    game.showScreenForCapture("inventory");
+  } },
   { id: "arsenal", label: "All weapons fit a bounded mobile rack", settle: 0.05, setup: (game, world) => {
     world.player.unlockedWeapons = ["shotgun", "carbine", "rifle", "flamer", "arc", "launcher"];
     for (const kind of world.player.unlockedWeapons) world.player.weaponLevels[kind] = 1;

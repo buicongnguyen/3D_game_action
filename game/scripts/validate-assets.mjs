@@ -194,7 +194,7 @@ async function validateSyncedFiles(manifest) {
   }
 
   if (presentEntries.length === 0) {
-    console.log(`Asset validation: procedural mode: ${entries.length} assets will be generated at runtime.`);
+    console.log(`Legacy asset catalog: ${entries.length} procedural entries remain available as native art/fallbacks.`);
     return;
   }
 
@@ -243,6 +243,7 @@ async function main() {
   }
 
   validateSchema(manifest);
+  await validateBlenderLibrary();
   scanJsonForAbsolutePaths(manifest, "$", violations);
   await scanSrcForAbsolutePaths();
 
@@ -259,6 +260,33 @@ async function main() {
 
   console.log("Asset validation passed.");
   process.exitCode = 0;
+}
+
+async function validateBlenderLibrary() {
+  const dir = path.join(PUBLIC_DIR, "assets", "blender");
+  const catalog = JSON.parse(await fs.readFile(path.join(dir, "catalog.json"), "utf8"));
+  const data = await fs.readFile(path.join(dir, "iron-march.glb"));
+  if (data.length > 2_500_000 || data.length !== catalog.bytes) fail("Blender library byte count or budget mismatch");
+  if (data.readUInt32LE(0) !== 0x46546c67 || data.readUInt32LE(4) !== 2 || data.readUInt32LE(8) !== data.length) {
+    fail("Blender library is not a complete GLB 2 file"); return;
+  }
+  const gltf = JSON.parse(data.subarray(20, 20 + data.readUInt32LE(12)).toString("utf8"));
+  if ((gltf.images?.length ?? 0) > 0 || gltf.buffers.some(b => b.uri)) fail("Blender library must be self-contained and texture-free");
+  if (Object.keys(catalog.meshes).length !== 34) fail("Blender catalog must contain 34 assets");
+  let vertices = 0, indices = 0;
+  for (const [name, entry] of Object.entries(catalog.meshes)) {
+    const node = gltf.nodes.find(n => n.name === name);
+    const mesh = node && gltf.meshes[node.mesh];
+    if (!mesh || mesh.primitives.length !== 1) { fail(`Blender ${name}: expected one shared primitive`); continue; }
+    const p = mesh.primitives[0];
+    if (p.attributes.COLOR_0 === undefined || p.attributes.NORMAL === undefined || p.indices === undefined) fail(`Blender ${name}: missing required attributes`);
+    const pos = gltf.accessors[p.attributes.POSITION];
+    const count = gltf.accessors[p.indices].count;
+    if (count / 3 !== entry.triangles) fail(`Blender ${name}: exported triangle count differs from catalog`);
+    if (/^(minion|warrior|golem)_/.test(name)) { vertices += pos.count; indices += count; }
+  }
+  if (vertices > 18500 || indices > 66000) fail("Blender enemy geometry exceeds existing horde batch capacity");
+  console.log(`Blender library: ${Object.keys(catalog.meshes).length} meshes, ${data.length} bytes, ${vertices} enemy vertices.`);
 }
 
 main().catch((error) => {

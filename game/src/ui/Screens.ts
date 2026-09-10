@@ -29,6 +29,7 @@ export type ScreenKind =
   | "radio"
   | "specialization"
   | "pause"
+  | "inventory"
   | "settings"
   | "victory"
   | "defeat"
@@ -67,6 +68,8 @@ export interface ScreenHint {
 }
 
 export interface ScreenData {
+  /** Read-only reference cards; never mixed with selectable actions. */
+  facts?: Array<{ label: string; detail: string }>;
   eyebrow?: string;
   title?: string;
   subtitle?: string;
@@ -99,6 +102,7 @@ const DEFAULT_TITLES: Record<ScreenKind, string> = {
   radio: "Radio transmission",
   specialization: "Choose your role",
   pause: "Paused",
+  inventory: "Inventory",
   settings: "Settings",
   victory: "The gate holds",
   defeat: "The core is cold",
@@ -173,6 +177,7 @@ export class ScreenManager {
   private readonly focus: FocusManager;
   private readonly clock: () => number;
   private readonly adjustRepeat: RepeatState = createRepeatState();
+  private readonly referenceRepeat: RepeatState = createRepeatState();
   private readonly stack: StackEntry[] = [];
   private readonly options: HTMLElement[] = [];
   /** Parallel to `options`; null where an option carries no value. */
@@ -336,7 +341,11 @@ export class ScreenManager {
       else if (ay > ax + 0.12) dy = Math.sign(stick.y);
     }
 
-    this.moveFocus(dx, dy);
+    if (this.data.facts) {
+      if (acceptRepeat(this.referenceRepeat, 0, dy, this.clock())) {
+        this.container.querySelector(".screen")?.scrollBy({ top: dy * 140 });
+      }
+    } else this.moveFocus(dx, dy);
 
     // The gameplay confirm and cancel also work here. A keyboard player reaches
     // a menu with a finger already on E, and a pad player with a thumb already
@@ -389,6 +398,16 @@ export class ScreenManager {
 
     if (data.stats && data.stats.length > 0) this.renderStats(main, data.stats);
 
+    if (data.facts) {
+      if (data.options) this.renderOptions(main, data.options, false);
+      const facts = el("div", "screen__facts", main);
+      for (const fact of data.facts) {
+        const card = el("article", "screen__fact", facts);
+        el("h2", "screen__fact-title", card).textContent = fact.label;
+        el("p", "screen__fact-detail", card).textContent = fact.detail;
+      }
+    }
+
     if (data.body) {
       const node = el("div", "screen__body", main);
       node.textContent = data.body;
@@ -398,7 +417,7 @@ export class ScreenManager {
     this.isCards = cards;
 
     const optionModels = data.options ?? EMPTY_OPTIONS;
-    if (optionModels.length > 0) {
+    if (optionModels.length > 0 && !data.facts) {
       this.renderOptions(main, optionModels, cards);
     } else if (kind === "title") {
       const press = el("div", "screen__press", main);
@@ -532,6 +551,7 @@ const DEFAULT_EYEBROWS: Record<ScreenKind, string> = {
   radio: "Expedition radio",
   specialization: "One choice for this expedition",
   pause: "",
+  inventory: "Supplies and counters",
   settings: "",
   victory: "Run complete",
   defeat: "Run ended",
@@ -558,6 +578,7 @@ const DEFAULT_HINTS: Record<ScreenKind, ScreenHint[]> = {
   radio: [NAVIGATE_HINT, SELECT_HINT],
   specialization: [NAVIGATE_HINT, SELECT_HINT],
   pause: [NAVIGATE_HINT, SELECT_HINT, RESUME_HINT],
+  inventory: [BACK_HINT, RESUME_HINT],
   // No Select here: every row on this screen is adjusted, not chosen, and a
   // footer that names a button which does nothing is how F52 happened.
   settings: [NAVIGATE_HINT, ADJUST_HINT, BACK_HINT],

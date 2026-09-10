@@ -24,6 +24,8 @@ import path from "node:path";
 import process from "node:process";
 
 const CAPTURE_IDS = [
+  "blender-models", "blender-effects",
+  "pickups", "inventory",
   "arsenal",
   "radio", "operation", "specialization", "workshop", "intro",
   "asset-review",
@@ -66,6 +68,7 @@ function parseArgs(argv) {
     only: null,
     budget: 9000,
     port: 9222,
+    art: "blender",
   };
   // Both `--width=1280` and `--width 1280` are accepted, and anything else is a
   // hard error. The earlier version took only the `=` form and silently skipped
@@ -95,6 +98,7 @@ function parseArgs(argv) {
     else if (key === "height") args.height = requireNumber(key, value);
     else if (key === "budget") args.budget = requireNumber(key, value);
     else if (key === "port") args.port = requireNumber(key, value);
+    else if (key === "art" && ["blender", "procedural"].includes(value)) args.art = value;
     else if (key === "only") args.only = value.split(",").map((s) => s.trim()).filter(Boolean);
     else throw new Error(`unknown flag --${key}`);
   }
@@ -136,8 +140,11 @@ async function capture(session, args, id) {
   const file = path.resolve(args.out, `${id}-${args.width}x${args.height}.png`);
   await rm(file, { force: true });
 
+  session.errors.length = 0;
   await session.send("Page.navigate", { url: sceneUrl(args, id) });
   await waitForScene(session, id, args.budget * (HEAVY_CAPTURES.has(id) ? 8 : 4));
+  const assetCount = await evaluate(session, "window.__ironMarch.blenderAssetCount()");
+  if (assetCount !== (args.art === "blender" ? 34 : 0)) throw new Error(`Unexpected loaded asset count: ${assetCount}`);
 
   const shot = await session.send("Page.captureScreenshot", {
     format: "png",
@@ -154,7 +161,17 @@ async function capture(session, args, id) {
   }
 
   await writeFile(file, buffer);
-  if (["radio", "specialization", "workshop", "operation", "intro"].includes(id)) {
+  if (session.errors.length) throw new Error(`Browser errors: ${session.errors.join(" | ")}`);
+  if (id.startsWith("blender-")) {
+    await evaluate(session, `(() => {
+      const api = window.__ironMarch;
+      if (api.blenderAssetCount() !== 34) throw new Error('Blender library did not load');
+      const flames = api.scene.getObjectByName('vfx.flame');
+      if (${JSON.stringify(id)} === 'blender-effects' && (!flames.count || flames.geometry.name !== 'blender:fx_flame'))
+        throw new Error('New effects are not active');
+    })()`);
+  }
+  if (["pickups", "inventory", "radio", "specialization", "workshop", "operation", "intro"].includes(id)) {
     const checks = await evaluate(session, `(() => {
       const api = window.__ironMarch, world = api.world;
       const assert = (ok, message) => { if (!ok) throw new Error(message); };
@@ -162,7 +179,43 @@ async function capture(session, args, id) {
       const scene = ${JSON.stringify(id)};
       const screen = document.querySelector('.screen');
       if (screen) assert(screen.scrollWidth <= screen.clientWidth + 2, 'Modal overflows horizontally');
-      if (scene === 'radio') {
+      if (scene === 'pickups') {
+        const receipt = document.querySelector('.hud__receipt');
+        assert(receipt.textContent.includes('Fuel reserve') && receipt.textContent.includes('Weapon parts'), 'Mixed pickup identities missing');
+        assert(document.querySelector('.hud__resources').textContent.includes('Fuel reserve'), 'Stored fuel invisible');
+        assert(document.querySelector('.bp__cost').textContent.includes('scrap'), 'Build price lacks unit');
+        document.querySelector('.hud__inventory').click();
+        assert(world.paused && document.querySelectorAll('.screen__fact').length === 7, 'Inventory did not pause and expose all supplies');
+        const tick = world.tick; api.advance(1);
+        assert(world.tick === tick, 'Inventory did not freeze simulation');
+        button('resume').click(); assert(!world.paused, 'Inventory exit did not resume');
+        world.player.health = 20;
+        const kits = world.fieldItems.repairKits;
+        document.querySelector('.hud__use-item').click();
+        assert(world.fieldItems.repairKits === kits - 1 && world.player.health > 20, 'Use item button did not consume a healing kit');
+      } else if (scene === 'inventory') {
+        assert(document.querySelectorAll('.screen__fact').length === 7, 'Missing supply reference');
+        const facts = document.querySelector('.screen__facts').textContent;
+        assert(facts.includes('42.5 available') && facts.includes('7 collected this run'), 'Inventory totals mismatch');
+        const exit = button('resume').getBoundingClientRect();
+        assert(exit.top >= 0 && exit.bottom <= innerHeight, 'Inventory exit is off-screen');
+        const beforeScroll = screen.scrollTop;
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'ArrowDown', bubbles: true }));
+        api.advance(0.05);
+        window.dispatchEvent(new KeyboardEvent('keyup', { code: 'ArrowDown', bubbles: true }));
+        api.advance(0.05);
+        assert(screen.scrollTop > beforeScroll, 'Reference guide cannot be scrolled with directional input');
+        screen.scrollTop = 0;
+        button('resume').click(); assert(!world.paused, 'Inventory exit did not resume');
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape', bubbles: true }));
+        api.advance(0.05);
+        window.dispatchEvent(new KeyboardEvent('keyup', { code: 'Escape', bubbles: true }));
+        api.advance(0.05);
+        button('inventory').click();
+        button('resume').click();
+        assert(world.paused && document.querySelector('.screen--pause'), 'Nested inventory did not return to pause');
+        button('resume').click(); assert(!world.paused, 'Pause did not resume after reference guide');
+      } else if (scene === 'radio') {
         button('accept').click();
         assert(world.operation.status === 'active' && !world.paused, 'Radio acceptance did not resume gameplay');
         api.advance(20);
@@ -185,6 +238,7 @@ async function capture(session, args, id) {
         button('begin').click(); assert(!world.paused, 'Intro did not resume');
       } else {
         assert(document.querySelector('.hud__objective-label').textContent.includes('rescue Ilya'), 'Mission objective missing');
+        assert(document.querySelector('.hud__objective-value').textContent.includes('s assisted'), 'Mission counter lacks units');
       }
       return 'passed';
     })()`);
@@ -279,6 +333,11 @@ async function main() {
   try {
     const target = await waitForTarget(args.port, 30000, "capture=");
     session = await connect(target.webSocketDebuggerUrl);
+    await session.send("Runtime.enable");
+    if (args.art === "procedural") {
+      await session.send("Network.enable");
+      await session.send("Network.setBlockedURLs", { urls: ["*assets/blender/iron-march.glb"] });
+    }
     // The window size flag sets the OS window; the viewport is what renders.
     await session.send("Emulation.setDeviceMetricsOverride", {
       width: args.width,
@@ -392,9 +451,16 @@ async function connect(wsUrl) {
   const pending = new Map();
   let nextId = 0;
   let closed = null;
+  const errors = [];
 
   socket.addEventListener("message", (event) => {
     const message = JSON.parse(event.data);
+    if (message.method === "Runtime.exceptionThrown") {
+      const detail = message.params.exceptionDetails;
+      errors.push(detail.exception?.description ?? detail.text);
+    }
+    if (message.method === "Runtime.consoleAPICalled" && message.params.type === "error")
+      errors.push(message.params.args.map(a => a.value ?? a.description ?? "").join(" "));
     const entry = pending.get(message.id);
     if (!entry) return;
     pending.delete(message.id);
@@ -417,6 +483,7 @@ async function connect(wsUrl) {
   });
 
   return {
+    errors,
     send: (method, params) =>
       new Promise((resolve, reject) => {
         if (closed) return reject(closed);

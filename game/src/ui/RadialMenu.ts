@@ -115,7 +115,7 @@ export class RadialMenu {
       slice.root.classList.toggle("is-poor", !entry.affordable);
       slice.icon.textContent = entry.icon;
       slice.name.textContent = entry.name;
-      slice.cost.textContent = `${entry.cost}`;
+      slice.cost.textContent = `${entry.cost} scrap`;
     }
 
     if (this.selected >= entries.length) this.selected = 0;

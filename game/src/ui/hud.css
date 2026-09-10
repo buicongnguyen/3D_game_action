@@ -2160,7 +2160,7 @@ body {
   .hud__trail .hud__checkpoint { display: none; }
   .hud__trail .hud__title { display: none; }
   .hud__trail-head { position: absolute; right: 6px; top: 5px; }
-  .hud__stage-name { padding-right: 46px; margin-top: 0; }
+  .hud__stage-name { padding-right: 64px; margin-top: 0; }
   .hud__threat-card .bar__name { display: none; }
   .hud__threat-card .bar__head { position: absolute; right: 6px; margin-top: -15px; }
   .hud__threat-label { padding-right: 68px; font-size: 11px; }
@@ -2211,4 +2211,58 @@ body {
   .screen__body, .screen__subtitle { font-size: 14px; }
   .option { min-height: 48px; }
   .option__glyph { font-size: 22px; }
+}
+
+/* Supply identities and number units remain readable without hovering. */
+.hud__resources .value { font-size: 14px; letter-spacing: 0; }
+.hud__resources .hud__res-row { margin-top: 2px; }
+.hud__inventory, .hud__use-item {
+  min-height: 36px; padding: 5px 8px; margin-top: 4px; border: 1px solid #608f89;
+  border-radius: 4px; background: #173839; color: #e7fff4; font: inherit; font-size: 12px;
+  pointer-events: auto; cursor: pointer; touch-action: manipulation;
+}
+.hud__inventory:focus-visible, .hud__use-item:focus-visible { outline: 2px solid white; }
+.hud__use-item[hidden] { display: none; }
+.hud__receipt { top: 146px; white-space: pre-line; font-size: 12px; line-height: 1.35;
+  width: 245px; max-width: 30vw; padding: 10px; background: rgba(12, 32, 34, .95); }
+.hud__receipt-compact { display: none; }
+.bar__value { white-space: nowrap; }
+.hud__xp .bar__value { font-size: 12px; }
+.hud__xp .bar__name { font-size: 10px; letter-spacing: 0; }
+.weapon-slot__level { font-size: 10px; }
+.hud__field-items { text-transform: none; letter-spacing: 0; font-size: 11px; line-height: 1.45; }
+.hud__objective.is-on { flex-wrap: wrap; gap: 2px 8px; }
+.hud__objective-label { white-space: normal; max-width: none; }
+.hud__objective-value { font-size: 12px; }
+.bp__cost { font-size: 11px; white-space: nowrap; }
+.bp__key { font-size: 9px; }
+.screen--inventory { display: block; overflow-y: auto; overscroll-behavior: contain; }
+.screen--inventory .screen__main { margin-inline: auto; max-width: 900px; }
+.screen--inventory .screen__body { white-space: pre-line; font-size: 14px; line-height: 1.6; }
+.screen__facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.screen__fact { background: #142627; border: 1px solid #4d7270; border-radius: 6px; padding: 12px; }
+.screen__fact-title { margin: 0 0 6px; font-size: 16px; color: #e4d9ae; }
+.screen__fact-detail { margin: 0; font-size: 14px; line-height: 1.45; color: #cee1df; }
+@media (max-width: 540px) and (min-height: 501px) {
+  .hud__trail { top: 140px; }
+  .hud__receipt { top: 235px; right: var(--edge); width: 220px; max-width: 60vw;
+    font-size: 11px; padding: 7px; }
+  .hud__resources .value { font-size: 12px; }
+  .hud__resources .hud__res-icon { display: none; }
+  .hud__inventory, .hud__use-item { min-height: 44px; }
+  .hud__field-items { max-height: 48px; overflow-y: auto; pointer-events: auto; }
+  .hud__blueprints { bottom: 255px; }
+  .hud__blueprints:has(~ .hud__prompt.is-on) { bottom: 265px; }
+  .hud__prompt { bottom: 330px; }
+  .hud__prompt--alt { bottom: 365px; }
+  .hud__toasts { bottom: 405px; }
+  .screen__facts { grid-template-columns: 1fr; }
+}
+@media (max-height: 500px) {
+  .hud__receipt { top: 140px; font-size: 10px; }
+  .hud__field-items { display: none !important; }
+}
+@media (max-width: 540px), (max-height: 500px) {
+  .hud__receipt-full { display: none; }
+  .hud__receipt-compact { display: inline; }
 }

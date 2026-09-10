@@ -1,3 +1,4 @@
+import { houseAssetFor } from "../art/BlenderLibrary.ts";
 import {
   BufferAttribute,
   BufferGeometry,
@@ -291,7 +292,12 @@ export class TerrainBuilder {
         this.nestSignals.setMatrixAt(i * 16 + j, this.matrix);
         this.nestSignals.setColorAt(i * 16 + j, this.instanceColor.setHex(color));
       }
-      this.encounterMesh.setColorAt(visual.house, this.instanceColor.setHex(!active ? 0x555d59 : 0xca8b62));
+      this.instanceColor.setHex(!active ? 0x555d59 : 0xca8b62);
+      if (active && this.encounterMesh.geometry.name.startsWith("blender:")) {
+        // The authored roof/wall colors must remain distinct under the nest tint.
+        this.instanceColor.lerp(WHITE_HOUSE_TINT, 0.65);
+      }
+      this.encounterMesh.setColorAt(visual.house, this.instanceColor);
     }
     if (!changed) return;
     this.nestSignals.instanceMatrix.needsUpdate = true;
@@ -684,7 +690,7 @@ export class TerrainBuilder {
   private buildEncounterSites(world: GameWorld, segment: RouteSegmentDefinition): void {
     const encounters = segment.encounters ?? [];
     if (encounters.length === 0) return;
-    const geometry = this.tryPropGeometry("ruinedHouse");
+    const geometry = this.tryPropGeometry(houseAssetFor(segment.terrainStyle)) ?? this.tryPropGeometry("ruinedHouse");
     if (!geometry) return;
     const spline = world.route.spline!;
     const mesh = new InstancedMesh(geometry, this.forge.materials.surface, encounters.length);
@@ -713,6 +719,7 @@ export class TerrainBuilder {
       this.matrix.compose(this.position, this.quaternion, this.scaleVector);
       mesh.setMatrixAt(i, this.matrix);
       this.instanceColor.setHex(houseColors[i % houseColors.length]);
+      if (geometry.name.startsWith("blender:")) this.instanceColor.lerp(WHITE_HOUSE_TINT, 0.65);
       mesh.setColorAt(i, this.instanceColor);
       world.navigation.setStaticBox(x, z, 2.5 * scale, 2.2 * scale, heading);
     }
@@ -938,6 +945,7 @@ export class TerrainBuilder {
 }
 
 const UP = new Vector3(0, 1, 0);
+const WHITE_HOUSE_TINT = new Color(0xffffff);
 const SIDES = [-1, 1] as const;
 
 /**

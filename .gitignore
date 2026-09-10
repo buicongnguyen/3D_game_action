@@ -11,3 +11,5 @@ Thumbs.db
 .idea/
 .vscode/
 *.log
+*.blend1
+*.blend2

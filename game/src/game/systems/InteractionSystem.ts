@@ -854,21 +854,12 @@ export class InteractionSystem {
       world.progress.xp += 0.35;
     } else if (pickup.kind === "cylinder" || pickup.kind === "pressureCanister") {
       world.cylindersReady += quantity;
-      world.events.emit({
-        type: "ui.toast",
-        message: `Pressure canister stored · CAN×${world.cylindersReady}`,
-        tone: "success",
-        duration: 2.2,
-      });
     } else if (pickup.kind === "repairKit") {
       world.fieldItems.repairKits += quantity;
-      world.events.emit({ type: "ui.toast", message: `Repair kit stored · KIT×${world.fieldItems.repairKits} · R1 to use`, tone: "success", duration: 2.2 });
     } else if (pickup.kind === "shockMine") {
       world.fieldItems.shockMines += quantity;
-      world.events.emit({ type: "ui.toast", message: `Shock mine stored · MINE×${world.fieldItems.shockMines} · R1 to deploy`, tone: "success", duration: 2.2 });
     } else if (pickup.kind === "armorPlate") {
       world.fieldItems.armorPlates += quantity;
-      world.events.emit({ type: "ui.toast", message: `Armor plate recovered · PLATE×${world.fieldItems.armorPlates} · bank at Spider`, tone: "success", duration: 2.5 });
     } else if (pickup.kind === "weaponPart") {
       const before = world.fieldItems.weaponParts;
       world.fieldItems.weaponParts += quantity;
@@ -876,9 +867,7 @@ export class InteractionSystem {
         Math.floor(world.fieldItems.weaponParts / 3) - Math.floor(before / 3);
       if (upgrades > 0) {
         world.modifiers.playerDamage *= Math.pow(1.08, upgrades);
-        world.events.emit({ type: "ui.toast", message: `Weapon rebuilt · +${upgrades * 8}% damage · PART×${world.fieldItems.weaponParts}`, tone: "success", duration: 2.5 });
-      } else {
-        world.events.emit({ type: "ui.toast", message: `Weapon part stored · PART×${world.fieldItems.weaponParts} · ${world.fieldItems.weaponParts % 3}/3`, tone: "info", duration: 1.8 });
+        world.events.emit({ type: "ui.toast", message: `Parts boost applied · gun damage ×${Math.pow(1.08, upgrades).toFixed(2)} · ${world.fieldItems.weaponParts % 3}/3 parts to next boost`, tone: "success", duration: 3 });
       }
     }
 

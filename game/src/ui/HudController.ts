@@ -1,5 +1,6 @@
-import type { WeaponKind } from "../core/types.ts";
+import type { WeaponKind, PickupKind } from "../core/types.ts";
 import { controlHint, PickupReceipt } from "./EngagementPresentation.ts";
+import { resourceAmount } from "./PickupPresentation.ts";
 import type { ThreatReadout } from "./ThreatReadout.ts";
 
 /**
@@ -61,6 +62,7 @@ export interface HudModel {
   fuel: number;
   maxFuel: number;
   scrap: number;
+  fuelReserve: number;
   trail: number;
   trailState: string;
   level: number;
@@ -73,11 +75,14 @@ export interface HudModel {
   weaponHeat: number;
   weapons: HudWeaponModel[];
   fieldItems: string;
+  hasUsableItems: boolean;
   distanceToCheckpoint: number;
   etaSeconds: number;
+  etaLabel: string;
   objectiveLabel: string | null;
   objectiveProgress: number;
   objectiveTarget: number;
+  objectiveUnit: string;
   objectiveComplete: boolean;
   salvageMode: boolean;
   salvageSeconds: number;
@@ -182,7 +187,7 @@ const FALLBACK_GLYPH: GlyphSpec = { text: "", shape: "cap" };
  * The returned object is shared and must be read immediately, not retained.
  */
 export function glyphFor(token: string, device: string): GlyphSpec {
-  const table = device === "keyboard" ? KEYBOARD_GLYPHS : GAMEPAD_GLYPHS;
+  const table = device === "gamepad" ? GAMEPAD_GLYPHS : KEYBOARD_GLYPHS;
   const found = table[token.toLowerCase()];
   if (found) return found;
   // The fallback exists so an unknown token cannot blank a prompt, but it is
@@ -268,7 +273,7 @@ class Bar {
     this.shieldEl = withShield ? el("div", "bar__shield", track) : null;
   }
 
-  update(value: number, max: number, mode: number): void {
+  update(value: number, max: number, mode: number, fractional = false): void {
     const ratio = max > 0 ? Math.min(1, Math.max(0, value / max)) : 0;
     const quantised = Math.round(ratio * 1000);
     if (quantised !== this.quantised) {
@@ -285,7 +290,7 @@ class Bar {
       this.quantised = quantised;
     }
 
-    const shownValue = Math.round(value);
+    const shownValue = fractional ? Number(resourceAmount(value)) : Math.round(value);
     const shownMax = Math.round(max);
     if (shownValue !== this.shownValue || shownMax !== this.shownMax) {
       this.shownValue = shownValue;
@@ -364,6 +369,8 @@ export class HudController {
   onWeaponCycle?: () => void;
   /** Called when one of the six weapon rack slots is pressed. */
   onWeaponSelect?: (kind: WeaponKind) => void;
+  onInventory?: () => void;
+  onUseItem?: () => void;
 
   private readonly root: HTMLElement;
   private readonly hud: HTMLElement;
@@ -400,6 +407,8 @@ export class HudController {
   private readonly salvageScore: HTMLElement;
   private readonly scrapValue: HTMLElement;
   private readonly cylinderValue: HTMLElement;
+  private readonly reserveValue: HTMLElement;
+  private readonly useItemButton: HTMLElement;
   private readonly levelValue: HTMLElement;
 
   private readonly blueprintRow: HTMLElement;
@@ -409,9 +418,11 @@ export class HudController {
   onDeploy: (() => void) | null = null;
   private deployButton!: HTMLButtonElement;
   private receiptNode!: HTMLElement;
+  private receiptFull!: HTMLElement;
+  private receiptCompact!: HTMLElement;
   private weaponDevice = "";
 
-  showPickup(kind: string, amount: number): void {
+  showPickup(kind: PickupKind, amount: number): void {
     this.receipt.add(kind, amount, performance.now());
   }
   private prevBuildHintDevice = "";
@@ -451,6 +462,8 @@ export class HudController {
   private prevFieldItems = "";
   private prevDistance = Number.NaN;
   private prevEta = Number.NaN;
+  private prevEtaLabel = "";
+  private prevReserve = "";
   private prevScrap = Number.NaN;
   private prevCylinders = Number.NaN;
   private prevLevel = Number.NaN;
@@ -484,7 +497,7 @@ export class HudController {
     this.speedBadge = el("span", "badge", spiderHead);
     this.speedBadge.textContent = "MARCH";
     this.coreBar = new Bar(spider, "core", "Integrity", true);
-    this.fuelBar = new Bar(spider, "fuel", "Fuel", false);
+    this.fuelBar = new Bar(spider, "fuel", "Fuel tank", false);
     this.burn = el("div", "hud__burn", spider);
     this.burn.textContent = "Burning scrap - no fuel";
 
@@ -503,6 +516,12 @@ export class HudController {
     });
     this.weaponRack = el("div", "hud__weapon-rack", player);
     this.fieldItems = el("div", "hud__field-items", player);
+    this.useItemButton = el("button", "hud__use-item", player);
+    this.useItemButton.setAttribute("type", "button");
+    this.useItemButton.textContent = "Use item";
+    this.useItemButton.addEventListener("click", (event) => {
+      event.preventDefault(); event.stopPropagation(); this.onUseItem?.();
+    });
     this.carry = el("div", "hud__carry", player);
     const carryIcon = el("span", "hud__carry-icon", this.carry);
     carryIcon.textContent = "✦";
@@ -517,7 +536,7 @@ export class HudController {
     trailLabel.textContent = "Trail";
     this.trailState = el("span", "hud__trail-state", trailHead);
     this.trailState.textContent = "QUIET";
-    this.trailBar = new Bar(trail, "trail", "Threat", false);
+    this.trailBar = new Bar(trail, "trail", "Enemy pressure", false);
     const checkpoint = el("div", "hud__checkpoint", trail);
     const checkpointLabel = el("span", "hud__checkpoint-label", checkpoint);
     checkpointLabel.textContent = "Next halt";
@@ -547,14 +566,22 @@ export class HudController {
     const cylinderIcon = el("span", "hud__res-icon", cylinderRow);
     cylinderIcon.textContent = "◎";
     this.cylinderValue = el("span", "value", cylinderRow);
+    const reserveRow = el("div", "hud__res-row", resources);
+    this.reserveValue = el("span", "value", reserveRow);
+    const inventoryButton = el("button", "hud__inventory", resources);
+    inventoryButton.setAttribute("type", "button");
+    inventoryButton.textContent = "Inventory / guide";
+    inventoryButton.addEventListener("click", (event) => {
+      event.preventDefault(); event.stopPropagation(); this.onInventory?.();
+    });
 
     // --- level, bottom right ------------------------------------------------
     const xpPanel = panel(this.hud, "hud__xp panel--right");
     const levelRow = el("div", "hud__level", xpPanel);
     const levelLabel = el("span", "hud__title", levelRow);
-    levelLabel.textContent = "Level";
+    levelLabel.textContent = "Engineer Lv";
     this.levelValue = el("span", "hud__level-num", levelRow);
-    this.xpBar = new Bar(xpPanel, "xp", "XP", false);
+    this.xpBar = new Bar(xpPanel, "xp", "XP to next Lv", false);
 
     // --- blueprints, bottom centre -----------------------------------------
     this.blueprintRow = el("div", "hud__blueprints", this.hud);
@@ -605,12 +632,19 @@ export class HudController {
     this.toastLayer = el("div", "hud__toasts", this.hud);
     this.receiptNode = el("div", "hud__receipt", this.hud);
     this.receiptNode.setAttribute("role", "status");
+    this.receiptNode.setAttribute("aria-live", "polite");
+    this.receiptNode.hidden = true;
+    this.receiptFull = el("span", "hud__receipt-full", this.receiptNode);
+    this.receiptCompact = el("span", "hud__receipt-compact", this.receiptNode);
   }
 
   update(model: HudModel): void {
     this.deployButton.hidden = !model.placing;
-    const receipt = this.receipt.text(performance.now());
-    if (this.receiptNode.textContent !== receipt) this.receiptNode.textContent = receipt;
+    const now = performance.now();
+    const receipt = this.receipt.text(now);
+    const compact = this.receipt.text(now, true);
+    if (this.receiptFull.textContent !== receipt) this.receiptFull.textContent = receipt;
+    if (this.receiptCompact.textContent !== compact) this.receiptCompact.textContent = compact;
     this.receiptNode.hidden = !receipt;
     this.healthBar.update(model.playerHealth, model.playerMaxHealth, TEXT_VALUE_OF_MAX);
     const heat = Math.round(model.weaponHeat * 100);
@@ -625,10 +659,10 @@ export class HudController {
       this.prevWeaponIndex = model.weaponIndex;
       this.prevWeaponCount = model.weaponCount;
       this.weaponDevice = model.lastDevice;
-      const slot = model.weaponCount > 1 ? ` ${model.weaponIndex + 1}/${model.weaponCount}` : "";
+      // Owned-weapon position is not ammo or upgrade rank; omit it.
       this.weapon.textContent = heat > 0
-        ? `${model.currentWeapon}${slot} · Heat ${heat}% · ${controlHint(model.lastDevice, "weapon")}`
-        : `${model.currentWeapon}${slot} · ${controlHint(model.lastDevice, "weapon")}`;
+        ? `${model.currentWeapon} · Heat ${heat}% · ${controlHint(model.lastDevice, "weapon")}`
+        : `${model.currentWeapon} · ${controlHint(model.lastDevice, "weapon")}`;
       this.weapon.setAttribute(
         "aria-label",
         model.weaponCount > 1 ? `Switch weapon. Current: ${model.currentWeapon}` : `${model.currentWeapon}. More weapons unlock in later stages`,
@@ -636,6 +670,7 @@ export class HudController {
       this.weapon.classList.toggle("is-hot", heat >= 75);
       this.weapon.classList.toggle("is-locked", model.weaponCount <= 1);
     }
+    this.useItemButton.hidden = !model.hasUsableItems;
     if (model.fieldItems !== this.prevFieldItems) {
       this.prevFieldItems = model.fieldItems;
       this.fieldItems.textContent = model.fieldItems;
@@ -653,8 +688,8 @@ export class HudController {
     this.coreBar.updateShield(model.shield, model.maxShield);
     this.fuelBar.update(model.fuel, model.maxFuel, TEXT_VALUE_OF_MAX);
     this.fuelBar.setLow(model.maxFuel > 0 && model.fuel / model.maxFuel < 0.2);
-    this.trailBar.update(model.trail, 100, TEXT_VALUE_ONLY);
-    this.xpBar.update(model.xp, model.xpToNext, TEXT_VALUE_OF_MAX);
+    this.trailBar.update(model.trail, 100, TEXT_VALUE_OF_MAX);
+    this.xpBar.update(model.xp, model.xpToNext, TEXT_VALUE_OF_MAX, true);
 
     if (model.trailState !== this.prevTrailState) {
       this.prevTrailState = model.trailState;
@@ -692,13 +727,14 @@ export class HudController {
       this.distanceValue.textContent = `${distance} m`;
     }
     const eta = Math.max(0, Math.round(model.etaSeconds));
-    if (eta !== this.prevEta) {
+    if (eta !== this.prevEta || model.etaLabel !== this.prevEtaLabel) {
       this.prevEta = eta;
-      this.etaValue.textContent = formatClock(eta);
+      this.prevEtaLabel = model.etaLabel;
+      this.etaValue.textContent = model.etaLabel === "Stopped" ? "Stopped" : `${model.etaLabel} ${formatClock(eta)}`;
     }
 
     const hasObjective = model.objectiveLabel !== null;
-    const stageText = `${model.stageName} · ${Math.floor(model.stageProgress * 100)}%`;
+    const stageText = `${model.stageName} · ${Math.floor(model.stageProgress * 100)}% travelled`;
     if (this.stageName.textContent !== stageText) this.stageName.textContent = stageText;
     this.stageFill.style.width = `${Math.round(model.stageProgress * 100)}%`;
     this.threatCard.hidden = !model.threat.label;
@@ -712,7 +748,7 @@ export class HudController {
       this.objectiveLabel.textContent = model.objectiveLabel ?? "";
       this.objectiveValue.textContent = model.objectiveComplete
         ? "COMPLETE"
-        : `${Math.floor(model.objectiveProgress)} / ${Math.floor(model.objectiveTarget)}`;
+        : `${Math.floor(model.objectiveProgress)} / ${Math.floor(model.objectiveTarget)} ${model.objectiveUnit}`;
       this.objective.classList.toggle("is-complete", model.objectiveComplete);
     }
     this.salvage.classList.toggle("is-on", model.salvageMode);
@@ -721,16 +757,18 @@ export class HudController {
       this.salvageScore.textContent = `SCORE ${Math.floor(model.salvageScore)}`;
     }
 
-    const scrap = Math.floor(model.scrap);
+    const scrap = Number(resourceAmount(model.scrap));
     if (scrap !== this.prevScrap) {
       this.prevScrap = scrap;
-      this.scrapValue.textContent = `${scrap}`;
+      this.scrapValue.textContent = `${scrap} Scrap`;
     }
     const cylinders = Math.floor(model.cylinders);
     if (cylinders !== this.prevCylinders) {
       this.prevCylinders = cylinders;
-      this.cylinderValue.textContent = `CAN×${cylinders}`;
+      this.cylinderValue.textContent = `${cylinders} Canisters`;
     }
+    const reserve = `${resourceAmount(model.fuelReserve)} Fuel reserve`;
+    if (reserve !== this.prevReserve) { this.prevReserve = reserve; this.reserveValue.textContent = reserve; }
     if (model.level !== this.prevLevel) {
       this.prevLevel = model.level;
       this.levelValue.textContent = `${model.level}`;
@@ -889,7 +927,7 @@ export class HudController {
       // A pad player has no number row. On a controller the slot hint is the
       // D-pad direction that cycles to it, and the selected slot shows L1,
       // which is what actually opens the radial.
-      const keyLabel = gamepad ? (model.selected ? "L1" : (PAD_SLOT_HINTS[i] ?? "")) : `${i + 1}`;
+      const keyLabel = gamepad ? (model.selected ? "L1" : (PAD_SLOT_HINTS[i] ?? "")) : `Key ${i + 1}`;
       if (keyLabel !== chip.prevKey) {
         chip.prevKey = keyLabel;
         chip.key.textContent = keyLabel;
@@ -904,7 +942,7 @@ export class HudController {
       }
       if (model.cost !== chip.prevCost) {
         chip.prevCost = model.cost;
-        chip.cost.textContent = `${model.cost}`;
+        chip.cost.textContent = `${model.cost} scrap`;
       }
       if (model.accent !== chip.prevAccent) {
         chip.prevAccent = model.accent;
@@ -960,7 +998,7 @@ export class HudController {
       }
       if (model.level !== chip.prevLevel) {
         chip.prevLevel = model.level;
-        chip.level.textContent = model.unlocked ? `M${model.level}` : "LOCK";
+        chip.level.textContent = model.unlocked ? `Mk ${model.level}` : "LOCK";
       }
       if (model.unlocked !== chip.prevUnlocked) {
         chip.prevUnlocked = model.unlocked;

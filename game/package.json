@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "sync-assets": "node scripts/sync-assets.mjs",
+    "build-art": "node scripts/build-blender.mjs",
     "validate-assets": "node scripts/validate-assets.mjs",
     "capture": "node scripts/capture.mjs --out=../docs/captures",
     "perf": "node scripts/perf.mjs --out=../docs/perf.json",
@@ -23,6 +24,7 @@
     "three": "0.185.1"
   },
   "devDependencies": {
+    "@types/node": "26.4.1",
     "@types/three": "0.185.3",
     "typescript": "7.0.2",
     "vite": "8.2.1",

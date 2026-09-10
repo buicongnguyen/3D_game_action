@@ -13,6 +13,7 @@ import { WEAPON_SHOP } from "../data/weaponShop.ts";
 import { updateThreatReadout } from "./ThreatReadout.ts";
 import { OPERATIONS } from "../data/campaign.ts";
 import { SLICE_CHECKPOINT_ORDER } from "../data/routes.ts";
+import { objectiveUnit, partsProgress } from "./PickupPresentation.ts";
 
 /**
  * Builds the HUD's view model from world state each frame and pipes feedback
@@ -36,6 +37,7 @@ export class HudBridge {
     fuel: 0,
     maxFuel: 0,
     scrap: 0,
+    fuelReserve: 0,
     trail: 0,
     trailState: "QUIET",
     level: 1,
@@ -48,11 +50,14 @@ export class HudBridge {
     weaponHeat: 0,
     weapons: [],
     fieldItems: "",
+    hasUsableItems: false,
     distanceToCheckpoint: 0,
     etaSeconds: 0,
+    etaLabel: "ETA",
     objectiveLabel: null,
     objectiveProgress: 0,
     objectiveTarget: 0,
+    objectiveUnit: "",
     objectiveComplete: false,
     salvageMode: false,
     salvageSeconds: 0,
@@ -167,7 +172,8 @@ export class HudBridge {
     model.maxShield = spider.maxShield;
     model.fuel = spider.fuel;
     model.maxFuel = spider.maxFuel;
-    model.scrap = Math.floor(world.resources.scrap);
+    model.scrap = world.resources.scrap;
+    model.fuelReserve = world.resources.fuel;
     model.trail = world.trail;
     model.trailState = world.trailState;
     model.level = world.progress.level;
@@ -190,6 +196,7 @@ export class HudBridge {
     }
     const items = world.fieldItems;
     model.fieldItems = formatFieldItems(items);
+    model.hasUsableItems = items.repairKits + items.shockMines + items.armorPlates > 0;
 
     model.carried =
       player.carry.kind === "structure"
@@ -204,9 +211,11 @@ export class HudBridge {
     model.distanceToCheckpoint = remaining;
     const speed = spider.docked ? SPIDER.speedMarch : Math.max(0.2, spider.speed);
     model.etaSeconds = spider.docked ? runState.checkpointTimer : remaining / speed;
+    model.etaLabel = spider.docked ? "Halt" : spider.speed < 0.2 ? "Stopped" : "ETA";
     model.objectiveLabel = runState.objective?.definition.label ?? null;
     model.objectiveProgress = runState.objective?.progress ?? 0;
     model.objectiveTarget = runState.objective?.definition.target ?? 0;
+    model.objectiveUnit = objectiveUnit(runState.objective?.definition.kind);
     model.objectiveComplete = runState.objective?.complete ?? false;
     model.placing = world.build.ghostActive;
     const operation = world.operation;
@@ -216,12 +225,13 @@ export class HudBridge {
       model.objectiveLabel = `${definition.action} · ${Math.max(0, Math.ceil(definition.timeout - operation.elapsed))}s left${definition.kind === "service" && !inside ? " · move closer" : ""}`;
       model.objectiveProgress = operation.progress;
       model.objectiveTarget = definition.target;
+      model.objectiveUnit = objectiveUnit(definition.kind);
       model.objectiveComplete = false;
     }
     model.salvageMode = world.mode === "salvageRush";
     model.salvageSeconds = world.salvageTimeRemaining;
     model.salvageScore = world.salvageScore;
-    model.stageName = `${world.mode === "expedition" ? `${world.route.checkpointIndex + 1}/${SLICE_CHECKPOINT_ORDER.length} · ` : ""}${world.route.segment?.name ?? "Expedition"}`;
+    model.stageName = `${world.mode === "expedition" ? `Stage ${world.route.checkpointIndex + 1} of ${SLICE_CHECKPOINT_ORDER.length} · ` : ""}${world.route.segment?.name ?? "Expedition"}`;
     model.stageProgress = world.route.spline
       ? clamp(spider.distanceAlongRoute / Math.max(1, world.route.spline.length), 0, 1) : 0;
     updateThreatReadout(world, model.threat);
@@ -432,10 +442,10 @@ export class HudBridge {
 
 export function formatFieldItems(items: GameWorld["fieldItems"]): string {
   return [
-    items.repairKits > 0 ? `KIT×${items.repairKits}` : "",
-    items.shockMines > 0 ? `MINE×${items.shockMines}` : "",
-    items.armorPlates > 0 ? `PLATE×${items.armorPlates}` : "",
-    items.weaponParts > 0 ? `PART×${items.weaponParts} (${items.weaponParts % 3}/3)` : "",
+    items.repairKits > 0 ? `Repair kits: ${items.repairKits}` : "",
+    items.shockMines > 0 ? `Mines: ${items.shockMines}` : "",
+    items.armorPlates > 0 ? `Armor plates: ${items.armorPlates}` : "",
+    items.weaponParts > 0 ? partsProgress(items.weaponParts) : "",
   ].filter(Boolean).join(" · ");
 }
 

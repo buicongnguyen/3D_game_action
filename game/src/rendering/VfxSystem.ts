@@ -1,5 +1,6 @@
 import {
   AdditiveBlending,
+  DynamicDrawUsage,
   BufferAttribute,
   BufferGeometry,
   Color,
@@ -7,6 +8,7 @@ import {
   InstancedBufferAttribute,
   InstancedMesh,
   Matrix4,
+  MeshBasicMaterial,
   Points,
   PointsMaterial,
   Quaternion,
@@ -21,22 +23,23 @@ import type { MeshForge } from "../art/MeshForge.ts";
 /**
  * Pooled visual effects.
  *
- * Everything here is additive geometry, never a light. A muzzle flash that
- * spawned a real PointLight would force a shader recompile and add a full
- * lighting pass for two frames of sparkle; a two-triangle additive quad costs
- * nothing and reads better at this camera distance.
+ * Shared Blender meshes provide flashes, flames and impacts; translucent puffs
+ * provide steam and ash. No effect adds a light or a simulated fluid. Missing
+ * artwork falls back to the original cheap geometry.
  *
  * Effects are stored in flat parallel arrays and drawn from a small number of
  * InstancedMeshes, so a hundred simultaneous impacts stay at a handful of draw
  * calls.
  */
 
-type EffectKind = 0 | 1 | 2 | 3;
+type EffectKind = 0 | 1 | 2 | 3 | 4 | 5;
 const FLASH: EffectKind = 0;
 const IMPACT: EffectKind = 1;
 const EXPLOSION: EffectKind = 2;
 /** Ground-aligned expanding ring, used for shockwaves and placement pulses. */
 const DUST: EffectKind = 3;
+const FLAME: EffectKind = 4;
+const SMOKE: EffectKind = 5;
 
 const CAPACITY = PERFORMANCE.vfxPoolCapacity;
 const PARTICLE_CAPACITY = 900;
@@ -59,6 +62,15 @@ export class VfxSystem {
 
   private quadMesh: InstancedMesh | null = null;
   private ringMesh: InstancedMesh | null = null;
+  private flameMesh: InstancedMesh | null = null;
+  private impactMesh: InstancedMesh | null = null;
+  private smokeMesh: InstancedMesh | null = null;
+  private smokeMaterial: MeshBasicMaterial | null = null;
+  private flameMaterial: MeshBasicMaterial | null = null;
+  private smokeFade: InstancedBufferAttribute | null = null;
+  private readonly ownedGeometries: BufferGeometry[] = [];
+  private readonly batchCounts = new Uint16Array(5);
+  private readonly batches: InstancedMesh[] = [];
 
   /** Simple particle field for sparks, bone chips and embers. */
   private particles: Points | null = null;
@@ -103,7 +115,11 @@ export class VfxSystem {
     );
     quad.computeVertexNormals();
 
-    this.quadMesh = new InstancedMesh(quad, this.forge.materials.additive(0xffffff), CAPACITY);
+    const flash = this.forge.effectGeometry("flash");
+    if (flash) quad.dispose();
+    else this.ownedGeometries.push(quad);
+    this.quadMesh = new InstancedMesh(flash ?? quad, this.forge.materials.additive(0xffffff), CAPACITY);
+    this.quadMesh.name = "vfx.flash";
     this.quadMesh.frustumCulled = false;
     this.quadMesh.count = 0;
     this.quadMesh.renderOrder = 6;
@@ -118,9 +134,44 @@ export class VfxSystem {
     this.ringMesh.instanceColor = new InstancedBufferAttribute(new Float32Array(CAPACITY * 3), 3);
     this.root.add(this.ringMesh);
 
+    // Limit additive saturation where several tongues and the hot core overlap.
+    this.flameMaterial = this.forge.materials.additive(0xffffff).clone();
+    this.flameMaterial.opacity = 0.48;
+    this.flameMesh = new InstancedMesh(this.forge.effectGeometry("flame") ?? this.quadMesh.geometry,
+      this.flameMaterial, CAPACITY);
+    this.flameMesh.name = "vfx.flame";
+    this.impactMesh = new InstancedMesh(this.forge.effectGeometry("impact") ?? this.quadMesh.geometry,
+      this.forge.materials.additive(0xffffff), CAPACITY);
+    this.impactMesh.name = "vfx.impact";
+    const smokeGeometry = (this.forge.effectGeometry("smoke") ?? this.quadMesh.geometry).clone();
+    this.ownedGeometries.push(smokeGeometry);
+    this.smokeFade = new InstancedBufferAttribute(new Float32Array(CAPACITY), 1).setUsage(DynamicDrawUsage);
+    smokeGeometry.setAttribute("smokeFade", this.smokeFade);
+    // Per-instance alpha allows soft ash/steam to fade rather than turn black.
+    this.smokeMaterial = new MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false, opacity: 0.28 });
+    this.smokeMaterial.onBeforeCompile = (shader) => {
+      shader.vertexShader = "attribute float smokeFade; varying float vSmokeFade;\n" + shader.vertexShader;
+      shader.vertexShader = shader.vertexShader.replace("#include <begin_vertex>", "#include <begin_vertex>\nvSmokeFade = smokeFade;");
+      shader.fragmentShader = "varying float vSmokeFade;\n" + shader.fragmentShader;
+      shader.fragmentShader = shader.fragmentShader.replace("#include <color_fragment>", "#include <color_fragment>\ndiffuseColor.a *= vSmokeFade;");
+    };
+    this.smokeMaterial.customProgramCacheKey = () => "iron-march-smoke-v1";
+    this.smokeMesh = new InstancedMesh(smokeGeometry, this.smokeMaterial, CAPACITY);
+    this.smokeMesh.name = "vfx.smoke";
+    this.batches.push(this.quadMesh, this.ringMesh, this.flameMesh, this.impactMesh, this.smokeMesh);
+    for (const batch of this.batches) {
+      batch.frustumCulled = false;
+      batch.count = 0;
+      batch.renderOrder = batch === this.smokeMesh ? 4 : batch === this.ringMesh ? 5 : 6;
+      batch.instanceMatrix.setUsage(DynamicDrawUsage);
+      batch.instanceColor ??= new InstancedBufferAttribute(new Float32Array(CAPACITY * 3), 3);
+      batch.instanceColor.setUsage(DynamicDrawUsage);
+      this.root.add(batch);
+    }
+
     const particleGeometry = new BufferGeometry();
-    particleGeometry.setAttribute("position", new BufferAttribute(this.particlePositions, 3));
-    particleGeometry.setAttribute("color", new BufferAttribute(this.particleColors, 3));
+    particleGeometry.setAttribute("position", new BufferAttribute(this.particlePositions, 3).setUsage(DynamicDrawUsage));
+    particleGeometry.setAttribute("color", new BufferAttribute(this.particleColors, 3).setUsage(DynamicDrawUsage));
     this.particles = new Points(
       particleGeometry,
       new PointsMaterial({
@@ -155,9 +206,19 @@ export class VfxSystem {
    * and reads at roughly the width of the barrel it leaves.
    */
   muzzleFlash(x: number, y: number, z: number, heading: number, heavy: boolean): void {
-    this.spawn(FLASH, x, y, z, heading, heavy ? 0.2 : 0.15, heavy ? 2.6 : 1.9, FEEDBACK.muzzle);
-    this.spawn(FLASH, x, y, z, heading, heavy ? 0.16 : 0.12, heavy ? 1.5 : 1.05, FEEDBACK.muzzleCore);
+    this.spawn(FLASH, x, y, z, heading, heavy ? 0.17 : 0.12, heavy ? 1.4 : 0.95, FEEDBACK.muzzle);
+    this.spawn(FLASH, x, y, z, heading, heavy ? 0.12 : 0.09, heavy ? 0.8 : 0.55, FEEDBACK.muzzleCore);
     this.burst(x, y, z, heavy ? 9 : 5, 6.5, FEEDBACK.muzzle, heading, 0.5);
+  }
+
+  weaponFlash(x: number, y: number, z: number, heading: number, weapon: string): void {
+    if (weapon === "flamer") {
+      this.spawn(FLAME, x, y - 0.1, z, heading, 0.38, 0.9, 0xff8d35);
+      this.spawn(FLAME, x, y - 0.05, z, heading, 0.2, 0.45, 0xffe8ac);
+    } else if (weapon === "arc") {
+      this.spawn(FLASH, x, y, z, heading, 0.17, 1.15, 0x84eaff);
+      this.spawn(IMPACT, x, y, z, heading, 0.22, 0.75, 0x62dfff);
+    } else this.muzzleFlash(x, y, z, heading, weapon === "launcher");
   }
 
   impact(x: number, y: number, z: number, bone: boolean): void {
@@ -187,6 +248,7 @@ export class VfxSystem {
     // The expanding ring is what makes the damage radius legible after the
     // fact, so the player can learn the weapon rather than guess at it.
     this.spawn(DUST, x, 0.08, z, 0, 0.55, radius, FEEDBACK.explosion);
+    this.spawn(SMOKE, x, 0.2, z, this.spin(), 1.25, Math.min(radius * 0.7, 4), 0x778486);
     this.burst(x, 0.4, z, 26, 12, FEEDBACK.explosion, 0, 6.283);
   }
 
@@ -219,7 +281,7 @@ export class VfxSystem {
    * behind the spider's leg, which is exactly when it matters.
    */
   overloadVent(x: number, z: number, urgency: number): void {
-    this.spawn(FLASH, x, 1.05, z, this.spin(), 0.28, 0.8 + urgency * 0.9, FEEDBACK.explosionCore);
+    this.spawn(SMOKE, x, 1.05, z, this.spin(), 0.65, 0.6 + urgency * 0.7, 0xc5d6ce);
     this.burst(x, 1.1, z, 3 + Math.round(urgency * 5), 3 + urgency * 5, FEEDBACK.explosion, 0, 6.283);
   }
 
@@ -300,10 +362,7 @@ export class VfxSystem {
     const ring = this.ringMesh;
     if (!quad || !ring) return;
 
-    let quadCount = 0;
-    let ringCount = 0;
-    const quadColors = quad.instanceColor!.array as Float32Array;
-    const ringColors = ring.instanceColor!.array as Float32Array;
+    this.batchCounts.fill(0);
 
     for (let i = 0; i < CAPACITY; i++) {
       if (this.life[i] <= 0) continue;
@@ -315,7 +374,6 @@ export class VfxSystem {
 
       const t = 1 - this.life[i] / this.maxLife[i];
       const kind = this.kind[i];
-      const isRing = kind === DUST;
 
       let scale: number;
       let fade: number;
@@ -330,8 +388,13 @@ export class VfxSystem {
           fade = 1 - t;
           break;
         case EXPLOSION:
+        case FLAME:
           scale = this.size[i] * (0.4 + easeOutCubic(t) * 1.5);
           fade = 1 - easeInCubic(t);
+          break;
+        case SMOKE:
+          scale = this.size[i] * (0.65 + t * 0.85);
+          fade = (1 - t) * Math.min(1, t * 8);
           break;
         case DUST:
           scale = this.size[i] * (0.25 + easeOutCubic(t) * 1.2);
@@ -346,29 +409,41 @@ export class VfxSystem {
           break;
       }
 
-      this.position.set(this.x[i], this.y[i], this.z[i]);
-      this.quaternion.setFromAxisAngle(UP, this.rotation[i] + t * 0.4);
-      this.scale.set(scale, scale, scale);
+      if (kind === FLAME) {
+        this.x[i] += Math.sin(this.rotation[i]) * dt * 9;
+        this.z[i] += Math.cos(this.rotation[i]) * dt * 9;
+      }
+      const rise = kind === SMOKE ? t * 1.8 : kind === EXPLOSION || kind === FLAME ? t * 0.3 : 0;
+      this.position.set(this.x[i], this.y[i] + rise, this.z[i]);
+      this.quaternion.setFromAxisAngle(UP, this.rotation[i] + (kind === FLASH || kind === FLAME ? 0 : t * 0.4));
+      this.scale.set(scale * (kind === FLAME ? 0.6 : 1), scale, scale);
       this.matrix.compose(this.position, this.quaternion, this.scale);
 
-      const target = isRing ? ring : quad;
-      const targetColors = isRing ? ringColors : quadColors;
-      const slot = isRing ? ringCount++ : quadCount++;
+      const batchIndex = kind === DUST ? 1 : kind === FLAME || kind === EXPLOSION ? 2 : kind === IMPACT ? 3 : kind === SMOKE ? 4 : 0;
+      const target = this.batches[batchIndex];
+      const targetColors = target.instanceColor!.array as Float32Array;
+      const slot = this.batchCounts[batchIndex]++;
       target.setMatrixAt(slot, this.matrix);
-      targetColors[slot * 3] = this.colorR[i] * fade;
-      targetColors[slot * 3 + 1] = this.colorG[i] * fade;
-      targetColors[slot * 3 + 2] = this.colorB[i] * fade;
+      const colorFade = kind === SMOKE ? 1 : fade;
+      targetColors[slot * 3] = this.colorR[i] * colorFade;
+      targetColors[slot * 3 + 1] = this.colorG[i] * colorFade;
+      targetColors[slot * 3 + 2] = this.colorB[i] * colorFade;
+      if (kind === SMOKE) this.smokeFade!.setX(slot, fade);
     }
 
-    quad.count = quadCount;
-    ring.count = ringCount;
-    if (quadCount > 0) {
-      quad.instanceMatrix.needsUpdate = true;
-      quad.instanceColor!.needsUpdate = true;
-    }
-    if (ringCount > 0) {
-      ring.instanceMatrix.needsUpdate = true;
-      ring.instanceColor!.needsUpdate = true;
+    for (let i = 0; i < this.batches.length; i++) {
+      const batch = this.batches[i];
+      batch.count = this.batchCounts[i];
+      if (batch.count === 0) continue;
+      batch.instanceMatrix.clearUpdateRanges();
+      batch.instanceMatrix.addUpdateRange(0, batch.count * 16);
+      batch.instanceMatrix.needsUpdate = true;
+      batch.instanceColor!.clearUpdateRanges();
+      batch.instanceColor!.addUpdateRange(0, batch.count * 3);
+      batch.instanceColor!.needsUpdate = true;
+      if (i === 4) {
+        this.smokeFade!.clearUpdateRanges(); this.smokeFade!.addUpdateRange(0, batch.count); this.smokeFade!.needsUpdate = true;
+      }
     }
   }
 
@@ -419,8 +494,12 @@ export class VfxSystem {
   }
 
   dispose(): void {
-    this.quadMesh?.dispose();
-    this.ringMesh?.dispose();
+    for (const batch of this.batches) batch.dispose();
+    this.batches.length = 0;
+    for (const geometry of this.ownedGeometries) geometry.dispose();
+    this.ownedGeometries.length = 0;
+    this.smokeMaterial?.dispose();
+    this.flameMaterial?.dispose();
     this.particles?.geometry.dispose();
     (this.particles?.material as { dispose?: () => void })?.dispose?.();
     this.root.removeFromParent();

@@ -1,0 +1,110 @@
+{
+  "version": 1,
+  "generator": "Blender 4.5.3 LTS",
+  "license": "Original game artwork; no third-party source assets",
+  "bytes": 1196756,
+  "meshes": {
+    "house_cottage": {
+      "triangles": 824
+    },
+    "house_town": {
+      "triangles": 848
+    },
+    "house_foundry": {
+      "triangles": 896
+    },
+    "minion_pelvis": {
+      "triangles": 152
+    },
+    "minion_torso": {
+      "triangles": 552
+    },
+    "minion_head": {
+      "triangles": 508
+    },
+    "minion_upperArm": {
+      "triangles": 124
+    },
+    "minion_forearm": {
+      "triangles": 228
+    },
+    "minion_thigh": {
+      "triangles": 124
+    },
+    "minion_shin": {
+      "triangles": 312
+    },
+    "warrior_pelvis": {
+      "triangles": 152
+    },
+    "warrior_torso": {
+      "triangles": 628
+    },
+    "warrior_head": {
+      "triangles": 608
+    },
+    "warrior_upperArm": {
+      "triangles": 168
+    },
+    "warrior_forearm": {
+      "triangles": 272
+    },
+    "warrior_thigh": {
+      "triangles": 168
+    },
+    "warrior_shin": {
+      "triangles": 356
+    },
+    "golem_pelvis": {
+      "triangles": 152
+    },
+    "golem_torso": {
+      "triangles": 240
+    },
+    "golem_head": {
+      "triangles": 632
+    },
+    "golem_upperArm": {
+      "triangles": 168
+    },
+    "golem_forearm": {
+      "triangles": 260
+    },
+    "golem_thigh": {
+      "triangles": 168
+    },
+    "golem_shin": {
+      "triangles": 344
+    },
+    "gun_shotgun": {
+      "triangles": 448
+    },
+    "gun_carbine": {
+      "triangles": 448
+    },
+    "gun_rifle": {
+      "triangles": 440
+    },
+    "gun_flamer": {
+      "triangles": 424
+    },
+    "gun_arc": {
+      "triangles": 564
+    },
+    "gun_launcher": {
+      "triangles": 524
+    },
+    "fx_flash": {
+      "triangles": 8
+    },
+    "fx_flame": {
+      "triangles": 66
+    },
+    "fx_impact": {
+      "triangles": 42
+    },
+    "fx_smoke": {
+      "triangles": 144
+    }
+  }
+}

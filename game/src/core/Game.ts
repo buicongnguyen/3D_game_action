@@ -1,6 +1,7 @@
 import { GameLoop } from "./GameLoop.ts";
 import { clamp } from "./math.ts";
 import { weaponPreview, turretPreview, purchasePrice } from "../ui/EngagementPresentation.ts";
+import { inventoryScreenData, resourceAmount } from "../ui/PickupPresentation.ts";
 import { OPENING_STORY, OPERATIONS, SPECIALIZATIONS, chooseSpecialization } from "../data/campaign.ts";
 import { chooseOperation } from "../game/systems/CampaignSystem.ts";
 import { GameWorld } from "../game/GameWorld.ts";
@@ -176,6 +177,17 @@ export class Game {
     this.view.setVfx(this.vfx);
 
     this.hud = new HudController(uiRoot);
+    this.hud.onInventory = () => {
+      if (this.modalOpen || this.world.paused || this.world.phase === "VICTORY" || this.world.phase === "DEFEAT") return;
+      this.openModal("inventory");
+    };
+    this.hud.onUseItem = () => {
+      if (this.modalOpen || this.world.paused || this.world.phase === "VICTORY" || this.world.phase === "DEFEAT") return;
+      const input = this.input.snapshot();
+      this.fieldItems.update(this.world, { ...input, buttons: {
+        ...input.buttons, tool: { ...input.buttons.tool, pressed: true },
+      } });
+    };
     this.hud.onDeploy = () => {
       if (this.modalOpen || this.world.paused || this.world.phase === "VICTORY" || this.world.phase === "DEFEAT") return;
       this.construction.confirmPlacement(this.world);
@@ -224,7 +236,7 @@ export class Game {
       } else if (kind === "radio") {
         chooseOperation(this.world, false);
         this.closeModal();
-      } else if (kind === "pause" || kind === "settings") this.closeModal();
+      } else if (kind === "pause" || kind === "settings" || kind === "inventory") this.closeModal();
     };
     this.screens.onAdjust = (kind, optionId, delta) => {
       if (kind === "settings") this.stepSetting(optionId, delta);
@@ -251,6 +263,8 @@ export class Game {
 
     onProgress(0.15, "Forging geometry");
     this.forge.build((fraction: number, label: string) => onProgress(0.15 + fraction * 0.55, label));
+    onProgress(0.71, "Loading Blender artwork");
+    await this.forge.loadBlenderLibrary();
 
     onProgress(0.74, "Building the world");
     this.view.prepare();
@@ -288,7 +302,7 @@ export class Game {
     });
 
     events.on("weapon.fired", (event) => {
-      this.vfx.muzzleFlash(event.muzzleX, event.muzzleY, event.muzzleZ, event.heading, false);
+      this.vfx.weaponFlash(event.muzzleX, event.muzzleY, event.muzzleZ, event.heading, event.weaponId);
       this.camera.shake(0.045, 0.08);
     });
     events.on("structure.fired", (event) => {
@@ -710,7 +724,7 @@ export class Game {
       // opened the pause stack has to be able to close it from anywhere inside
       // it, or the player is one screen deep with no way out but Circle.
       const kind = this.screens.kind;
-      if (kind === "pause" || kind === "settings") {
+      if (kind === "pause" || kind === "settings" || kind === "inventory") {
         this.closeModal();
       } else if (!this.modalOpen) {
         this.openModal("pause");
@@ -880,8 +894,8 @@ export class Game {
         const shouldLeave =
           !hasAffordableWeaponPurchase(world) && !hasAffordableTurretUpgrade(world);
         this.screens.show("shop", {
-          eyebrow: `Checkpoint workshop · ${Math.floor(world.resources.scrap)} scrap`,
-          subtitle: this.shopMessage || "Buy new guns or improve an owned gun. Each Mk adds 16% damage and 4.5% fire rate.",
+          eyebrow: `Checkpoint workshop · ${resourceAmount(world.resources.scrap)} scrap`,
+          subtitle: this.shopMessage || "Mk is this gun's upgrade rank, separate from engineer level. Each rank adds 16% base damage and 4.5% base fire rate; previews show the actual change.",
           layout: "cards",
           columns: 3,
           options: [
@@ -928,7 +942,7 @@ export class Game {
         const world = this.world;
         const shouldGoBack = !hasAffordableTurretUpgrade(world);
         this.screens.show("turretShop", {
-          eyebrow: `Turret foundry · ${Math.floor(world.resources.scrap)} scrap`,
+          eyebrow: `Turret foundry · ${resourceAmount(world.resources.scrap)} scrap`,
           subtitle: this.turretShopMessage || "Permanent run upgrades affect every current and future rivet turret.",
           layout: "cards",
           columns: 2,
@@ -940,7 +954,7 @@ export class Game {
               return {
                 id: `turret.${entry.kind}`,
                 label: entry.name,
-                tag: `Mk ${level} / ${entry.maxLevel}`,
+                tag: `${level} of ${entry.maxLevel} upgrades bought`,
                 glyph: entry.icon,
                 detail: entry.description,
                 reward: maxed ? "Fully upgraded" : turretPreview(world, entry.kind),
@@ -975,11 +989,15 @@ export class Game {
         break;
       }
 
+      case "inventory":
+        this.screens.show("inventory", inventoryScreenData(this.world));
+        break;
       case "pause":
         this.screens.show("pause", {
           subtitle: `${this.world.mode === "salvageRush" ? "Salvage Rush" : "Expedition"} · Seed ${formatSeed(this.world.stats.seed, this.seedLabel)}`,
           options: [
             { id: "resume", label: "Resume the march" },
+            { id: "inventory", label: "Inventory & number guide" },
             { id: "settings", label: "Settings" },
             {
               id: this.world.mode === "salvageRush" ? "mode.expedition" : "mode.salvageRush",
@@ -1130,6 +1148,7 @@ export class Game {
       }
       case "pause": {
         if (value === "resume") this.closeModal();
+        else if (value === "inventory") this.screens.pushScreen("inventory", inventoryScreenData(world));
         else if (value === "restart") this.restart();
         else if (value === "mode.expedition") this.switchMode("expedition");
         else if (value === "mode.salvageRush") this.switchMode("salvageRush");
@@ -1140,6 +1159,9 @@ export class Game {
         }
         break;
       }
+      case "inventory":
+        if (value === "resume") this.screens.back();
+        break;
       case "settings":
         // Every row here is adjusted with left and right, never chosen, and the
         // footer says so. Confirm is deliberately inert rather than falling
@@ -1220,20 +1242,20 @@ export class Game {
         { label: "Distance", value: `${stats.distanceTravelled.toFixed(0)} m` },
         { label: "Kills", value: `${stats.enemiesKilled}` },
         {
-          label: "Damage by machines",
+          label: "Machines' share of damage",
           value: `${Math.round((stats.damageByStructures / totalDamage) * 100)}%`,
         },
         { label: "Structures placed", value: `${stats.structuresPlaced}` },
-        { label: "Recovered", value: `${stats.structuresRecovered}` },
-        { label: "Abandoned", value: `${stats.structuresAbandoned}` },
+        { label: "Machines recovered", value: `${stats.structuresRecovered}` },
+        { label: "Machines abandoned", value: `${stats.structuresAbandoned}` },
         { label: "Last Shots", value: `${stats.lastShotsTriggered}` },
-        { label: "Objectives", value: `${stats.objectivesCompleted}` },
+        { label: "Objectives completed", value: `${stats.objectivesCompleted}` },
         ...(!salvage ? [
           { label: "Role", value: SPECIALIZATIONS.find((s) => s.id === this.world.campaign.specialization)?.name ?? "Engineer" },
           { label: "Communities helped", value: `${Object.values(this.world.campaign.outcomes).filter((v) => v === "success").length}` },
         ] : []),
         ...(salvage ? [{ label: "Salvage score", value: `${this.world.salvageScore}` }] : []),
-        { label: "Peak Trail", value: stats.peakTrail.toFixed(0) },
+        { label: "Peak enemy pressure", value: `${stats.peakTrail.toFixed(0)} / 100` },
         { label: "Seed", value: formatSeed(stats.seed, this.seedLabel) },
       ],
       // The footer names the input, not the action; the button already says
@@ -1482,6 +1504,7 @@ export class Game {
       resetFrameStats: () => this.loop.resetStats(),
       toggleDebug: () => this.toggleDebug(),
       scene: this.renderer.scene,
+      blenderAssetCount: () => this.forge.blenderAssetCount,
       /**
        * Normalised screen position of a world point, 0..1 with (0.5, 0.5) at
        * frame centre. Exists so the camera's "the player never leaves the safe
