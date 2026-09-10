@@ -7,6 +7,8 @@ import type { InteractionSystem } from "../game/systems/InteractionSystem.ts";
 import type { RunStateSystem } from "../game/systems/RunStateSystem.ts";
 import { getBlueprint } from "../data/structures.ts";
 import { PLAYER, SPIDER, STRUCTURES, WEAPONS } from "../data/balance.ts";
+import { RIVET_RETIRE_KEEP_RADIUS } from "../game/structureRetirement.ts";
+import { escortWarningLevel } from "./EscortPresentation.ts";
 import type { HudController, HudModel } from "./HudController.ts";
 import type { RadialMenu } from "./RadialMenu.ts";
 import { WEAPON_SHOP } from "../data/weaponShop.ts";
@@ -68,6 +70,8 @@ export class HudBridge {
     promptSecondary: null,
     spiderOffScreen: false,
     spiderScreenAngle: 0,
+    spiderDistance: 0,
+    spiderWarning: 0,
     leftBehind: [],
     lastDevice: "gamepad",
     emergencyBurn: false,
@@ -134,13 +138,6 @@ export class HudBridge {
       events.on("ui.toast", (event) => {
         if (event.duration > 0) this.hud.showToast(event.message, event.tone, event.duration);
       }),
-      events.on("player.tethered", (event) =>
-        this.hud.showToast(
-          event.droppedCarry ? "Tether snapped taut - payload dropped" : "Too far from the spider",
-          "danger",
-          2,
-        ),
-      ),
       events.on("structure.leftBehind", (event) =>
         this.hud.showToast(`${getBlueprint(event.kind).name} falling behind`, "warning", 2.4),
       ),
@@ -339,9 +336,12 @@ export class HudBridge {
 
   private updateSpiderIndicator(world: GameWorld, camera: CameraController): void {
     const spider = world.spider;
+    const distance = Math.hypot(world.player.x - spider.x, world.player.z - spider.z);
+    this.model.spiderDistance = distance;
+    this.model.spiderWarning = escortWarningLevel(world.player.farFromSpider, distance);
     const visible = camera.isVisible(spider.x, spider.z, SPIDER.bodyLength * 0.5);
     this.model.spiderOffScreen = !visible;
-    if (!visible) {
+    if (!visible || this.model.spiderWarning !== 0) {
       this.model.spiderScreenAngle = camera.screenAngleTo(
         world.player.x,
         world.player.z,
@@ -388,7 +388,7 @@ export class HudBridge {
       const bufferFraction =
         structure.maxBuffer > 0 ? clamp(structure.buffer / structure.maxBuffer, 0, 1) : 1;
       const distance = Math.hypot(structure.x - world.spider.x, structure.z - world.spider.z);
-      const urgency = clamp(distance / (PLAYER.tetherDistance * 1.6), 0, 1) * 0.6 +
+      const urgency = clamp(distance / (RIVET_RETIRE_KEEP_RADIUS * 1.6), 0, 1) * 0.6 +
         (1 - bufferFraction) * 0.4;
 
       // The HUD positions markers in CSS pixels, so the normalised projection

@@ -21,6 +21,7 @@ describe("retiring structure presentation", () => {
     world.route.spline!.positionAt(point, 36);
     world.spider.x = point.x;
     world.spider.z = point.z;
+    world.player.x = point.x; world.player.z = point.z;
     expect(rivetRetirementProgress(world, structure)).toBeGreaterThan(0);
 
     const material = new MeshBasicMaterial();

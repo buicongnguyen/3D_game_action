@@ -2,11 +2,10 @@ import { clamp, dist, dampAngle, headingFromDirection } from "../../core/math.ts
 import type { InputSnapshot } from "../../input/InputActions.ts";
 import { PLAYER } from "../../data/balance.ts";
 import type { GameWorld } from "../GameWorld.ts";
-import { ConstructionSystem } from "./ConstructionSystem.ts";
 import { terrainSpeedMultiplier } from "../route/RouteHazards.ts";
 
 /**
- * Camera-relative movement, dodge, and the safety tether.
+ * Camera-relative movement, dodge, and advisory escort-distance warnings.
  *
  * Movement is camera-relative because the camera yaw is fixed at 45 degrees:
  * pushing the stick "up" must move the engineer up the screen, not along +Z.
@@ -14,8 +13,6 @@ import { terrainSpeedMultiplier } from "../route/RouteHazards.ts";
  * simulation stays free of Three.js.
  */
 export class PlayerMovementSystem {
-  constructor(private readonly construction = new ConstructionSystem()) {}
-
   /** Camera-space basis on the XZ plane, set once per frame by the renderer. */
   private forwardX = 0;
   private forwardZ = 1;
@@ -42,6 +39,8 @@ export class PlayerMovementSystem {
     if (player.downed) {
       player.velocityX = 0;
       player.velocityZ = 0;
+      player.farFromSpider = false;
+      player.spiderSeparation = 0;
       return;
     }
 
@@ -56,7 +55,7 @@ export class PlayerMovementSystem {
     }
 
     this.integrate(world, dt);
-    this.updateTether(world, dt);
+    this.updateEscortWarning(world);
     this.updateAim(world, input);
   }
 
@@ -181,63 +180,21 @@ export class PlayerMovementSystem {
     player.z = nextZ;
   }
 
-  /**
-   * The tether pulls the engineer back rather than killing them. Straying is
-   * punished with damage and a dropped payload, which is a recoverable mistake.
-   */
-  private updateTether(world: GameWorld, dt: number): void {
+  /** Distance is information, never a force, damage source or payload drop. */
+  private updateEscortWarning(world: GameWorld): void {
     const player = world.player;
     const spider = world.spider;
     const distance = dist(player.x, player.z, spider.x, spider.z);
 
-    player.tetherStrain = clamp(
-      (distance - PLAYER.comfortableDistance) /
-        (PLAYER.tetherDistance - PLAYER.comfortableDistance),
+    player.spiderSeparation = clamp(
+      (distance - PLAYER.escortWarningClearDistance) /
+        (PLAYER.escortUrgentDistance - PLAYER.escortWarningClearDistance),
       0,
       1,
     );
 
-    if (distance <= PLAYER.tetherDistance) {
-      player.tethered = false;
-      return;
-    }
-
-    const dx = (spider.x - player.x) / distance;
-    const dz = (spider.z - player.z) / distance;
-    // Forced movement must obey the same terrain collision as walking.
-    const pull = Math.min(distance - PLAYER.tetherDistance, PLAYER.tetherPullSpeed * dt);
-    const nextX = player.x + dx * pull;
-    if (!world.navigation.isBlockedCircle(nextX, player.z, PLAYER.radius)) player.x = nextX;
-    const nextZ = player.z + dz * pull;
-    if (!world.navigation.isBlockedCircle(player.x, nextZ, PLAYER.radius)) player.z = nextZ;
-
-    const droppedCarry = player.carry.kind !== "none";
-    if (player.carry.kind === "structure") {
-      this.construction.dropCarriedStructure(
-        world,
-        player.carry,
-        player.x,
-        player.z,
-        player.heading,
-      );
-    }
-    if (droppedCarry) player.carry = { kind: "none" };
-
-    this.applyTetherDamage(world, dt);
-
-    // The pull and the damage are per step; the announcement is per event.
-    // The engineer crossing the line is one thing that happened, and it stays
-    // one thing however many steps they spend being hauled back. Dropping the
-    // payload is always announced, since it can only happen once per carry.
-    if (!player.tethered || droppedCarry) {
-      world.events.emit({ type: "player.tethered", x: player.x, z: player.z, droppedCarry });
-    }
-    player.tethered = true;
-  }
-
-  private applyTetherDamage(world: GameWorld, dt: number): void {
-    const player = world.player;
-    player.health = Math.max(1, player.health - PLAYER.tetherDamagePerSecond * dt);
+    if (distance >= PLAYER.escortWarningDistance) player.farFromSpider = true;
+    else if (distance <= PLAYER.escortWarningClearDistance) player.farFromSpider = false;
   }
 
   private updateAim(world: GameWorld, input: InputSnapshot): void {

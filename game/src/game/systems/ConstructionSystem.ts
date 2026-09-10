@@ -395,7 +395,7 @@ export class ConstructionSystem {
     return structure;
   }
 
-  /** Leaves a folded, inert machine in the world when the tether tears it free. */
+  /** Leaves a folded, inert machine when the engineer deliberately drops it. */
   dropCarriedStructure(
     world: GameWorld,
     payload: Extract<GameWorld["player"]["carry"], { kind: "structure" }>,

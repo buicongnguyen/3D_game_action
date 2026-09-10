@@ -2,6 +2,7 @@ import type { WeaponKind, PickupKind } from "../core/types.ts";
 import { controlHint, PickupReceipt } from "./EngagementPresentation.ts";
 import { resourceAmount } from "./PickupPresentation.ts";
 import type { ThreatReadout } from "./ThreatReadout.ts";
+import { escortWarningTitle, type EscortWarningLevel } from "./EscortPresentation.ts";
 
 /**
  * The permanent HUD.
@@ -100,6 +101,8 @@ export interface HudModel {
   spiderOffScreen: boolean;
   /** Radians, 0 = straight up on screen, increasing clockwise. */
   spiderScreenAngle: number;
+  spiderDistance: number;
+  spiderWarning: EscortWarningLevel;
   leftBehind: HudLeftBehindModel[];
   lastDevice: string;
   emergencyBurn: boolean;
@@ -441,6 +444,13 @@ export class HudController {
 
   private readonly arrow: HTMLElement;
   private readonly arrowLabel: HTMLElement;
+  private readonly distanceWarning: HTMLElement;
+  private readonly distanceWarningTitle: HTMLElement;
+  private readonly distanceWarningArrow: HTMLElement;
+  private readonly distanceAnnouncement: HTMLElement;
+  private prevWarningLevel = 0;
+  private prevSpiderDistance = -1;
+  private prevWarningDeg = Number.NaN;
   private readonly markerLayer: HTMLElement;
   private readonly markers: MarkerSlot[] = [];
 
@@ -555,6 +565,19 @@ export class HudController {
     this.threatLabel = el("div", "hud__threat-label", this.threatCard);
     this.threatHealth = new Bar(this.threatCard, "health", "Target", false);
     this.threatDetail = el("div", "hud__threat-detail", this.threatCard);
+
+    // A persistent advisory, not an expiring toast and never an input blocker.
+    this.distanceWarning = el("div", "hud__distance-warning", trail);
+    this.distanceWarning.hidden = true;
+    this.distanceWarningArrow = el("span", "hud__distance-arrow", this.distanceWarning);
+    this.distanceWarningArrow.textContent = "▲";
+    this.distanceWarningArrow.setAttribute("aria-hidden", "true");
+    const warningBody = el("div", "hud__distance-body", this.distanceWarning);
+    this.distanceWarningTitle = el("strong", "hud__distance-title", warningBody);
+    el("div", "hud__distance-detail", warningBody).textContent = "Follow the arrow to return. You can keep exploring.";
+    this.distanceAnnouncement = el("span", "hud__distance-announcement", this.hud);
+    this.distanceAnnouncement.setAttribute("role", "status");
+    this.distanceAnnouncement.setAttribute("aria-live", "polite");
 
     // --- resources, top right ----------------------------------------------
     const resources = panel(this.hud, "hud__resources panel--right");
@@ -777,7 +800,10 @@ export class HudController {
     this.updateBlueprints(model.blueprints, model.lastDevice);
     this.updatePrompt(model.prompt, model.lastDevice);
     this.updateSecondaryPrompt(model.promptSecondary, model.lastDevice);
-    this.updateArrow(model.spiderOffScreen, model.spiderScreenAngle);
+    // The warning already contains a return arrow; a second orbiting label can
+    // cover its distance readout on short screens.
+    this.updateArrow(model.spiderOffScreen && model.spiderWarning === 0, model.spiderScreenAngle);
+    this.updateDistanceWarning(model);
     this.updateMarkers(model.leftBehind);
   }
 
@@ -1058,6 +1084,28 @@ export class HudController {
       this.prevAltButton = prompt.button;
       this.prevAltDevice = device;
       applyGlyph(this.promptAltGlyph, prompt.button, device);
+    }
+  }
+
+  private updateDistanceWarning(model: HudModel): void {
+    const level = model.spiderWarning;
+    const metres = Math.round(model.spiderDistance);
+    if (level !== this.prevWarningLevel) {
+      this.distanceWarning.hidden = level === 0;
+      this.distanceWarning.classList.toggle("is-urgent", level === 2);
+      // Announce severity changes, not every metre walked or every frame.
+      this.distanceAnnouncement.textContent = level === 0 ? "Back near the Spider."
+        : `${escortWarningTitle(level, metres)}. Follow the arrow to return. You can keep exploring.`;
+    }
+    if (level !== 0 && (level !== this.prevWarningLevel || metres !== this.prevSpiderDistance))
+      this.distanceWarningTitle.textContent = escortWarningTitle(level, metres);
+    this.prevWarningLevel = level;
+    this.prevSpiderDistance = metres;
+    if (level === 0) return;
+    const degrees = Math.round(model.spiderScreenAngle * 180 / Math.PI);
+    if (degrees !== this.prevWarningDeg) {
+      this.prevWarningDeg = degrees;
+      this.distanceWarningArrow.style.transform = `rotate(${degrees}deg)`;
     }
   }
 

@@ -68,13 +68,6 @@ export interface PlayerDodgedEvent {
   dirZ: number;
 }
 
-export interface PlayerTetheredEvent {
-  type: "player.tethered";
-  x: number;
-  z: number;
-  droppedCarry: boolean;
-}
-
 export interface SpiderDamagedEvent {
   type: "spider.damaged";
   amount: number;
@@ -304,7 +297,6 @@ export type GameEvent =
   | PlayerDownedEvent
   | PlayerRevivedEvent
   | PlayerDodgedEvent
-  | PlayerTetheredEvent
   | SpiderDamagedEvent
   | SpiderFuelEmptyEvent
   | SpiderRefuelledEvent

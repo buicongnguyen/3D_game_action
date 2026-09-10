@@ -24,14 +24,11 @@ export const PLAYER = {
   deceleration: 70,
   turnRate: 14,
   radius: 0.42,
-  /** Exploration stays warning-free through nearby houses and side chambers. */
-  comfortableDistance: 26,
-  /** Hard escort leash; long enough for ranged loot and maze side rooms. */
-  tetherDistance: 32,
-  /** Damage per second applied while past the tether limit. */
-  tetherDamagePerSecond: 6,
-  /** Speed of the pull-back applied at the tether limit. */
-  tetherPullSpeed: 7,
+  /** Advisory only: never changes movement, health, or carried equipment. */
+  escortWarningDistance: 32,
+  /** Hysteresis stops the warning flickering when hovering near its threshold. */
+  escortWarningClearDistance: 28,
+  escortUrgentDistance: 64,
   interactionRange: 2.2,
   buildRange: 5,
   deadZone: 0.18,

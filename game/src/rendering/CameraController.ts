@@ -1,5 +1,5 @@
 import { OrthographicCamera, Vector3 } from "three";
-import { clamp, damp, lerp } from "../core/math.ts";
+import { clamp, damp, lerp, smoothstep } from "../core/math.ts";
 import { CAMERA, PLAYER, SPIDER } from "../data/balance.ts";
 import type { GameWorld } from "../game/GameWorld.ts";
 import type { Renderer } from "./Renderer.ts";
@@ -7,11 +7,9 @@ import type { Renderer } from "./Renderer.ts";
 /**
  * Fixed-orientation isometric camera.
  *
- * The camera follows a weighted point between the player and the spider, not
- * the player alone. That is a gameplay decision, not a framing one: the whole
- * game is about the relationship between where you are and where the fortress
- * is, so the camera must always be able to answer "how far ahead am I?" without
- * the player rotating anything.
+ * Near the convoy, follow a weighted point between the player and Spider.
+ * Farther away, smoothly follow the player alone; the HUD supplies the return
+ * direction. Exploration must not strand the camera between distant subjects.
  *
  * Yaw and pitch never change. A rotating camera would break camera-relative
  * movement muscle memory and would make the 45-degree isometric read — the
@@ -110,7 +108,11 @@ export class CameraController {
   private computeFocusTarget(world: GameWorld): void {
     const player = world.player;
     const spider = world.spider;
-    const weight = CAMERA.spiderWeight;
+    const separation = Math.hypot(player.x - spider.x, player.z - spider.z);
+    // Once the convoy is distant, follow the engineer rather than empty ground
+    // between them. Rotation and the bounded zoom range stay unchanged.
+    const freeRoam = smoothstep(PLAYER.escortWarningDistance, PLAYER.escortUrgentDistance, separation);
+    const weight = CAMERA.spiderWeight * (1 - freeRoam);
 
     let x = player.x * (1 - weight) + spider.x * weight;
     let z = player.z * (1 - weight) + spider.z * weight;
@@ -118,8 +120,8 @@ export class CameraController {
     const spline = world.route.spline;
     if (spline && !spider.docked) {
       const heading = spider.heading;
-      x += Math.sin(heading) * CAMERA.lookAhead;
-      z += Math.cos(heading) * CAMERA.lookAhead;
+      x += Math.sin(heading) * CAMERA.lookAhead * (1 - freeRoam);
+      z += Math.cos(heading) * CAMERA.lookAhead * (1 - freeRoam);
     }
 
     // Hard guarantee that the player stays well inside frame.
@@ -153,10 +155,8 @@ export class CameraController {
     this.targetX = x;
     this.targetZ = z;
 
-    // Zoom out as the engineer strays, so straying never means losing sight of
-    // the fortress you are straying from.
-    const separation = Math.hypot(player.x - spider.x, player.z - spider.z);
-    const stretch = clamp(separation / PLAYER.tetherDistance, 0, 1);
+    // Bounded zoom retains readable models. The HUD points to an off-screen Spider.
+    const stretch = clamp(separation / PLAYER.escortWarningDistance, 0, 1);
     const pursuitPush = world.trailState === "PURSUIT" ? 0.18 : 0;
     this.targetViewSize = lerp(
       CAMERA.minViewSize,

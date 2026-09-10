@@ -98,7 +98,7 @@ function formatDuration(seconds: number): string {
  *
  * The system order is not incidental. It is the contract that makes a tick
  * reproducible: input is sampled once, the spider moves before the player (so
- * the tether and the service radius are measured against the spider's new
+ * the escort warning and service radius are measured against the spider's new
  * position), pressure resolves before turrets decide whether they may fire, and
  * pools are recycled only after everything that could reference an entity has
  * run.
@@ -125,7 +125,7 @@ export class Game {
   private readonly audioBridge: AudioBridge;
 
   private readonly construction = new ConstructionSystem();
-  private readonly playerMovement = new PlayerMovementSystem(this.construction);
+  private readonly playerMovement = new PlayerMovementSystem();
   private readonly fieldItems = new FieldItemSystem(this.construction);
   private readonly mobileStructures = new MobileStructureSystem();
   private readonly spiderMovement = new SpiderMovementSystem();
@@ -1415,7 +1415,7 @@ export class Game {
        * enemies and reported 3.
        *
        * The engineer comes too. A teleport that stranded the player a thousand
-       * metres away would tear the tether and make the situation nonsense.
+       * metres away would start the capture with an unrelated distance warning.
        */
       teleportSpider: (distance: number) => {
         const world = this.world;

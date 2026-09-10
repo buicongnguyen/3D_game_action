@@ -155,8 +155,8 @@ export class GameWorld {
       weaponLevels: { shotgun: 1, carbine: 0, rifle: 0, flamer: 0, arc: 0, launcher: 0 },
       weaponHeat: 0,
       weaponOverheated: false,
-      tetherStrain: 0,
-      tethered: false,
+      spiderSeparation: 0,
+      farFromSpider: false,
     };
 
     this.spider = {

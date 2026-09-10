@@ -24,6 +24,7 @@ import path from "node:path";
 import process from "node:process";
 
 const CAPTURE_IDS = [
+  "roam-warning", "roam-far",
   "blender-models", "blender-effects",
   "pickups", "inventory",
   "arsenal",
@@ -162,6 +163,41 @@ async function capture(session, args, id) {
 
   await writeFile(file, buffer);
   if (session.errors.length) throw new Error(`Browser errors: ${session.errors.join(" | ")}`);
+  if (id.startsWith("roam-")) {
+    await evaluate(session, `(() => {
+      const api = window.__ironMarch, world = api.world, player = world.player;
+      const assert = (ok, message) => { if (!ok) throw new Error(message); };
+      const warning = document.querySelector('.hud__distance-warning');
+      assert(!warning.hidden && player.farFromSpider, 'Missing persistent distance warning');
+      const metres = Math.round(Math.hypot(player.x - world.spider.x, player.z - world.spider.z));
+      assert(warning.textContent.includes(metres + ' m') && warning.textContent.includes('keep exploring'), 'Warning is missing its distance or free-movement explanation');
+      const rect = warning.getBoundingClientRect();
+      assert(rect.left >= 0 && rect.right <= innerWidth && rect.top >= 0 && rect.bottom <= innerHeight, 'Distance warning is outside the viewport');
+      assert(warning.scrollWidth <= warning.clientWidth + 2, 'Warning overflows horizontally');
+      const screen = api.playerScreenPosition();
+      assert(screen.x > .1 && screen.x < .9 && screen.y > .1 && screen.y < .9, 'Distant player lost by the camera');
+      const spiderScreen = api.screenPositionOf(world.spider.x, world.spider.z);
+      const arrowDegrees = parseFloat(warning.querySelector('.hud__distance-arrow').style.transform.slice(7));
+      const arrowRadians = arrowDegrees * Math.PI / 180;
+      assert(Math.sin(arrowRadians) * (spiderScreen.x - screen.x) >= -.001 &&
+        -Math.cos(arrowRadians) * (spiderScreen.y - screen.y) >= -.001, 'Return arrow points away from the Spider');
+      if (${JSON.stringify(id)} === 'roam-far') {
+        assert(warning.classList.contains('is-urgent'), 'Very far warning has no increased severity');
+        const x = player.x, z = player.z, health = player.health;
+        api.advance(1);
+        assert(player.x === x && player.z === z && player.health === health, 'Distance pulled or damaged the player');
+        assert(player.carry.kind === 'cylinder', 'Distance dropped the payload');
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyD', bubbles: true }));
+        api.advance(1);
+        window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyD', bubbles: true }));
+        assert(Math.hypot(player.x - x, player.z - z) > 2, 'Keyboard movement is blocked far from the Spider');
+        player.x = world.spider.x + 8; player.z = world.spider.z + 8;
+        player.velocityX = 0; player.velocityZ = 0;
+        api.advance(.1);
+        assert(!player.farFromSpider && warning.hidden, 'Warning did not clear on return');
+      }
+    })()`);
+  }
   if (id.startsWith("blender-")) {
     await evaluate(session, `(() => {
       const api = window.__ironMarch;

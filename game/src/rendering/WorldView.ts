@@ -554,7 +554,7 @@ export class WorldView {
    * forty metres of ground, and during a horde he is one warm shape among a
    * hundred pale ones. The ring is the single cheapest fix for the first line
    * of the visual rubric - the player must be immediately distinguishable -
-   * and it doubles as the read for the dodge cooldown and the tether strain.
+   * and it doubles as the read for the dodge cooldown and escort distance.
    */
   private buildPlayerMarker(): void {
     // A filled disc under a bright ring. The disc is what actually wins the
@@ -765,9 +765,8 @@ export class WorldView {
 
     if (this.playerMarker) {
       this.playerMarker.position.set(rig.root.position.x, 0.045, rig.root.position.z);
-      // The ring reddens and tightens as the tether strains, so straying too
-      // far is legible before the pull-back punishes it.
-      const strain = player.tetherStrain;
+      // Advisory color only: distance never pulls, hurts or restrains the player.
+      const strain = player.spiderSeparation;
       const pulse = 1 + Math.sin(this.clock * 3.4) * 0.035 + strain * 0.25;
       this.playerMarker.scale.setScalar(pulse);
       const material = this.playerMarker.material as MeshBasicMaterial;

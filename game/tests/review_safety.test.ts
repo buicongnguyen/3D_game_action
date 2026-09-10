@@ -21,21 +21,22 @@ describe("review safety regressions", () => {
     expect(camera.halfHeight).toBeCloseTo(camera.camera.top, 8);
     expect(camera.camera.right / camera.camera.top).toBeCloseTo(aspect, 8);
   });
-  it("does not pull the engineer through a wall beyond tether range", () => {
+  it("leaves a distant engineer stationary, even with a wall between them and the Spider", () => {
     const world = new GameWorld(71);
     world.spider.x = 0;
     world.spider.z = 0;
-    world.player.x = PLAYER.tetherDistance + 8;
+    world.player.x = PLAYER.escortWarningDistance + 8;
     world.player.z = 0;
-    world.navigation.setStaticBox(PLAYER.tetherDistance + 4, 0, 1, 6, 0);
+    world.navigation.setStaticBox(PLAYER.escortWarningDistance + 4, 0, 1, 6, 0);
     const movement = new PlayerMovementSystem();
     const input = createEmptySnapshot();
     for (let i = 0; i < 600; i++) {
       movement.update(world, 1 / 60, input);
       expect(world.navigation.isBlockedCircle(world.player.x, world.player.z, PLAYER.radius)).toBe(false);
     }
-    expect(world.player.x).toBeGreaterThan(PLAYER.tetherDistance + 5);
-    expect(world.player.tethered).toBe(true);
+    expect(world.player.x).toBe(PLAYER.escortWarningDistance + 8);
+    expect(world.player.health).toBe(PLAYER.health);
+    expect(world.player.farFromSpider).toBe(true);
   });
 
   it.each(["VICTORY", "DEFEAT"] as const)("ends the tick immediately after %s", (phase) => {

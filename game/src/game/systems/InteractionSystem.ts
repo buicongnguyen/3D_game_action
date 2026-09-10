@@ -133,7 +133,7 @@ export class InteractionSystem {
 
       // Rivet Turrets are permanent in combat, but an abandoned one would
       // otherwise live in the simulation forever. Retire it only after it is
-      // safely beyond the player's tether/recovery window; the renderer uses
+      // safely away from both the engineer and Spider; the renderer uses
       // the same progress value to sink and shrink it instead of popping out.
       if (rivetRetirementProgress(world, structure) >= 1) {
         world.stats.structuresAbandoned++;

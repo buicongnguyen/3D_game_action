@@ -61,7 +61,7 @@ class Harness {
 
   constructor(seed: number, options: { spawns?: boolean; mode?: RunMode } = {}) {
     this.world = new GameWorld(seed, options.mode);
-    this.playerMovement = new PlayerMovementSystem(this.construction);
+    this.playerMovement = new PlayerMovementSystem();
     this.interaction = new InteractionSystem(this.construction);
     this.damage = new DamageSystem(this.interaction);
     this.collision = new CollisionSystem(this.damage);
@@ -251,34 +251,30 @@ describe("the march", () => {
     expect(harness.world.spider.distanceAlongRoute).toBeGreaterThan(0.5);
   });
 
-  it("pulls a straying engineer back instead of killing them", () => {
+  it("warns a straying engineer without pulling or damaging them", () => {
     const harness = new Harness(42, { spawns: false });
     harness.placePlayerNear(harness.world.spider.x + 60, harness.world.spider.z);
+    const { x, z, health } = harness.world.player;
     harness.seconds(2);
-
-    const distance = Math.hypot(
-      harness.world.player.x - harness.world.spider.x,
-      harness.world.player.z - harness.world.spider.z,
-    );
-    expect(distance).toBeLessThan(60);
-    expect(harness.world.player.health).toBeGreaterThan(0);
-    expect(harness.countEvents("player.tethered")).toBeGreaterThan(0);
+    expect(harness.world.player.x).toBe(x);
+    expect(harness.world.player.z).toBe(z);
+    expect(harness.world.player.health).toBe(health);
+    expect(harness.world.player.farFromSpider).toBe(true);
   });
 
-  it("allows exploration thirty metres from the spider before the tether engages", () => {
+  it("allows exploration thirty metres from the Spider before showing a warning", () => {
     const harness = new Harness(43, { spawns: false });
     harness.placePlayerNear(harness.world.spider.x + 30, harness.world.spider.z);
     harness.step();
 
-    expect(harness.world.player.tethered).toBe(false);
-    expect(harness.countEvents("player.tethered")).toBe(0);
+    expect(harness.world.player.farFromSpider).toBe(false);
     expect(Math.hypot(
       harness.world.player.x - harness.world.spider.x,
       harness.world.player.z - harness.world.spider.z,
     )).toBeGreaterThan(29);
   });
 
-  it("drops a carried machine as a recoverable folded structure at the tether", () => {
+  it("retains distant carried equipment and supports deliberate drop and recovery", () => {
     const harness = new Harness(4242, { spawns: false });
     const placedBefore = harness.world.stats.structuresPlaced;
     harness.world.player.carry = {
@@ -289,12 +285,19 @@ describe("the march", () => {
       recoveryXpGranted: false,
     };
     harness.placePlayerNear(
-      harness.world.spider.x + PLAYER.tetherDistance + 2,
+      harness.world.spider.x + 150,
       harness.world.spider.z,
     );
 
     harness.step();
-
+    expect(harness.world.player.carry.kind).toBe("structure");
+    expect(harness.world.structures).toHaveLength(0);
+    // A deliberate drop still works; distance can no longer trigger this action.
+    const carry = harness.world.player.carry;
+    if (carry.kind !== "structure") throw new Error("Lost carried turret");
+    harness.construction.dropCarriedStructure(harness.world, carry,
+      harness.world.player.x, harness.world.player.z, harness.world.player.heading);
+    harness.world.player.carry = { kind: "none" };
     expect(harness.world.player.carry.kind).toBe("none");
     expect(harness.world.structures).toHaveLength(1);
     const dropped = harness.world.structures[0];
@@ -441,8 +444,7 @@ describe("the engineering loop", () => {
   it("drains a stranded turret's buffer and starves it on a legible countdown", () => {
     const harness = new Harness(31, { spawns: false });
     harness.world.resources.scrap = 200;
-    // Inside the tether radius: past it the engineer is dragged back mid-action,
-    // which is correct behaviour but makes the scenario untestable.
+    // Outside service range so this scenario measures the turret's own buffer.
     harness.placePlayerNear(harness.world.spider.x + 9, harness.world.spider.z + 9);
     const turret = buildTurret(harness, 1, 0);
     turret.state = "active";
@@ -576,8 +578,7 @@ describe("the engineering loop", () => {
   it("recharges a starved turret from a carried cylinder", () => {
     const harness = new Harness(777, { spawns: false });
     harness.world.resources.scrap = 200;
-    // Inside the tether radius: past it the engineer is dragged back mid-action,
-    // which is correct behaviour but makes the scenario untestable.
+    // Outside service range so the carried cylinder is the source of pressure.
     harness.placePlayerNear(harness.world.spider.x + 9, harness.world.spider.z + 9);
 
     const turret = buildTurret(harness, 1.2, 0);
@@ -667,6 +668,7 @@ describe("the engineering loop", () => {
       harness.world.spider.distanceAlongRoute = distance;
       harness.world.spider.x = point.x;
       harness.world.spider.z = point.z;
+      harness.placePlayerNear(point.x, point.z); // Both have left the turret behind.
     };
 
     place(projected + RIVET_RETIRE_START_DISTANCE - 1);
@@ -715,8 +717,8 @@ describe("the engineering loop", () => {
   it("retires without a visible pop", () => {
     // The ramp is smoothstepped so the turret sinks and shrinks rather than
     // snapping. Gating that ramp on reach with a hard `return 0` defeated it:
-    // the arc ramp starts at 26 m and the tether is 32, so the first frame past
-    // the tether resumed at 0.202 instead of 0 - a 15 cm drop and a jump to 80%
+    // the arc ramp starts at 26 m and retention is 32, so the first frame past
+    // retention resumed at 0.202 instead of 0 - a 15 cm drop and a jump to 80%
     // size in one frame. Reach now scales the ramp instead of gating it.
     const harness = new Harness(1821, { spawns: false });
     harness.world.resources.scrap = 200;
@@ -733,6 +735,7 @@ describe("the engineering loop", () => {
       harness.world.spider.distanceAlongRoute = d;
       harness.world.spider.x = point.x;
       harness.world.spider.z = point.z;
+      harness.placePlayerNear(point.x, point.z);
       const progress = rivetRetirementProgress(harness.world, turret);
       worst = Math.max(worst, Math.abs(progress - previous));
       previous = progress;
@@ -741,6 +744,7 @@ describe("the engineering loop", () => {
     // A quarter-metre of travel must never move the animation more than a few
     // percent. The defect measured 0.202 here.
     expect(worst).toBeLessThan(0.05);
+    expect(previous).toBe(1);
   });
 
   it("never retires dropped field salvage", () => {
@@ -804,9 +808,7 @@ describe("the leapfrog, end to end", () => {
     harness.seconds(14);
     expect(rear.behindSpider).toBe(true);
 
-    // Go back for it while it is still inside the tether. That window - about
-    // thirteen seconds of march after the spider passes - is the whole cost of
-    // recovering a machine, and it is why abandoning one is a real option.
+    // Recover the nearby rear machine while the Spider continues marching.
     expect(
       Math.hypot(rear.x - world.spider.x, rear.z - world.spider.z),
     ).toBeLessThan(22);
@@ -816,9 +818,7 @@ describe("the leapfrog, end to end", () => {
     harness.hold("fold", false);
     expect(world.player.carry.kind).toBe("structure");
 
-    // Reinstall inside the tether. Carrying a machine past 22 m makes the
-    // engineer drop it, which is the rule that stops a player from ferrying a
-    // turret arbitrarily far ahead of the expedition.
+    // Reinstall ahead of the convoy. Carrying has no Spider-distance restriction.
     spline.positionAt(point, world.spider.distanceAlongRoute + 15);
     harness.placePlayerNear(point.x, point.z);
     harness.press("confirm");

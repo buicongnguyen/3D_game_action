@@ -41,8 +41,7 @@ export type DamageSource =
   | "structure.explosion"
   | "enemy.melee"
   | "enemy.ranged"
-  | "environment"
-  | "tether";
+  | "environment";
 
 export interface DamageInfo {
   amount: number;
@@ -122,15 +121,10 @@ export interface PlayerState {
   /** Normalized heat used by heat-limited weapons. */
   weaponHeat: number;
   weaponOverheated: boolean;
-  /** Set by the tether system when the engineer has strayed too far. */
-  tetherStrain: number;
-  /**
-   * True while the leash is taut, so `player.tethered` fires on the edge and
-   * not on the level. Emitting it every step the engineer was over the line
-   * meant sixty toasts a second, each one evicting whatever else was on the
-   * stack - a Last Shot warning included.
-   */
-  tethered: boolean;
+  /** Normalized advisory distance severity. Visual feedback only. */
+  spiderSeparation: number;
+  /** Advisory warning with hysteresis; never a movement or health penalty. */
+  farFromSpider: boolean;
 }
 
 export type ContextualActionKind =

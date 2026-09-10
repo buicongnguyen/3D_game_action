@@ -148,16 +148,16 @@ export class NavigationGrid {
    * blocked cell. Used by player movement and placement validation, which both
    * reason about a footprint rather than a point.
    *
-   * A point outside the sliding window is treated as free: the window is much
-   * larger than the corridor, so anything outside it is open ground, and
-   * treating it as blocked would trap the engineer against an invisible wall.
+   * Outside the sliding AI window, test registered world-space obstacles.
+   * The grid border is never a wall, but distant houses and rocks still are.
    */
   isBlockedCircle(worldX: number, worldZ: number, radius: number): boolean {
     const minCx = Math.floor((worldX - radius - this.minX) / CELL_SIZE);
     const maxCx = Math.floor((worldX + radius - this.minX) / CELL_SIZE);
     const minCz = Math.floor((worldZ - radius - this.minZ) / CELL_SIZE);
     const maxCz = Math.floor((worldZ + radius - this.minZ) / CELL_SIZE);
-    if (maxCx < 0 || minCx >= DIM || maxCz < 0 || minCz >= DIM) return false;
+    if (minCx < 0 || maxCx >= DIM || minCz < 0 || maxCz >= DIM)
+      return this.isBlockedOutsideWindow(worldX, worldZ, radius);
 
     // Half-diagonal expands the cell centre into its square footprint.
     const reach = radius + CELL_SIZE * Math.SQRT1_2;
@@ -178,6 +178,26 @@ export class NavigationGrid {
         const dz = cellZ - worldZ;
         if (dx * dx + dz * dz <= reachSq) return true;
       }
+    }
+    return false;
+  }
+
+  /** Rare free-roam path; no larger grids or per-frame allocations needed. */
+  private isBlockedOutsideWindow(x: number, z: number, radius: number): boolean {
+    const reach = radius + BLOCK_INFLATE;
+    for (let i = 0; i < this.staticX.length; i++) {
+      if (Math.hypot(x - this.staticX[i], z - this.staticZ[i]) <= reach + this.staticR[i]) return true;
+    }
+    for (let i = 0; i < this.obstacleX.length; i++) {
+      if (Math.hypot(x - this.obstacleX[i], z - this.obstacleZ[i]) <= reach + this.obstacleR[i]) return true;
+    }
+    for (let i = 0; i < this.staticBoxX.length; i++) {
+      const dx = x - this.staticBoxX[i], dz = z - this.staticBoxZ[i];
+      const sin = Math.sin(this.staticBoxHeading[i]), cos = Math.cos(this.staticBoxHeading[i]);
+      const localX = dx * cos - dz * sin, localZ = dx * sin + dz * cos;
+      const outsideX = Math.max(0, Math.abs(localX) - this.staticBoxHalfX[i]);
+      const outsideZ = Math.max(0, Math.abs(localZ) - this.staticBoxHalfZ[i]);
+      if (outsideX * outsideX + outsideZ * outsideZ <= reach * reach) return true;
     }
     return false;
   }

@@ -78,6 +78,14 @@ function stationPlayer(world: GameWorld, aheadMetres: number, lateral: number): 
 }
 
 export const CAPTURES: CaptureScenario[] = [
+  { id: "roam-warning", label: "Advisory distance warning with free movement", settle: 0.1, setup: (game, world) => {
+    game.debugApi.teleportSpider(25); stationPlayer(world, 40, 3);
+    world.player.carry = { kind: "cylinder" };
+  } },
+  { id: "roam-far", label: "Distant engineer, persistent warning and return direction", settle: 0.1, setup: (game, world) => {
+    game.debugApi.teleportSpider(15); stationPlayer(world, 95, 3);
+    world.player.carry = { kind: "cylinder" };
+  } },
   { id: "blender-models", label: "Blender house, enemy and weapon contact sheet", settle: 0, setup: setupBlenderModels },
   { id: "blender-effects", label: "Pooled Blender combat events", settle: 0, setup: setupBlenderEffects },
   { id: "pickups", label: "Named mixed loot and visible reserve", settle: 0.05, setup: (game, world) => {

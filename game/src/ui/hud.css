@@ -1092,6 +1092,21 @@ body {
   padding: 1px 5px;
 }
 
+.hud__distance-warning {
+  display: grid; grid-template-columns: 24px minmax(0, 1fr); align-items: center; gap: 8px;
+  margin-top: 8px; padding: 7px 8px; border: 1px solid #dcb15a; border-radius: 4px;
+  color: #ffe0a0; background: #342919; pointer-events: none;
+}
+.hud__distance-warning[hidden] { display: none; }
+.hud__distance-warning.is-urgent { border-color: #ff957b; color: #ffd0c3; background: #3b2523; }
+.hud__distance-arrow { display: block; font-size: 23px; line-height: 1; text-align: center; }
+.hud__distance-title { display: block; font-size: 13px; line-height: 1.35; }
+.hud__distance-detail { font-size: 11px; line-height: 1.35; color: #f5eee1; }
+.hud__distance-announcement {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+
 .hud__markers {
   position: absolute;
   inset: 0;
@@ -2261,6 +2276,12 @@ body {
 @media (max-height: 500px) {
   .hud__receipt { top: 140px; font-size: 10px; }
   .hud__field-items { display: none !important; }
+  .hud__distance-warning { margin-top: 4px; padding: 4px; gap: 5px; grid-template-columns: 20px minmax(0, 1fr); }
+  .hud__distance-title { font-size: 11px; }
+  .hud__distance-detail { font-size: 10px; }
+}
+@media (max-width: 540px) and (min-height: 501px) {
+  .hud:has(.hud__distance-warning:not([hidden])) .hud__receipt { top: 335px; }
 }
 @media (max-width: 540px), (max-height: 500px) {
   .hud__receipt-full { display: none; }
