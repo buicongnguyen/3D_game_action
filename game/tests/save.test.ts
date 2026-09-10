@@ -56,6 +56,20 @@ const PRIMARY_KEY = "marchaDeFerro.save.v1";
 const BACKUP_KEY = "marchaDeFerro.save.v1.backup";
 
 describe("SaveManager", () => {
+  it("preserves existing progress and settings after the Iron March title change", () => {
+    const storage = new MemoryStorage();
+    const existingSave = createDefaultSave();
+    existingSave.progression.currency = 250;
+    existingSave.settings.masterVolume = 0.4;
+    storage.setItem(PRIMARY_KEY, JSON.stringify(existingSave));
+
+    const manager = new SaveManager(storage);
+    expect(manager.data).toEqual(existingSave);
+    expect(manager.recoveredFromBackup).toBe(false);
+    manager.save();
+    expect(JSON.parse(storage.getItem(PRIMARY_KEY)!)).toEqual(existingSave);
+  });
+
   it("produces defaults when the key is missing", () => {
     const storage = new MemoryStorage();
     const manager = new SaveManager(storage);

@@ -27,8 +27,8 @@ const boot = document.createElement("div");
 boot.className = "boot-screen";
 boot.innerHTML = `
   <div class="boot-panel">
-    <h1 class="boot-title">MARCHA DE FERRO</h1>
-    <p class="boot-subtitle">Iron March &mdash; vertical slice</p>
+    <h1 class="boot-title">IRON MARCH</h1>
+    <p class="boot-subtitle">Escort the Spider. Keep the convoy moving.</p>
     <div class="boot-bar"><div class="boot-bar-fill"></div></div>
     <p class="boot-label">Starting</p>
     <p class="boot-error" hidden></p>
@@ -99,7 +99,7 @@ async function main(): Promise<void> {
     };
     hold();
     (window as unknown as { __captureReady: boolean }).__captureReady = true;
-    document.title = `Marcha de Ferro - ${scenario.label}`;
+    document.title = `Iron March - ${scenario.label}`;
     return;
   }
 

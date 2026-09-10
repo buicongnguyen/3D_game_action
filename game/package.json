@@ -1,9 +1,9 @@
 {
-  "name": "marcha-de-ferro",
+  "name": "iron-march",
   "private": true,
   "version": "0.5.0",
   "type": "module",
-  "description": "Marcha de Ferro (Iron March) - controller-first roguelite of defense on the move. Vertical slice.",
+  "description": "Iron March - controller-first roguelite of defense on the move. Vertical slice.",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

@@ -303,7 +303,7 @@ async function assertServing(url) {
   const body = await response.text();
   if (!body.includes("game-canvas")) {
     throw new Error(
-      `${url} answered, but the page is not Marcha de Ferro - no #game-canvas in the markup.`,
+      `${url} answered, but the page is not Iron March - no #game-canvas in the markup.`,
     );
   }
 }

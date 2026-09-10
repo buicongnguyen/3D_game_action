@@ -10,6 +10,7 @@ import type { SaveData } from "./SaveSchema.ts";
 import { CURRENT_VERSION, createDefaultSave, validateSave } from "./SaveSchema.ts";
 import { migrate } from "./migrations.ts";
 
+// Keep the original storage keys: the Iron March title change must not reset existing saves.
 const PRIMARY_KEY = "marchaDeFerro.save.v1";
 const BACKUP_KEY = "marchaDeFerro.save.v1.backup";
 

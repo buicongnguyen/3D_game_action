@@ -91,7 +91,7 @@ const EMPTY_DATA: ScreenData = {};
 
 const DEFAULT_TITLES: Record<ScreenKind, string> = {
   none: "",
-  title: "Marcha de Ferro",
+  title: "Iron March",
   loadout: "Loadout",
   route: "Choose the road",
   upgrade: "Level up",
@@ -540,7 +540,7 @@ const EMPTY_HINTS: ScreenHint[] = [];
 
 const DEFAULT_EYEBROWS: Record<ScreenKind, string> = {
   none: "",
-  title: "Iron March",
+  title: "A walking-fortress adventure",
   loadout: "Departure yard",
   route: "Checkpoint",
   upgrade: "Level up",
