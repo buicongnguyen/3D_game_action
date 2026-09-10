@@ -1,4 +1,6 @@
 import { EventBus } from "../core/EventBus.ts";
+import { createCampaignState } from "../data/campaign.ts";
+import type { OperationState } from "./systems/CampaignSystem.ts";
 import { ObjectPool } from "../core/ObjectPool.ts";
 import { Random } from "../core/Random.ts";
 import type {
@@ -38,6 +40,8 @@ import { RouteDirector } from "./route/RouteDirector.ts";
  * allocates.
  */
 export class GameWorld {
+  readonly campaign = createCampaignState();
+  operation: OperationState | null = null;
   readonly events = new EventBus();
   readonly random: Random;
   /** Separate stream for the director so combat draws never shift terrain. */

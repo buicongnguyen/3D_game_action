@@ -2,6 +2,7 @@ import type { Game } from "../core/Game.ts";
 import type { GameWorld } from "../game/GameWorld.ts";
 import { SPIDER, STRUCTURES, TRAIL } from "../data/balance.ts";
 import { setupAssetReview } from "./assetReview.ts";
+import { chooseOperation } from "../game/systems/CampaignSystem.ts";
 
 /**
  * Scripted scenes for visual QA.
@@ -75,6 +76,34 @@ function stationPlayer(world: GameWorld, aheadMetres: number, lateral: number): 
 }
 
 export const CAPTURES: CaptureScenario[] = [
+  { id: "arsenal", label: "All weapons fit a bounded mobile rack", settle: 0.05, setup: (game, world) => {
+    world.player.unlockedWeapons = ["shotgun", "carbine", "rifle", "flamer", "arc", "launcher"];
+    for (const kind of world.player.unlockedWeapons) world.player.weaponLevels[kind] = 1;
+    game.debugApi.teleportSpider(50); stationPlayer(world, 7, 4);
+  } },
+  { id: "radio", label: "Optional rescue decision", settle: 0.05, setup: (game, world) => {
+    game.debugApi.enterSegment("seg.mine");
+    game.debugApi.teleportSpider(world.route.spline!.length * 0.4);
+    game.advance(0.05); stationPlayer(world, 0, 5);
+    game.showScreenForCapture("radio");
+  } },
+  { id: "operation", label: "Rescue beacon and progress", settle: 1, setup: (game, world) => {
+    game.debugApi.enterSegment("seg.mine");
+    game.debugApi.teleportSpider(world.route.spline!.length * 0.4);
+    game.advance(0.05); stationPlayer(world, 0, 5);
+    chooseOperation(world, true);
+    game.debugApi.forceSpawn("minion", 10);
+  } },
+  { id: "specialization", label: "Choose a lasting role", settle: 0.05, setup: (game) => {
+    game.showScreenForCapture("specialization");
+  } },
+  { id: "workshop", label: "Shop preview and affordability", settle: 0.05, setup: (game, world) => {
+    world.resources.scrap = 22;
+    game.showScreenForCapture("shop");
+  } },
+  { id: "intro", label: "The furnace-heart premise", settle: 0.05, setup: (game) => {
+    game.showScreenForCapture("radio");
+  } },
   { id: "asset-review", label: "Procedural asset contact sheet", settle: 0, setup: setupAssetReview },
   {
     id: "nest",

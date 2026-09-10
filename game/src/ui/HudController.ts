@@ -1,4 +1,5 @@
 import type { WeaponKind } from "../core/types.ts";
+import { controlHint, PickupReceipt } from "./EngagementPresentation.ts";
 import type { ThreatReadout } from "./ThreatReadout.ts";
 
 /**
@@ -47,6 +48,7 @@ export interface HudLeftBehindModel {
 }
 
 export interface HudModel {
+  placing?: boolean;
   stageName: string;
   stageProgress: number;
   threat: ThreatReadout;
@@ -403,6 +405,15 @@ export class HudController {
   private readonly blueprintRow: HTMLElement;
   private readonly chips: BlueprintChip[] = [];
   private readonly buildHint: HTMLElement;
+  private readonly receipt = new PickupReceipt();
+  onDeploy: (() => void) | null = null;
+  private deployButton!: HTMLButtonElement;
+  private receiptNode!: HTMLElement;
+  private weaponDevice = "";
+
+  showPickup(kind: string, amount: number): void {
+    this.receipt.add(kind, amount, performance.now());
+  }
   private prevBuildHintDevice = "";
 
   private readonly prompt: HTMLElement;
@@ -548,6 +559,13 @@ export class HudController {
     // --- blueprints, bottom centre -----------------------------------------
     this.blueprintRow = el("div", "hud__blueprints", this.hud);
     this.buildHint = el("div", "hud__build-hint", this.blueprintRow);
+    this.deployButton = el("button", "hud__deploy", this.blueprintRow) as HTMLButtonElement;
+    this.deployButton.type = "button";
+    this.deployButton.textContent = "Place";
+    this.deployButton.hidden = true;
+    this.deployButton.addEventListener("click", (event) => {
+      event.preventDefault(); event.stopPropagation(); this.onDeploy?.();
+    });
 
     // --- contextual prompt ---------------------------------------------------
     this.prompt = el("div", "hud__prompt", this.hud);
@@ -585,25 +603,32 @@ export class HudController {
     }
 
     this.toastLayer = el("div", "hud__toasts", this.hud);
+    this.receiptNode = el("div", "hud__receipt", this.hud);
+    this.receiptNode.setAttribute("role", "status");
   }
 
   update(model: HudModel): void {
+    this.deployButton.hidden = !model.placing;
+    const receipt = this.receipt.text(performance.now());
+    if (this.receiptNode.textContent !== receipt) this.receiptNode.textContent = receipt;
+    this.receiptNode.hidden = !receipt;
     this.healthBar.update(model.playerHealth, model.playerMaxHealth, TEXT_VALUE_OF_MAX);
     const heat = Math.round(model.weaponHeat * 100);
     if (
       model.currentWeapon !== this.prevWeapon ||
       heat !== this.prevWeaponHeat ||
       model.weaponIndex !== this.prevWeaponIndex ||
-      model.weaponCount !== this.prevWeaponCount
+      model.weaponCount !== this.prevWeaponCount || model.lastDevice !== this.weaponDevice
     ) {
       this.prevWeapon = model.currentWeapon;
       this.prevWeaponHeat = heat;
       this.prevWeaponIndex = model.weaponIndex;
       this.prevWeaponCount = model.weaponCount;
+      this.weaponDevice = model.lastDevice;
       const slot = model.weaponCount > 1 ? ` ${model.weaponIndex + 1}/${model.weaponCount}` : "";
       this.weapon.textContent = heat > 0
-        ? `${model.currentWeapon}${slot} · HEAT ${heat}% · CLICK/B/↓ SWITCH`
-        : `${model.currentWeapon}${slot} · CLICK/B/↓ SWITCH`;
+        ? `${model.currentWeapon}${slot} · Heat ${heat}% · ${controlHint(model.lastDevice, "weapon")}`
+        : `${model.currentWeapon}${slot} · ${controlHint(model.lastDevice, "weapon")}`;
       this.weapon.setAttribute(
         "aria-label",
         model.weaponCount > 1 ? `Switch weapon. Current: ${model.currentWeapon}` : `${model.currentWeapon}. More weapons unlock in later stages`,
@@ -810,9 +835,7 @@ export class HudController {
   private updateBlueprints(blueprints: HudBlueprintModel[], device: string): void {
     if (device !== this.prevBuildHintDevice) {
       this.prevBuildHintDevice = device;
-      this.buildHint.textContent = device === "keyboard"
-        ? "CLICK / TOUCH ITEM TO SELECT · E TO DEPLOY"
-        : "PRESS ITEM OR HOLD L1 · ✕ TO PLACE";
+      this.buildHint.textContent = controlHint(device, "build");
     }
     while (this.chips.length < blueprints.length) {
       const index = this.chips.length;
@@ -923,7 +946,7 @@ export class HudController {
     for (let i = 0; i < this.weaponChips.length; i++) {
       const chip = this.weaponChips[i];
       const model = weapons[i];
-      if (!model) {
+      if (!model || !model.unlocked) {
         chip.root.style.display = "none";
         continue;
       }

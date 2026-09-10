@@ -165,6 +165,10 @@ export class FocusManager {
   }
 
   /** Registers a navigable group. `columns` > 1 turns it into a grid. */
+  setColumns(columns: number): void {
+    this.columns = Math.max(1, Math.floor(columns));
+  }
+
   setGroup(items: HTMLElement[], initialIndex = 0, columns = 1): void {
     this.clearMarks();
     this.items = items;
@@ -269,6 +273,7 @@ export class FocusManager {
     element.classList.add("is-focused");
     element.dataset.focused = "true";
     if (typeof element.focus === "function") element.focus();
+    element.scrollIntoView?.({ block: "nearest", inline: "nearest" });
   }
 
   private clearMarks(): void {

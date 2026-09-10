@@ -1,4 +1,5 @@
 import { clamp01, distSq } from "../../core/math.ts";
+import { recordOperationKill } from "./CampaignSystem.ts";
 import type { StructureExplodedEvent } from "../../core/events.ts";
 import type { DamageInfo, DamageSource, Enemy, Structure, StructureKind } from "../../core/types.ts";
 import { ENEMY_LIFECYCLE, PICKUPS, PLAYER, SPIDER, STRUCTURES, TRAIL } from "../../data/balance.ts";
@@ -181,6 +182,7 @@ export class DamageSystem {
     // deliberately hidden by WorldView instead of showing an upright card.
     enemy.lodTier = 0;
     world.stats.enemiesKilled++;
+    recordOperationKill(world, enemy.x, enemy.z);
 
     world.events.emit({
       type: "enemy.died",

@@ -24,6 +24,8 @@ import path from "node:path";
 import process from "node:process";
 
 const CAPTURE_IDS = [
+  "arsenal",
+  "radio", "operation", "specialization", "workshop", "intro",
   "asset-review",
   "nest",
   "nest-cleared",
@@ -152,6 +154,42 @@ async function capture(session, args, id) {
   }
 
   await writeFile(file, buffer);
+  if (["radio", "specialization", "workshop", "operation", "intro"].includes(id)) {
+    const checks = await evaluate(session, `(() => {
+      const api = window.__ironMarch, world = api.world;
+      const assert = (ok, message) => { if (!ok) throw new Error(message); };
+      const button = (id) => document.querySelector('[data-option-id="' + id + '"]');
+      const scene = ${JSON.stringify(id)};
+      const screen = document.querySelector('.screen');
+      if (screen) assert(screen.scrollWidth <= screen.clientWidth + 2, 'Modal overflows horizontally');
+      if (scene === 'radio') {
+        button('accept').click();
+        assert(world.operation.status === 'active' && !world.paused, 'Radio acceptance did not resume gameplay');
+        api.advance(20);
+        assert(world.operation.status === 'success', 'Rescue failed to complete through the real game loop');
+      } else if (scene === 'specialization') {
+        button('convoy').click();
+        assert(world.campaign.specialization === 'convoy' && world.loadout.includes('crawlerTurret'), 'Role did not unlock crawler');
+        assert(!world.paused, 'Role selection did not resume');
+      } else if (scene === 'workshop') {
+        const before = world.resources.scrap;
+        button('weapon.rifle').click();
+        assert(world.resources.scrap === before, 'Unaffordable purchase spent scrap');
+        button('weapon.shotgun').click();
+        assert(world.player.weaponLevels.shotgun === 2 && world.resources.scrap === before - 18, 'Shop purchase mismatch');
+        const leave = button('done'); leave.scrollIntoView({ block: 'center' });
+        const rect = leave.getBoundingClientRect();
+        assert(rect.top >= 0 && rect.bottom <= innerHeight + 2, 'Workshop exit cannot be brought into view');
+        leave.click(); assert(!world.paused, 'Workshop exit did not resume');
+      } else if (scene === 'intro') {
+        button('begin').click(); assert(!world.paused, 'Intro did not resume');
+      } else {
+        assert(document.querySelector('.hud__objective-label').textContent.includes('rescue Ilya'), 'Mission objective missing');
+      }
+      return 'passed';
+    })()`);
+    if (checks !== 'passed') throw new Error('Engagement UI checks failed');
+  }
   return { id, file, bytes: buffer.length };
 }
 

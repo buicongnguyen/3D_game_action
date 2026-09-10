@@ -11,6 +11,8 @@ import type { HudController, HudModel } from "./HudController.ts";
 import type { RadialMenu } from "./RadialMenu.ts";
 import { WEAPON_SHOP } from "../data/weaponShop.ts";
 import { updateThreatReadout } from "./ThreatReadout.ts";
+import { OPERATIONS } from "../data/campaign.ts";
+import { SLICE_CHECKPOINT_ORDER } from "../data/routes.ts";
 
 /**
  * Builds the HUD's view model from world state each frame and pipes feedback
@@ -123,6 +125,7 @@ export class HudBridge {
         this.hud.showToast(trailMessage(event.to), trailTone(event.to), 3);
       }),
       events.on("build.rejected", (event) => this.hud.showToast(event.reason, "warning", 1.6)),
+      events.on("pickup.collected", (event) => this.hud.showPickup(event.kind, event.amount)),
       events.on("ui.toast", (event) => {
         if (event.duration > 0) this.hud.showToast(event.message, event.tone, event.duration);
       }),
@@ -173,7 +176,7 @@ export class HudBridge {
     model.speedMode = spider.speedMode;
     model.emergencyBurn = spider.emergencyBurn;
     model.cylinders = world.cylindersReady;
-    model.lastDevice = input.lastDevice;
+    model.lastDevice = input.lastDevice === "none" ? (input.gamepadConnected ? "gamepad" : "keyboard") : input.lastDevice;
     model.currentWeapon = WEAPONS[player.currentWeapon].name;
     model.weaponIndex = Math.max(0, player.unlockedWeapons.indexOf(player.currentWeapon));
     model.weaponCount = player.unlockedWeapons.length;
@@ -205,10 +208,20 @@ export class HudBridge {
     model.objectiveProgress = runState.objective?.progress ?? 0;
     model.objectiveTarget = runState.objective?.definition.target ?? 0;
     model.objectiveComplete = runState.objective?.complete ?? false;
+    model.placing = world.build.ghostActive;
+    const operation = world.operation;
+    if (operation?.status === "active") {
+      const definition = OPERATIONS[operation.segmentId];
+      const inside = Math.hypot(player.x - operation.x, player.z - operation.z) <= 8;
+      model.objectiveLabel = `${definition.action} · ${Math.max(0, Math.ceil(definition.timeout - operation.elapsed))}s left${definition.kind === "service" && !inside ? " · move closer" : ""}`;
+      model.objectiveProgress = operation.progress;
+      model.objectiveTarget = definition.target;
+      model.objectiveComplete = false;
+    }
     model.salvageMode = world.mode === "salvageRush";
     model.salvageSeconds = world.salvageTimeRemaining;
     model.salvageScore = world.salvageScore;
-    model.stageName = world.route.segment?.name ?? "Expedition";
+    model.stageName = `${world.mode === "expedition" ? `${world.route.checkpointIndex + 1}/${SLICE_CHECKPOINT_ORDER.length} · ` : ""}${world.route.segment?.name ?? "Expedition"}`;
     model.stageProgress = world.route.spline
       ? clamp(spider.distanceAlongRoute / Math.max(1, world.route.spline.length), 0, 1) : 0;
     updateThreatReadout(world, model.threat);
@@ -251,9 +264,10 @@ export class HudBridge {
     input: InputSnapshot,
   ): void {
     const player = world.player;
-    const gamepad = input.lastDevice !== "keyboard";
+    const gamepad = input.lastDevice === "gamepad" || (input.lastDevice === "none" && input.gamepadConnected);
 
     if (world.build.ghostActive) {
+      this.model.promptSecondary = null;
       // A glyph belongs on an action, never on a statement. "✕ Outside the
       // network" reads as an error badge; the button token is dropped when the
       // line is telling the player something rather than offering them a verb.
@@ -264,7 +278,7 @@ export class HudBridge {
         this.promptSlot.text = "Place anyway - it starts when the spider arrives";
         this.promptSlot.button = gamepad ? "cross" : "E";
       } else {
-        this.promptSlot.text = "Place";
+        this.promptSlot.text = `Place ${getBlueprint(world.build.ghostKind!).shortName}`;
         this.promptSlot.button = gamepad ? "cross" : "E";
       }
       this.promptSlot.progress = 0;

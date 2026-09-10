@@ -487,7 +487,7 @@ export const CHECKPOINTS: Record<string, CheckpointDefinition> = {
     moduleOffer: [],
     arrivalStory: {
       speaker: "Foundry Keeper Mara",
-      text: "Thank you for escorting us to Foundry Halt. The furnaces can breathe again because you held the road. We believe in you—keep the Iron Spider moving.",
+      text: "The furnace-heart is stable, Engineer. Before the broken streets, choose your role in this expedition. I will keep the Spider breathing; you decide how we fight.",
     },
   },
   "checkpoint.settlement": {
@@ -497,8 +497,8 @@ export const CHECKPOINTS: Record<string, CheckpointDefinition> = {
     nextSegments: ["seg.flooded", "seg.floodedShortcut"],
     moduleOffer: ["module.crane", "module.dorsalTurret"],
     arrivalStory: {
-      speaker: "Settlement Watchman",
-      text: "You brought us safely through the broken streets. The families here saw your courage, and now they have hope. The next road is harder, but we believe in you.",
+      speaker: "Nera · Route scout",
+      text: "The streets are behind us. Ahead, the valley road offers safer bridges; the spillway holds more salvage but stronger ambushes. Choose what this crew can handle.",
     },
   },
   "checkpoint.pump": {
@@ -508,8 +508,8 @@ export const CHECKPOINTS: Record<string, CheckpointDefinition> = {
     nextSegments: ["seg.badlands"],
     moduleOffer: ["module.boiler", "module.reactiveArmor"],
     arrivalStory: {
-      speaker: "Pump Engineer Ilya",
-      text: "Thank you for reaching the Pump Station. Fresh water will flow behind you because you refused to stop. Rest for a moment—the whole march is counting on you.",
+      speaker: "Mara · Chief engineer",
+      text: "We made the pump station. The flooded road tested our cooling and our nerve. Check your fuel before Nera leads us into the badlands.",
     },
   },
   "checkpoint.ridge": {
@@ -520,7 +520,7 @@ export const CHECKPOINTS: Record<string, CheckpointDefinition> = {
     moduleOffer: [],
     arrivalStory: {
       speaker: "Badlands Scout Nera",
-      text: "The ochre road is behind us and the supply wagons are safe. You made a path where none remained. The mountains are watching, Engineer—show them the Spider does not bow.",
+      text: "That ridge is our way forward. The mountain passage is narrow, but a guide cable can make the crossing safer. Keep something in reserve for the climb.",
     },
   },
   "checkpoint.summit": {
@@ -530,8 +530,8 @@ export const CHECKPOINTS: Record<string, CheckpointDefinition> = {
     nextSegments: ["seg.flower"],
     moduleOffer: [],
     arrivalStory: {
-      speaker: "Relay Warden Soren",
-      text: "You carried the Iron Spider over the spine of the world. Every valley beacon is answering again because of you. Breathe the clear air, then lead us onward.",
+      speaker: "Mara · Chief engineer",
+      text: "Listen: the heart is still beating above the clouds. We have earned a quieter road through the flower vale. Take the chance to repair before the factories.",
     },
   },
   "checkpoint.garden": {
@@ -541,8 +541,8 @@ export const CHECKPOINTS: Record<string, CheckpointDefinition> = {
     nextSegments: ["seg.scrapyard"],
     moduleOffer: [],
     arrivalStory: {
-      speaker: "Keeper Amaya",
-      text: "The flowers still stand after the horde, and so do we. Thank you for bringing hope through the vale. Ahead lies iron and smoke, but your courage is brighter than both.",
+      speaker: "Nera · Route scout",
+      text: "Flowers still grow here. I am taking that as a promise. Beyond the refuge, a factory relay coordinates the patrols. Cutting its signal will ease the next road.",
     },
   },
   "checkpoint.gate": {
@@ -552,8 +552,8 @@ export const CHECKPOINTS: Record<string, CheckpointDefinition> = {
     nextSegments: ["seg.crystal"],
     moduleOffer: [],
     arrivalStory: {
-      speaker: "Captain of the Gate",
-      text: "You carried our last hope to Gate Watch. One final road remains, and every defender is standing because of you. We believe you can bring the Spider home.",
+      speaker: "Mara · Chief engineer",
+      text: "Gate Watch can see the city's dark towers. Two roads remain: the crystal frontier, then the final escape. A beacon out there could guide supplies to our last stand.",
     },
   },
   "checkpoint.crystal": {
@@ -563,14 +563,14 @@ export const CHECKPOINTS: Record<string, CheckpointDefinition> = {
     nextSegments: ["seg.escape"],
     moduleOffer: [],
     arrivalStory: {
-      speaker: "Prism Watch Commander",
-      text: "The crystal road is ours, and its light now marks the way home. One final march remains. Every settlement behind you believes in you—bring the Spider through the gate.",
+      speaker: "Nera · Route scout",
+      text: "One last march. I am calling everyone we helped. Choose your final kit, check the Spider, and keep moving when the horde finds us. We can still bring the light home.",
     },
   },
 };
 
 export const FINAL_GATE_STORY =
-  "You brought the Iron Spider through every road and delivered us safely to the gate. Tonight the lights stay on because of you. Thank you, Engineer—we always believed in you.";
+  "Mara: The furnace-heart is connected. Look—the city's defenses are lighting up. Nera is planting her seeds beside the gate. Thank you for bringing our travelling home through the dark, Engineer. Now we can build something that lasts.";
 
 /** Ordered checkpoint chain for the slice. */
 export const SLICE_CHECKPOINT_ORDER: readonly string[] = [

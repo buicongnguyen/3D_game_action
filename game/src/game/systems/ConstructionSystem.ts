@@ -203,11 +203,7 @@ export class ConstructionSystem {
     build.ghostReason = result.reason;
 
     if (input.buttons.confirm.pressed) {
-      if (result.validity === "invalid") {
-        world.events.emit({ type: "build.rejected", reason: result.reason });
-      } else {
-        this.commit(world);
-      }
+      this.confirmPlacement(world);
     }
   }
 
@@ -293,6 +289,16 @@ export class ConstructionSystem {
       if (distSq(x, z, structure.x, structure.z) <= relayRange * relayRange) return true;
     }
     return false;
+  }
+
+  confirmPlacement(world: GameWorld): void {
+    if (!world.build.ghostActive || !world.build.ghostKind) return;
+    const result = this.validate(world, world.build.ghostKind, world.build.ghostX, world.build.ghostZ);
+    if (result.validity === "invalid") {
+      world.events.emit({ type: "build.rejected", reason: result.reason });
+      return;
+    }
+    this.commit(world);
   }
 
   private commit(world: GameWorld): void {

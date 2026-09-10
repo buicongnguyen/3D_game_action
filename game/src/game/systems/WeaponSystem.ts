@@ -311,7 +311,7 @@ export class WeaponSystem {
       world.player.weaponCooldown = 0;
       world.events.emit({
         type: "ui.toast",
-        message: `Weapon unlocked: ${WEAPONS[unlock].name} · D-pad down / B to switch`,
+        message: `Weapon unlocked: ${WEAPONS[unlock].name} · select it in the weapon rack`,
         tone: "success",
         duration: 4,
       });

@@ -1,4 +1,8 @@
 import { GameLoop } from "./GameLoop.ts";
+import { clamp } from "./math.ts";
+import { weaponPreview, turretPreview, purchasePrice } from "../ui/EngagementPresentation.ts";
+import { OPENING_STORY, OPERATIONS, SPECIALIZATIONS, chooseSpecialization } from "../data/campaign.ts";
+import { chooseOperation } from "../game/systems/CampaignSystem.ts";
 import { GameWorld } from "../game/GameWorld.ts";
 import { InputManager } from "../input/InputManager.ts";
 import type { InputSnapshot } from "../input/InputActions.ts";
@@ -50,7 +54,6 @@ import {
   restoreCheckpoint,
   type CheckpointSnapshot,
 } from "./CheckpointState.ts";
-import { clamp } from "./math.ts";
 import { getBlueprint } from "../data/structures.ts";
 import { getModule } from "../data/modules.ts";
 import { getUpgrade } from "../data/upgrades.ts";
@@ -173,6 +176,10 @@ export class Game {
     this.view.setVfx(this.vfx);
 
     this.hud = new HudController(uiRoot);
+    this.hud.onDeploy = () => {
+      if (this.modalOpen || this.world.paused || this.world.phase === "VICTORY" || this.world.phase === "DEFEAT") return;
+      this.construction.confirmPlacement(this.world);
+    };
     this.hud.onBlueprintSelect = (index) => {
       if (this.modalOpen || this.world.phase === "VICTORY" || this.world.phase === "DEFEAT") return;
       this.construction.selectBlueprintForPlacement(this.world, index);
@@ -214,6 +221,9 @@ export class Game {
       } else if (kind === "turretShop") {
         this.turretShopMessage = "";
         this.openModal("shop");
+      } else if (kind === "radio") {
+        chooseOperation(this.world, false);
+        this.closeModal();
       } else if (kind === "pause" || kind === "settings") this.closeModal();
     };
     this.screens.onAdjust = (kind, optionId, delta) => {
@@ -472,6 +482,7 @@ export class Game {
     this.hud.setVisible(true);
     this.screens.hide();
     this.audio.setTension(world.trailState, false);
+    if (world.mode === "expedition" && !this.suppressAutoModals) this.openModal("radio");
   }
 
   private spawnSegmentResources(): void {
@@ -723,6 +734,11 @@ export class Game {
   private updatePhaseTransitions(): void {
     const world = this.world;
     if (this.suppressAutoModals) return;
+    if (!this.modalOpen && world.operation?.status === "choice" &&
+        (world.phase === "MARCH" || world.phase === "FINAL_ESCAPE")) {
+      this.openModal("radio");
+      return;
+    }
 
     if (world.phase === "CHECKPOINT_PREP" && this.runState.pendingStory && !this.modalOpen) {
       this.openModal("story");
@@ -737,6 +753,10 @@ export class Game {
     }
 
     if (world.phase !== "CHECKPOINT_PREP" || this.modalOpen) return;
+    if (world.mode === "expedition" && !world.campaign.specialization) {
+      this.openModal("specialization");
+      return;
+    }
 
     // Checkpoints are decision beats, not thirty-second idle screens. Present
     // salvage first, then the route choice on the next simulation tick.
@@ -773,6 +793,31 @@ export class Game {
     this.hud.setVisible(false);
 
     switch (kind) {
+      case "radio": {
+        const op = this.world.operation;
+        const def = op?.status === "choice" ? OPERATIONS[op.segmentId] : null;
+        this.screens.show("radio", {
+          eyebrow: def?.speaker ?? "Mara · Chief engineer",
+          title: def?.title ?? "Carry the last light",
+          body: def?.briefing ?? OPENING_STORY,
+          subtitle: def ? `Optional operation · ${def.timeout}s maximum stop · enemies remain active` : "Auto-fire protects you. Move beside the Spider and collect supplies.",
+          layout: "cards", columns: def ? 2 : 1,
+          options: def ? [
+            { id: "accept", label: "Stop and help", detail: `${def.action} · ${def.target}${def.kind === "service" ? " seconds" : def.kind === "combat" ? " enemies" : " scrap"}`,
+              reward: `${def.reward.amount} ${def.reward.kind} + support at the final gate`, danger: def.pressure < 1 ? "Reduced patrol pressure; existing enemies remain" : "Reinforcement pressure increases during the stop" },
+            { id: "decline", label: "Keep moving", detail: "Skip this operation. No supplies are deducted.", reward: "Preserve time and the Spider", danger: "No operation reward or community support" },
+          ] : [{ id: "begin", label: "Begin the march", detail: "Reach the city. Help where you can." }],
+        });
+        break;
+      }
+      case "specialization":
+        this.screens.show("specialization", {
+          eyebrow: "Mara's workshop · free, permanent choice for this run",
+          subtitle: "Choose how you want to fight. Checkpoint retries keep this role.",
+          layout: "cards", columns: 3,
+          options: SPECIALIZATIONS.map((s) => ({ id: s.id, label: s.name, reward: s.reward, danger: s.tradeoff, glyph: s.id === "engineer" ? "⚙" : s.id === "convoy" ? "⌂" : "✹" })),
+        });
+        break;
       case "upgrade":
         this.screens.show("upgrade", {
           eyebrow: `Level ${this.world.progress.level}`,
@@ -851,9 +896,9 @@ export class Game {
                 tag: unlocked ? `Owned · Mk ${level}` : "Locked",
                 glyph: entry.icon,
                 detail: entry.role,
-                reward: maxed ? "Fully upgraded" : unlocked ? `Upgrade to Mk ${level + 1}` : "Unlock weapon",
-                danger: maxed ? undefined : `${cost} scrap`,
-                disabled: maxed,
+                reward: maxed ? "Fully upgraded" : weaponPreview(world, entry.kind),
+                danger: maxed ? undefined : purchasePrice(cost, world.resources.scrap),
+                disabled: maxed || world.resources.scrap < cost,
               };
             }),
             {
@@ -898,9 +943,9 @@ export class Game {
                 tag: `Mk ${level} / ${entry.maxLevel}`,
                 glyph: entry.icon,
                 detail: entry.description,
-                reward: maxed ? "Fully upgraded" : `Upgrade to Mk ${level + 1}`,
-                danger: maxed ? undefined : `${cost} scrap`,
-                disabled: maxed,
+                reward: maxed ? "Fully upgraded" : turretPreview(world, entry.kind),
+                danger: maxed ? undefined : purchasePrice(cost, world.resources.scrap),
+                disabled: maxed || world.resources.scrap < cost,
               };
             }),
             {
@@ -972,6 +1017,16 @@ export class Game {
   private applyModalChoice(screen: ScreenKind, value: string): void {
     const world = this.world;
     switch (screen) {
+      case "radio":
+        if (world.operation?.status === "choice") {
+          if (value !== "accept" && value !== "decline") break;
+          chooseOperation(world, value === "accept");
+        }
+        this.closeModal();
+        break;
+      case "specialization":
+        if (chooseSpecialization(world, value)) this.closeModal();
+        break;
       case "upgrade": {
         const upgrade = getUpgrade(value);
         upgrade.apply(world.modifiers);
@@ -1014,7 +1069,7 @@ export class Game {
         const kit = kits[value as keyof typeof kits] ?? kits.precision;
         world.player.currentWeapon = kit.weapon;
         world.loadout.splice(0, world.loadout.length, ...kit.blueprints);
-        if (world.progress.level >= 3 && !world.loadout.includes("crawlerTurret")) {
+        if ((world.progress.level >= 3 || world.campaign.specialization === "convoy") && !world.loadout.includes("crawlerTurret")) {
           world.loadout.push("crawlerTurret");
         }
         world.build.selectedBlueprint = 0;
@@ -1150,7 +1205,7 @@ export class Game {
         : undefined,
       subtitle:
         salvage && outcome === "victory"
-          ? `Recovered value: ${this.world.salvageScore}. ${FINAL_GATE_STORY}`
+          ? `Recovered value: ${this.world.salvageScore}. The salvage crew has completed its shift.`
           : outcome === "victory"
           ? FINAL_GATE_STORY
           : "The core went cold on the road.",
@@ -1173,6 +1228,10 @@ export class Game {
         { label: "Abandoned", value: `${stats.structuresAbandoned}` },
         { label: "Last Shots", value: `${stats.lastShotsTriggered}` },
         { label: "Objectives", value: `${stats.objectivesCompleted}` },
+        ...(!salvage ? [
+          { label: "Role", value: SPECIALIZATIONS.find((s) => s.id === this.world.campaign.specialization)?.name ?? "Engineer" },
+          { label: "Communities helped", value: `${Object.values(this.world.campaign.outcomes).filter((v) => v === "success").length}` },
+        ] : []),
         ...(salvage ? [{ label: "Salvage score", value: `${this.world.salvageScore}` }] : []),
         { label: "Peak Trail", value: stats.peakTrail.toFixed(0) },
         { label: "Seed", value: formatSeed(stats.seed, this.seedLabel) },

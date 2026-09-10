@@ -14,6 +14,7 @@ import type { InputSnapshot } from "../input/InputActions.ts";
 import type { SaveSettings } from "../save/SaveSchema.ts";
 import { FocusManager, acceptRepeat, createRepeatState, type RepeatState } from "./FocusManager.ts";
 import { applyGlyph } from "./HudController.ts";
+import { controlHint } from "./EngagementPresentation.ts";
 
 export type ScreenKind =
   | "none"
@@ -25,6 +26,8 @@ export type ScreenKind =
   | "shop"
   | "turretShop"
   | "story"
+  | "radio"
+  | "specialization"
   | "pause"
   | "settings"
   | "victory"
@@ -93,6 +96,8 @@ const DEFAULT_TITLES: Record<ScreenKind, string> = {
   shop: "Weapon Workshop",
   turretShop: "Turret Foundry",
   story: "Stage complete",
+  radio: "Radio transmission",
+  specialization: "Choose your role",
   pause: "Paused",
   settings: "Settings",
   victory: "The gate holds",
@@ -175,7 +180,7 @@ export class ScreenManager {
 
   private kind_: ScreenKind = "none";
   private data: ScreenData = EMPTY_DATA;
-  private device = "gamepad";
+  private device = "keyboard";
   private isCards = false;
   private hintsBar: HTMLElement | null = null;
   private disconnected = false;
@@ -310,6 +315,9 @@ export class ScreenManager {
   /** One-call wiring for the game loop; safe to call every frame. */
   handleInput(snapshot: InputSnapshot): void {
     if (this.disconnected || this.kind_ === "none") return;
+    // Rotation changes the CSS grid without reopening the modal.
+    this.focus.setColumns(this.isCards ? responsiveColumns(window.innerWidth, window.innerHeight,
+      this.data.columns ?? this.options.length) : 1);
     if (snapshot.lastDevice !== "none") this.setDevice(snapshot.lastDevice);
 
     const buttons = snapshot.buttons;
@@ -403,7 +411,8 @@ export class ScreenManager {
     this.hintsBar = el("div", "screen__hints", screen);
     this.renderHints();
 
-    const columns = cards ? Math.max(1, data.columns ?? this.options.length) : 1;
+    const columns = cards ? responsiveColumns(window.innerWidth, window.innerHeight,
+      data.columns ?? this.options.length) : 1;
     if (this.options.length > 0) this.focus.setGroup(this.options, focusIndex, columns);
   }
 
@@ -428,7 +437,10 @@ export class ScreenManager {
       const button = el("button", "option", list);
       button.setAttribute("type", "button");
       button.dataset.optionId = model.id;
-      if (model.disabled) button.dataset.disabled = "true";
+      if (model.disabled) {
+        button.dataset.disabled = "true";
+        button.setAttribute("aria-disabled", "true");
+      }
       if (model.recommendedExit) {
         button.classList.add("is-recommended-exit");
         button.setAttribute("aria-label", `${model.label}. Recommended: no affordable upgrades remain`);
@@ -496,12 +508,15 @@ export class ScreenManager {
         applyGlyph(glyph, hints[i].button, this.device);
       }
       const label = el("span", "", hint);
-      label.textContent = hints[i].label;
+      label.textContent = hints[i] === NAVIGATE_HINT ? controlHint(this.device, "menu") : hints[i].label;
     }
   }
 }
 
 const EMPTY_OPTIONS: ScreenOption[] = [];
+export function responsiveColumns(width: number, height: number, requested: number): number {
+  return width <= 540 ? 1 : width <= 700 || height <= 500 ? 2 : Math.max(1, requested);
+}
 const EMPTY_HINTS: ScreenHint[] = [];
 
 const DEFAULT_EYEBROWS: Record<ScreenKind, string> = {
@@ -514,6 +529,8 @@ const DEFAULT_EYEBROWS: Record<ScreenKind, string> = {
   shop: "Checkpoint market",
   turretShop: "Emplaced weapon engineering",
   story: "A voice from the checkpoint",
+  radio: "Expedition radio",
+  specialization: "One choice for this expedition",
   pause: "",
   settings: "",
   victory: "Run complete",
@@ -538,6 +555,8 @@ const DEFAULT_HINTS: Record<ScreenKind, ScreenHint[]> = {
   shop: [NAVIGATE_HINT, SELECT_HINT, BACK_HINT],
   turretShop: [NAVIGATE_HINT, SELECT_HINT, BACK_HINT],
   story: [SELECT_HINT],
+  radio: [NAVIGATE_HINT, SELECT_HINT],
+  specialization: [NAVIGATE_HINT, SELECT_HINT],
   pause: [NAVIGATE_HINT, SELECT_HINT, RESUME_HINT],
   // No Select here: every row on this screen is adjusted, not chosen, and a
   // footer that names a button which does nothing is how F52 happened.

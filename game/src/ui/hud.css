@@ -399,14 +399,16 @@ body {
 }
 
 .hud__weapon-rack {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  display: flex;
+  overflow-x: auto;
   gap: 2px;
   margin-top: 3px;
   pointer-events: auto;
 }
 
 .weapon-slot {
+  flex: 0 0 44px;
+  min-height: 40px;
   min-width: 0;
   padding: 3px 1px 2px;
   border: 0;
@@ -2173,11 +2175,40 @@ body {
   .hud__trail .hud__trail-head { float: right; }
   .hud__trail .hud__title { display: none; }
   .hud__threat-card { max-width: none; }
-  .hud__blueprints { bottom: 145px; gap: 3px; }
+  .hud__blueprints { bottom: 160px; gap: 3px; }
+  .hud__player { width: 195px; }
+  .hud__blueprints:has(~ .hud__prompt.is-on) { bottom: 175px; }
   .hud__blueprints .bp { width: clamp(56px, 17vw, 72px); }
   .hud__prompt { bottom: 245px; max-width: 94vw; }
   .hud__prompt--alt { bottom: 280px; }
   .hud__toasts { top: auto; bottom: 330px; width: calc(100% - 2 * var(--edge)); }
   .hud__toasts .toast { font-size: 11px; }
   .hud__toasts .toast:nth-last-child(n + 3) { display: none; }
+}
+
+/* Bounded resource feedback and larger action controls. */
+.hud__receipt { position: absolute; right: var(--edge); top: 78px; color: #c4fff0;
+  background: #112e30; border: 1px solid #4d9d93; border-radius: 6px;
+  padding: 7px 10px; font-size: 13px; max-width: 220px; }
+.hud__receipt[hidden], .hud__deploy[hidden] { display: none; }
+.hud__deploy { min-width: 60px; min-height: 44px; border: 1px solid #83d4b1;
+  background: #1d5947; color: #fff; font: inherit; cursor: pointer; pointer-events: auto; }
+.hud__objective-label { font-size: max(12px, var(--fs-small)); line-height: 1.4; }
+.hud__weapon { text-transform: none; letter-spacing: .02em; min-height: 40px; }
+.weapon-slot:focus-visible, .hud__deploy:focus-visible { outline: 2px solid white; outline-offset: 2px; }
+.option[data-disabled="true"] { opacity: .65; }
+@media (prefers-reduced-motion: reduce) { .option.is-recommended-exit { animation: none !important; } }
+@media (max-width: 540px) { .hud__receipt { top: 70px; font-size: 11px; padding: 4px 6px; } }
+@media (max-width: 700px), (max-height: 500px) {
+  .screen { display: block; overflow-y: auto; overscroll-behavior: contain; }
+  .screen__main { margin-inline: auto; gap: 12px; }
+  .screen__hints { padding-bottom: 18px; }
+  .screen__eyebrow { letter-spacing: .12em; text-align: center; }
+  .screen__options[data-layout="cards"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 540px) {
+  .screen__options[data-layout="cards"] { grid-template-columns: 1fr; }
+  .screen__body, .screen__subtitle { font-size: 14px; }
+  .option { min-height: 48px; }
+  .option__glyph { font-size: 22px; }
 }

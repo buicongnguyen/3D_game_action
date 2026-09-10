@@ -176,7 +176,8 @@ describe("the march", () => {
     harness.step();
 
     expect(harness.runState.pendingStory?.speaker).toBe("Foundry Keeper Mara");
-    expect(harness.runState.pendingStory?.text).toContain("We believe in you");
+    expect(harness.runState.pendingStory?.text).toContain("furnace-heart");
+    harness.world.campaign.specialization = "engineer";
 
     harness.runState.pendingModules = [];
     harness.runState.pendingRoutes = [harness.runState.pendingRoutes[0]];
@@ -201,6 +202,7 @@ describe("the march", () => {
 
     // Reduce the other checkpoint decisions to one automatic route so this
     // specifically proves the workshop is what prevents early departure.
+    harness.world.campaign.specialization = "engineer";
     harness.runState.pendingModules = [];
     harness.runState.pendingRoutes = [harness.runState.pendingRoutes[0]];
     harness.runState.pendingLoadout = false;

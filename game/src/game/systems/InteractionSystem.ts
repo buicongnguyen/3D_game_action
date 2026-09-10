@@ -1,4 +1,5 @@
 import { clamp, distSq } from "../../core/math.ts";
+import { recordOperationSalvage } from "./CampaignSystem.ts";
 import type { ContextualActionKind, PickupKind, Structure } from "../../core/types.ts";
 import type { InputSnapshot } from "../../input/InputActions.ts";
 import { ECONOMY, FIELD_MECHANIC, PICKUPS, PLAYER, PRESSURE, STRUCTURES } from "../../data/balance.ts";
@@ -845,6 +846,7 @@ export class InteractionSystem {
     if (pickup.kind === "scrap") {
       world.resources.scrap += amount;
       world.stats.scrapCollected += amount;
+      recordOperationSalvage(world, pickup.x, pickup.z, amount);
       world.progress.xp += 0.35;
     } else if (pickup.kind === "fuel") {
       world.resources.fuel += amount;
@@ -883,7 +885,7 @@ export class InteractionSystem {
     world.events.emit({
       type: "pickup.collected",
       kind: pickup.kind,
-      amount,
+      amount: pickup.kind === "scrap" || pickup.kind === "fuel" ? amount : quantity,
       x: pickup.x,
       z: pickup.z,
     });

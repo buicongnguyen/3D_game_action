@@ -224,6 +224,8 @@ export class WorldView {
   private pickupGlow: InstancedMesh | null = null;
 
   private playerMarker: Mesh | null = null;
+  private operationRing: Mesh<RingGeometry, MeshBasicMaterial> | null = null;
+  private operationBeacon: Mesh<ConeGeometry, MeshBasicMaterial> | null = null;
   private playerPip: Mesh | null = null;
   private ghost: Object3D | null = null;
   private ghostCoverage: Mesh | null = null;
@@ -264,6 +266,14 @@ export class WorldView {
   // -------------------------------------------------------------------------
 
   prepare(): void {
+    this.operationRing = new Mesh(new RingGeometry(7.8, 8, 48), new MeshBasicMaterial({ color: 0x83ffe0, transparent: true, opacity: 0.75, depthWrite: false }));
+    this.operationRing.rotation.x = -Math.PI / 2;
+    this.operationRing.visible = false;
+    this.root.add(this.operationRing);
+    this.operationBeacon = new Mesh(new ConeGeometry(0.6, 1.8, 6), new MeshBasicMaterial({ color: 0x83ffe0 }));
+    this.operationBeacon.rotation.z = Math.PI;
+    this.operationBeacon.visible = false;
+    this.root.add(this.operationBeacon);
     this.playerRig = this.forge.createEngineer();
     // Rest poses must be snapshotted before the first animation step. The
     // animators offset from `userData.restY`; without it the offset is
@@ -682,6 +692,16 @@ export class WorldView {
   // -------------------------------------------------------------------------
 
   sync(world: GameWorld, alpha: number, dt: number): void {
+    const operation = world.operation;
+    if (this.operationRing && this.operationBeacon) {
+      const visible = operation?.status === "active" || operation?.status === "choice";
+      this.operationRing.visible = visible;
+      this.operationBeacon.visible = visible;
+      if (visible && operation) {
+        this.operationRing.position.set(operation.x, 0.08, operation.z);
+        this.operationBeacon.position.set(operation.x + 5, 2.4, operation.z);
+      }
+    }
     this.clock += dt;
     this.terrain.syncEncounters(world);
     // The contact-shadow layer is shared by the player, the structures and the
@@ -1623,6 +1643,8 @@ export class WorldView {
   // -------------------------------------------------------------------------
 
   dispose(): void {
+    this.operationRing?.geometry.dispose(); this.operationRing?.material.dispose();
+    this.operationBeacon?.geometry.dispose(); this.operationBeacon?.material.dispose();
     this.terrain.dispose();
     this.root.removeFromParent();
     this.hordeBatch?.dispose();

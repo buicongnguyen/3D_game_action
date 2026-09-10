@@ -1,4 +1,6 @@
 import { clamp } from "../../core/math.ts";
+import { campaignArrival } from "../../data/campaign.ts";
+import { beginOperation, updateOperation, operationPressure } from "./CampaignSystem.ts";
 import type { RouteObjectiveDefinition, TrailState } from "../../core/types.ts";
 import { DIRECTOR, FIELD_MECHANIC, SALVAGE_RUSH, TRAIL, XP } from "../../data/balance.ts";
 import { ROUTE_SEGMENTS, getCheckpoint, type CheckpointDefinition } from "../../data/routes.ts";
@@ -96,6 +98,7 @@ export class RunStateSystem {
   }
 
   private updateMarch(world: GameWorld, dt: number): void {
+    updateOperation(world, dt);
     this.updateTrail(world, dt);
 
     const route = world.route;
@@ -148,7 +151,10 @@ export class RunStateSystem {
       (id) => ROUTE_SEGMENTS[id]?.modifiers.includes("pursuit") ?? false,
     );
     this.pendingShop = true;
-    this.pendingStory = checkpoint.arrivalStory;
+    this.pendingStory = campaignArrival(world, checkpoint.arrivalStory);
+    if (world.mode === "expedition" && world.campaign.outcomes["seg.mine"] === "success") {
+      world.spider.coreHealth = Math.min(world.spider.maxCoreHealth, world.spider.coreHealth + 15);
+    }
 
     // These are authored campaign rewards, independent of combat XP luck.
     if (destination === "checkpoint.foundry" || destination === "checkpoint.gate") {
@@ -175,7 +181,8 @@ export class RunStateSystem {
       this.pendingRoutes.length <= 1 &&
       !this.pendingLoadout &&
       !this.pendingShop &&
-      !this.pendingStory
+      !this.pendingStory &&
+      !(world.mode === "expedition" && !world.campaign.specialization)
     ) {
       this.departCheckpoint(world);
     }
@@ -212,6 +219,7 @@ export class RunStateSystem {
     const segment = world.route.segment;
     world.setPhase(segment && segment.modifiers.includes("pursuit") ? "FINAL_ESCAPE" : "MARCH");
     this.beginObjective(world);
+    beginOperation(world);
   }
 
   private beginObjective(world: GameWorld): void {
@@ -352,8 +360,8 @@ export class RunStateSystem {
   /** Director budget multiplier for the current state, including Pursuit ramp. */
   budgetPerSecond(world: GameWorld): number {
     const base = DIRECTOR.budgetPerSecond[world.trailState];
-    if (world.trailState !== "PURSUIT") return base;
-    return base + world.pursuitTime * DIRECTOR.pursuitRampPerSecond;
+    if (world.trailState !== "PURSUIT") return base * operationPressure(world);
+    return (base + world.pursuitTime * DIRECTOR.pursuitRampPerSecond) * operationPressure(world);
   }
 }
 

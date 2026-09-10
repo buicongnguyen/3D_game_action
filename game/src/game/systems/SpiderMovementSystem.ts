@@ -28,7 +28,7 @@ export class SpiderMovementSystem {
 
     this.updateShield(world, dt);
 
-    if (spider.docked) {
+    if (spider.docked || world.operation?.status === "choice" || world.operation?.status === "active") {
       spider.speed = 0;
       spider.emergencyBurn = false;
       this.syncTransform(world, dt, true);

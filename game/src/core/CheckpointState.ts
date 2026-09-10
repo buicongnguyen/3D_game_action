@@ -19,6 +19,7 @@ const STORAGE_KEY = "iron-march.checkpoint-retry.v1";
 
 export interface CheckpointSnapshot {
   version: 1;
+  campaign?: GameWorld["campaign"];
   seed: number;
   mode: RunMode;
   segmentId: string;
@@ -53,6 +54,7 @@ export function captureCheckpoint(world: GameWorld): CheckpointSnapshot | null {
   if (!segmentId) return null;
   return clone({
     version: 1 as const,
+    campaign: world.campaign,
     seed: world.stats.seed,
     mode: world.mode,
     segmentId,
@@ -93,6 +95,9 @@ export function restoreCheckpoint(
   }
 
   const state = clone(snapshot);
+  world.campaign.specialization = state.campaign?.specialization ?? null;
+  world.campaign.outcomes = state.campaign?.outcomes ?? {};
+  world.campaign.finalAidClaimed = state.campaign?.finalAidClaimed ?? false;
   Object.assign(world.player, state.player);
   // Weapon levels were added after checkpoint retry. Keep queued snapshots from
   // older builds playable and never present an unlocked weapon as Mk 0.
