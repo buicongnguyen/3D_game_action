@@ -31,12 +31,12 @@ working copy; copy only reviewed changes back to the clean canonical repository.
 - [x] Full verification and deterministic mission/campaign simulations.
 - [x] Desktop and portrait captures: normal play, radio, specialization, workshop.
 - [x] Fix findings, record results and remaining limitations below.
-- [ ] Copy reviewed files, verify canonical repo, commit and push via SSH.
-- [ ] Verify GitHub Pages action and live asset bundle.
+- [x] Copy reviewed files, verify canonical repo, commit and push via SSH.
+- [x] Verify GitHub Pages action and live asset bundle.
 
 ## Implementation record
 
-Implemented 2026-09-10. Phases 1–3 completed; code and logic review for phase 4 passed.
+Implemented 2026-09-10. All four phases completed, including review and deployment.
 
 - Added nine optional operations (the two flooded routes are alternatives), three
   mutually exclusive roles, recurring dialogue, an opening briefing, rescue
@@ -72,4 +72,11 @@ npm audit reported two pre-existing moderate entries in the Vitest development
 toolchain (Vitest and @vitest/mocker, GHSA-82fw-gwwq-j7x9); dependencies were not
 changed in this feature release. These are not production game dependencies.
 
-Delivery gates below are checked only after the release has actually succeeded.
+### Verified release
+
+Feature commit: `fe64ff0` — pushed to main through the existing SSH remote.
+[GitHub Pages build and deployment](https://github.com/buicongnguyen/3D_game_action/actions/runs/34471750497)
+completed successfully. The live game returned HTTP 200 and served the verified
+`assets/index-EuInflBw.js` bundle. The canonical repository also passed all 383
+tests, asset validation, TypeScript and the production build before the commit.
+This completion record is a subsequent documentation-only commit.
