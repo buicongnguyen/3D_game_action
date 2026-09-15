@@ -7,6 +7,7 @@ import { animateHumanoid, animateSpider, captureRigRest, captureSpiderRest, crea
 import { CHAPTERS, STORY_ENEMIES, type Chapter, type Point } from "./StoryData.ts";
 import { CELL, groundHeight, HILL_LAUNCH, HOME_LENGTH, homePoint, MAZE, MAZE_CRATES, MAZE_EXIT, MAZE_PEN, MAZE_SIZE, spiralPoint, SPIRAL_JUMP } from "./StoryMaps.ts";
 import type { StoryState } from "./StoryState.ts";
+import { MiniSpiderBatch, isMiniSpider } from "./MiniSpiderBatch.ts";
 
 const UP = new Vector3(0, 1, 0);
 const tmpA = new Vector3(), tmpB = new Vector3(), tmpQ = new Quaternion();
@@ -44,6 +45,7 @@ export class StoryView {
   private chapter: Chapter | 0 = 0;
   private engineer!: PuppetRig;
   private spider!: SpiderRig;
+  private miniSpiders!: MiniSpiderBatch;
   private guns: Object3D[] = [];
   private anim = createPuppetState(0);
   private bodies!: Instances;
@@ -74,6 +76,7 @@ export class StoryView {
     this.forge.build(); await this.forge.loadBlenderLibrary();
     this.engineer = this.forge.createEngineer(); captureRigRest(this.engineer); this.actors.add(this.engineer.root);
     this.spider = this.forge.createSpider(); captureSpiderRest(this.spider); this.actors.add(this.spider.root);
+    this.miniSpiders = new MiniSpiderBatch(this.actors, this.forge.materials);
     this.guns = [this.forge.createRivetRifle(), this.forge.createArcProjector(), this.forge.createMagneticLauncher(), this.forge.createSteamFlamer()];
     for (const gun of this.guns) { gun.position.set(0, -0.2, 0.25); this.engineer.forearmR.add(gun); }
     const solid = new MeshStandardMaterial({ roughness: 0.85, metalness: 0.12 });
@@ -167,6 +170,7 @@ export class StoryView {
     this.spider.root.visible = s.chapter !== 2;
     this.markers.add(p.x, groundHeight(s.chapter, p.x, p.z) + 0.06, p.z, 1.15, 1, 1.15, p.invincible > 0 ? 0xffffff : 0x77ffff);
     if (s.chapter !== 2) this.markers.add(m.x, groundHeight(s.chapter, m.x, m.z) + 0.07, m.z, 5.5, 1, 5.5, 0x56ceb0);
+    this.miniSpiders.update(s.enemies, dt, s.chapter);
     for (const e of s.enemies) this.enemy(s, e);
     if (s.chapter === 1) {
       for (const [i, cow] of s.cows.entries()) if (cow.status !== "captured") {
@@ -253,6 +257,14 @@ export class StoryView {
     const bell = pos(0, 0.7); this.details.add(bell.x, y + 0.6 * size, bell.z, 0.2 * size, 0.2 * size, 0.15 * size, 0xffcc59, heading);
   }
   private enemy(s: StoryState, e: StoryState["enemies"][number]): void {
+    if (isMiniSpider(e.kind)) {
+      if (e.jump >= 1) {
+        const landing = spiralPoint(Math.min(1, e.jumpFrom + SPIRAL_JUMP));
+        this.markers.add(landing.x, groundHeight(s.chapter, landing.x, landing.z) + 0.1, landing.z, 1.7, 1, 1.7, 0x66ffff);
+      }
+      if (e.burn > 0) this.markers.add(e.x, groundHeight(s.chapter, e.x, e.z) + 0.1, e.z, 1, 1, 1, 0xff934b);
+      return;
+    }
     const def = STORY_ENEMIES[e.kind], humanoid = e.kind === "husk" || e.kind === "stitcher";
     const jump = e.jump > 0 && e.jump < 1 ? Math.sin((1 - e.jump) * Math.PI) * 4 : 0;
     const h = groundHeight(s.chapter, e.x, e.z) + jump, scale = e.kind === "queen" ? 3.4 : e.kind === "shellback" ? 1.25 : 0.85;
@@ -299,6 +311,7 @@ export class StoryView {
     return { x: (point.x + 1) / 2 * this.renderer.viewportWidth, y: (1 - point.y) / 2 * this.renderer.viewportHeight };
   }
   dispose(): void {
+    this.miniSpiders?.dispose();
     for (const batch of [...this.dynamic, ...this.terrainInstances]) batch.dispose();
     for (const geo of [...this.ownedGeometry, ...this.terrainGeometry]) geo.dispose();
     for (const mat of this.ownedMaterials) mat.dispose();

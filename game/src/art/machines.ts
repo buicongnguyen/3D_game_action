@@ -138,7 +138,7 @@ const REST_UPPER_X = -0.873;
 const REST_LOWER_X = 2.48;
 const REST_FOOT_X = -0.036;
 
-function spiderHull(): BufferGeometry {
+function spiderHull(simple = false): BufferGeometry {
   const S = SPIDER_COLORS;
   const parts: BufferGeometry[] = [
     // Keel and lower chassis. The mass sits low so the machine reads heavy.
@@ -225,6 +225,18 @@ function spiderHull(): BufferGeometry {
     place(taperedBox(2.4, 1.9, 0.5, 1.0, 0.8, 0.1, S.plate), 0, 4.05, -3.1),
   ];
 
+  // Keep the original silhouette, including boiler, rails and three stacks.
+  // Only rivets, small pipework and socket hardware are omitted at mini scale.
+  if (simple) {
+    const kept = parts.filter((_, i) => i < 11 || (i >= 12 && i <= 16) ||
+      i === 19 || i === 20 || (i >= 25 && i <= 28) ||
+      (i >= 30 && i <= 35) || i === 53 || i >= parts.length - 3);
+    for (const part of parts) if (!kept.includes(part)) part.dispose();
+    kept.push(place(spiderSmokestack(true), -1.15, 3.72, -2.35),
+      place(spiderSmokestack(true), 0, 3.72, -3),
+      place(spiderSmokestack(true), 1.15, 3.72, -2.35));
+    return tint(merge(kept), 0.07, 101);
+  }
   // Coxa housings never move, so they belong to the hull, not to the legs.
   // Eight fewer meshes on the one object that can afford them least.
   for (let i = 0; i < 8; i++) {
@@ -241,10 +253,17 @@ function spiderHull(): BufferGeometry {
   return tint(merge(parts), 0.07, 101);
 }
 
-function spiderFemur(): BufferGeometry {
+function reducedSpiderParts(parts: BufferGeometry[], simple: boolean, indices: number[]): BufferGeometry {
+  if (!simple) return merge(parts);
+  const kept = parts.filter((_, i) => indices.includes(i));
+  for (const part of parts) if (!kept.includes(part)) part.dispose();
+  return merge(kept);
+}
+
+function spiderFemur(simple = false): BufferGeometry {
   const S = SPIDER_COLORS;
   return tint(
-    merge([
+    reducedSpiderParts([
       place(sphereish(0.32, 8, S.legJoint), 0, 0, 0),
       place(taperedBox(0.5, 0.42, FEMUR_LENGTH, 0.56, 0.46, 0.08, S.legShell), 0, 0, FEMUR_LENGTH * 0.5, Math.PI * 0.5),
       // A pale armour spine along the top edge. The femur is the one element
@@ -257,16 +276,16 @@ function spiderFemur(): BufferGeometry {
       // Knee housing: the bright apex of the whole leg.
       place(cylinderish(0.34, 0.34, 0.52, 8, S.legJoint), 0, 0, FEMUR_LENGTH, 0, 0, Math.PI * 0.5),
       place(cylinderish(0.24, 0.24, 0.56, 8, S.brass), 0, 0, FEMUR_LENGTH, 0, 0, Math.PI * 0.5),
-    ]),
+    ], simple, [0, 1, 2, 6]),
     0.06,
     102,
   );
 }
 
-function spiderTibia(): BufferGeometry {
+function spiderTibia(simple = false): BufferGeometry {
   const S = SPIDER_COLORS;
   return tint(
-    merge([
+    reducedSpiderParts([
       place(sphereish(0.27, 8, S.hullDark), 0, 0, 0),
       place(
         taperedBox(0.36, 0.22, TIBIA_LENGTH, 0.38, 0.24, 0.055, S.hullDark),
@@ -279,7 +298,7 @@ function spiderTibia(): BufferGeometry {
       place(cylinderish(0.19, 0.19, 0.12, 8, S.brassDark), 0, 0, TIBIA_LENGTH * 0.62, Math.PI * 0.5),
       place(chamferedBox(0.06, 0.2, 2.2, 0.02, S.legShell), 0, 0.16, TIBIA_LENGTH * 0.45),
       place(cylinderish(0.17, 0.17, 0.32, 8, S.legJoint), 0, 0, TIBIA_LENGTH, 0, 0, Math.PI * 0.5),
-    ]),
+    ], simple, [0, 1, 5]),
     0.06,
     103,
   );
@@ -302,17 +321,17 @@ function spiderFoot(): BufferGeometry {
   );
 }
 
-function spiderSmokestack(): BufferGeometry {
+function spiderSmokestack(simple = false): BufferGeometry {
   const S = SPIDER_COLORS;
   return tint(
-    merge([
+    reducedSpiderParts([
       place(cylinderish(0.3, 0.22, 2.15, 8, S.pipe), 0, 1.08, 0),
       place(cylinderish(0.36, 0.36, 0.16, 8, S.brass), 0, 0.18, 0),
       place(cylinderish(0.27, 0.27, 0.1, 8, S.brassDark), 0, 1.3, 0),
       place(cylinderish(0.25, 0.4, 0.34, 8, S.brass), 0, 2.3, 0),
       place(cylinderish(0.42, 0.42, 0.08, 8, S.brassDark), 0, 2.5, 0),
       place(rivetRing(0.34, 8, 0.045, S.brassDark), 0, 0.26, 0),
-    ]),
+    ], simple, [0, 3, 4]),
     0.06,
     105,
   );
@@ -335,7 +354,7 @@ function spiderFurnaceCore(): BufferGeometry {
   ]);
 }
 
-export function buildSpider(materials: MaterialLibrary): SpiderRig {
+export function buildSpider(materials: MaterialLibrary, simple = false): SpiderRig {
   const S = SPIDER_COLORS;
   const root = new Group();
   root.name = "spider";
@@ -343,52 +362,55 @@ export function buildSpider(materials: MaterialLibrary): SpiderRig {
   const body = new Object3D();
   body.name = "body";
   root.add(body);
-  body.add(meshOf(cached("spiderHull", spiderHull), materials.surface, "hull"));
-
-  const headlamp = new Mesh(
-    cached("spiderLamp", () => cylinderish(0.26, 0.26, 0.1, 10, S.furnaceHot)),
-    materials.emissive(S.furnaceHot, 1.15),
-  );
-  headlamp.name = "headlamp";
-  headlamp.position.set(0, 3.1, 4.17);
-  headlamp.rotation.x = Math.PI * 0.5;
-  body.add(headlamp);
+  body.add(meshOf(cached(simple ? "miniSpiderHull" : "spiderHull", () => spiderHull(simple)), materials.surface, "hull"));
 
   const furnace = new Object3D();
   furnace.name = "furnace";
-  const furnaceMesh = new Mesh(
-    cached("spiderFurnace", spiderFurnaceCore),
-    materials.emissiveUnique(S.furnace, 1.0),
-  );
-  furnaceMesh.name = "furnaceGlow";
-  furnace.add(furnaceMesh);
-  const emberMesh = new Mesh(
-    cached("spiderEmbers", () =>
-      merge([
-        place(chamferedBox(1.15, 0.7, 0.14, 0.04, S.furnaceHot), 0, 2.2, -4.0),
-        place(plate(1.4, 2.6, 0.08, 0.03, S.furnaceHot), 0, 0.84, -0.4),
-      ]),
-    ),
-    materials.emissiveUnique(S.furnaceHot, 1.0),
-  );
-  emberMesh.name = "furnaceEmbers";
-  furnace.add(emberMesh);
   body.add(furnace);
-
-  const stackGeometry = cached("spiderStack", spiderSmokestack);
   const smokestacks: Object3D[] = [];
-  const stackPositions = [-1.15, 3.72, -2.35, 0, 3.72, -3.0, 1.15, 3.72, -2.35];
-  for (let i = 0; i < 3; i++) {
-    const stack = new Object3D();
-    stack.name = `smokestack${i}`;
-    stack.position.set(stackPositions[i * 3], stackPositions[i * 3 + 1], stackPositions[i * 3 + 2]);
-    stack.add(meshOf(stackGeometry, materials.surface, "stack"));
-    body.add(stack);
-    smokestacks.push(stack);
+  if (!simple) {
+    const headlamp = new Mesh(
+      cached("spiderLamp", () => cylinderish(0.26, 0.26, 0.1, 10, S.furnaceHot)),
+      materials.emissive(S.furnaceHot, 1.15),
+    );
+    headlamp.name = "headlamp";
+    headlamp.position.set(0, 3.1, 4.17);
+    headlamp.rotation.x = Math.PI * 0.5;
+    body.add(headlamp);
+
+    const furnaceMesh = new Mesh(
+      cached("spiderFurnace", spiderFurnaceCore),
+      materials.emissiveUnique(S.furnace, 1.0),
+    );
+    furnaceMesh.name = "furnaceGlow";
+    furnace.add(furnaceMesh);
+    const emberMesh = new Mesh(
+      cached("spiderEmbers", () =>
+        merge([
+          place(chamferedBox(1.15, 0.7, 0.14, 0.04, S.furnaceHot), 0, 2.2, -4.0),
+          place(plate(1.4, 2.6, 0.08, 0.03, S.furnaceHot), 0, 0.84, -0.4),
+        ]),
+      ),
+      materials.emissiveUnique(S.furnaceHot, 1.0),
+    );
+    emberMesh.name = "furnaceEmbers";
+    furnace.add(emberMesh);
+    body.add(furnace);
+
+    const stackGeometry = cached("spiderStack", spiderSmokestack);
+    const stackPositions = [-1.15, 3.72, -2.35, 0, 3.72, -3.0, 1.15, 3.72, -2.35];
+    for (let i = 0; i < 3; i++) {
+      const stack = new Object3D();
+      stack.name = `smokestack${i}`;
+      stack.position.set(stackPositions[i * 3], stackPositions[i * 3 + 1], stackPositions[i * 3 + 2]);
+      stack.add(meshOf(stackGeometry, materials.surface, "stack"));
+      body.add(stack);
+      smokestacks.push(stack);
+    }
   }
 
-  const femurGeometry = cached("spiderFemur", spiderFemur);
-  const tibiaGeometry = cached("spiderTibia", spiderTibia);
+  const femurGeometry = cached(simple ? "miniSpiderFemur" : "spiderFemur", () => spiderFemur(simple));
+  const tibiaGeometry = cached(simple ? "miniSpiderTibia" : "spiderTibia", () => spiderTibia(simple));
   const footGeometry = cached("spiderFoot", spiderFoot);
 
   const legs: Object3D[] = [];

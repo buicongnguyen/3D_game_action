@@ -2,7 +2,7 @@
 
 ## Homeward story campaign
 
-Choose **Play Homeward** on the loading screen or in the Expedition pause menu, or open `?mode=story`. Four linked chapters cover hill-farm defense, maze rescue, the Silk Queen battle and escorting the Iron Spider home. Expedition and Salvage Rush remain available, with separate saves.
+The startup screen offers **Marching** (default, the existing escort/Expedition game) and **Story** (Homeward). Enter or controller Cross confirms the focused choice; mouse/touch selects it directly. Story is opt-in, not automatically restored as the startup mode. The explicit `?mode=story` link and Expedition pause-menu Story option still open Homeward directly. Four linked chapters cover hill-farm defense, maze rescue, the Silk Queen battle and escorting the Iron Spider home. Expedition and Salvage Rush remain available, with separate saves.
 
 Move with WASD, a controller left stick or the touch joystick. Weapons fire automatically. Select weapons with B or their on-screen buttons; use E / the action button to launch stones, free cows, open crates or repair. Select a turret and use the same action to deploy it. Space dodges. The pause menu offers chapter retry and a return to Expedition.
 

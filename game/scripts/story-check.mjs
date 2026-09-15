@@ -122,11 +122,63 @@ try {
   report.checks.push("Reload restores chapter 4 and earned multishot, ready at briefing");
   await send("Page.navigate", {url:base});
   await wait("!!document.querySelector('.boot-story-link')");
+  if (process.argv.includes("--mode-review")) {
+    await wait("!!document.querySelector('.boot-ready')");
+    const selected = await evaluate("document.activeElement?.classList.contains('boot-march-button')");
+    if (!selected) throw Error('Marching is not the default focused mode');
+    await send("Input.dispatchKeyEvent", {type:"keyDown",key:"Tab",code:"Tab",windowsVirtualKeyCode:9});
+    await send("Input.dispatchKeyEvent", {type:"keyUp",key:"Tab",code:"Tab",windowsVirtualKeyCode:9});
+    if (!await evaluate("!!document.querySelector('.boot-screen')")) throw Error('Browsing mode choices started the game');
+    for (const [label,width,height] of [["desktop",1280,720],["portrait",390,844],["landscape",844,390]]) {
+      await send("Emulation.setDeviceMetricsOverride",{width,height,deviceScaleFactor:1,mobile:false});
+      const fits = await evaluate(`(() => { const r=document.querySelector('.boot-mode-choice').getBoundingClientRect();const b=document.querySelector('.boot-march-button').getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight&&!!document.elementFromPoint(b.x+b.width/2,b.y+b.height/2)?.closest('.boot-mode-choice');})()`);
+      if(!fits)throw Error('Mode choices outside viewport: '+label);
+      const shot=await send("Page.captureScreenshot",{format:"png"});
+      await writeFile(path.join(out,'mode-'+label+'.png'),Buffer.from(shot.data,"base64"));
+    }
+    report.checks.push("Marching defaults selected; Tab does not start play; both mode choices fit three viewport sizes");
+  }
   const storyLink = await evaluate("document.querySelector('.boot-story-link').getAttribute('href')");
   if (!storyLink.includes('mode=story')) throw Error('Missing Expedition entry to story');
   await evaluate("document.querySelector('.boot-story-link').click()");
   await wait("window.__homeward?.ready && window.__homeward.sim.state.chapter === 4");
   report.checks.push("Original loading screen offers working Story entry without resetting checkpoint");
+  if (process.argv.includes("--mode-review")) {
+    await send("Page.navigate",{url:base});await wait("!!document.querySelector('.boot-ready')");
+    await send("Input.dispatchKeyEvent",{type:"keyDown",key:"Enter",code:"Enter",windowsVirtualKeyCode:13});
+    await send("Input.dispatchKeyEvent",{type:"keyUp",key:"Enter",code:"Enter",windowsVirtualKeyCode:13});
+    await wait("!document.querySelector('.boot-screen') && !!window.__ironMarch");
+    report.checks.push("Enter starts default Marching; Story requires explicit selection");
+  }
+  if (process.argv.includes("--mini-review")) {
+    await send("Emulation.setDeviceMetricsOverride", {width:1280,height:720,deviceScaleFactor:1,mobile:false});
+    await send("Page.navigate", {url:base+"?mode=story&storyCapture=1"});
+    await wait("window.__homeward?.ready && window.__homeward.sim.state.chapter === 1");
+    await evaluate(`(() => {
+      const {sim,view}=window.__homeward; sim.state.enemies.length=0;
+      ['broodling','jumper','shellback'].forEach((kind,i)=>sim.spawn(kind,{x:-6+i*6,z:8}));
+      view.camera.zoom=2.4; view.render(sim.state,1/60,true);
+    })()`);
+    for (const frame of [0, 12]) {
+      await evaluate(`(() => { const {sim,view}=window.__homeward;
+        for(let n=0;n<${frame};n++){for(const e of sim.state.enemies)e.z+=2.5/60;view.render(sim.state,1/60,true);}
+      })()`);
+      const shot = await send("Page.captureScreenshot", {format:"png"});
+      await writeFile(path.join(out,`mini-walk-${frame}.png`),Buffer.from(shot.data,"base64"));
+    }
+    report.miniRigCpu = await evaluate(`(() => {
+      const {sim,view}=window.__homeward; sim.state.enemies.length=0;
+      for(let i=0;i<48;i++)sim.spawn('broodling',{x:-20+i%8*5,z:-20+Math.floor(i/8)*5});
+      const samples=[];
+      for(let n=0;n<150;n++){for(const e of sim.state.enemies)e.z+=2.5/60;
+        const t=performance.now();view.miniSpiders.update(sim.state.enemies,1/60,1);if(n>=30)samples.push(performance.now()-t);
+      }
+      samples.sort((a,b)=>a-b);
+      return {walkers:48,batches:view.miniSpiders.meshes.length,p95Ms:samples[Math.floor(samples.length*.95)],maxMs:samples.at(-1),
+        note:'CPU joint solving and instance updates only; not end-to-end GPU FPS'};
+    })()`);
+    console.log(JSON.stringify(report.miniRigCpu));
+  }
   if (report.errors.length) throw Error(report.errors.join("\n"));
   await writeFile(path.join(out, "report.json"), JSON.stringify(report, null, 2)); console.log(JSON.stringify(report.checks)); console.log(JSON.stringify(report.performance));
 } finally {

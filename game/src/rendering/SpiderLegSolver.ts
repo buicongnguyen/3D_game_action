@@ -15,6 +15,12 @@ const ankle = new Vector3();
 const parentRotation = new Quaternion();
 const soleRotation = new Quaternion();
 const downRotation = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 2);
+const worldScale = new Vector3();
+export function spiderRigScale(rig: SpiderRig): number {
+  return Math.max(0.001, rig.root.getWorldScale(worldScale).x);
+}
+/** Reset planted contacts when spawning, pooling or taking off/landing. */
+export function resetSpiderLegs(rig: SpiderRig): void { states.delete(rig); }
 function safeAcos(value: number): number {
   return Math.acos(Math.max(-1, Math.min(1, value)));
 }
@@ -24,11 +30,12 @@ export function solveSpiderLegs(rig: SpiderRig, dt: number, speed: number, movin
   // Bare animation test rigs do not carry the builder's segment metadata.
   if (!rig.legs[0]?.userData.femurLength) return;
   rig.root.updateMatrixWorld(true);
+  const scale = spiderRigScale(rig);
   inverse.copy(rig.body.matrixWorld).invert();
   rig.root.getWorldQuaternion(soleRotation);
   soleRotation.multiply(downRotation);
   let state = states.get(rig);
-  const reset = !state || Math.hypot(rig.root.position.x - state.x, rig.root.position.z - state.z) > 12 || Math.abs(rig.root.position.y - state.y) > 1;
+  const reset = !state || Math.hypot(rig.root.position.x - state.x, rig.root.position.z - state.z) > 12 * scale || Math.abs(rig.root.position.y - state.y) > scale;
   if (!state || reset) {
     state = { feet: [], x: rig.root.position.x, z: rig.root.position.z, y: rig.root.position.y };
     for (const leg of rig.legs) {
@@ -58,7 +65,7 @@ export function solveSpiderLegs(rig: SpiderRig, dt: number, speed: number, movin
       airborneGroup = group;
       foot.from.copy(foot.planted);
       foot.elapsed = 0;
-      foot.duration = (1 - STANCE) * SPIDER_STRIDE / Math.max(0.1, speed);
+      foot.duration = (1 - STANCE) * SPIDER_STRIDE * scale / Math.max(0.1, speed);
       foot.swinging = true;
     }
     foot.wasSwing = moving && swingPhase && canLift;
@@ -75,7 +82,7 @@ export function solveSpiderLegs(rig: SpiderRig, dt: number, speed: number, movin
       const t = progress >= 1 - 1e-8 ? 1 : progress;
       const smooth = t * t * (3 - 2 * t);
       foot.target.lerpVectors(foot.from, desired, smooth);
-      foot.target.y = Math.sin(Math.PI * t) * 0.65;
+      foot.target.y += Math.sin(Math.PI * t) * 0.65 * scale;
       if (t >= 1) {
         foot.planted.copy(foot.target);
         foot.swinging = false;
@@ -85,7 +92,7 @@ export function solveSpiderLegs(rig: SpiderRig, dt: number, speed: number, movin
     // The foot geometry's claws end 0.30 beyond its nominal foot length.
     // Keep the claw contact on the ground, and the sole world-level.
     ankle.copy(foot.target);
-    ankle.y += leg.userData.footLength + 0.3;
+    ankle.y += (leg.userData.footLength + 0.3) * scale;
     local.copy(ankle).applyMatrix4(inverse).sub(leg.position);
     const horizontal = Math.hypot(local.x, local.z);
     const a = leg.userData.femurLength as number;

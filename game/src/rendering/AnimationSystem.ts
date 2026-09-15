@@ -3,7 +3,7 @@ import { clamp, lerp } from "../core/math.ts";
 import { SPIDER } from "../data/balance.ts";
 import type { PuppetRig } from "../art/characters.ts";
 import type { SpiderRig, TurretRig } from "../art/machines.ts";
-import { solveSpiderLegs, SPIDER_STRIDE } from "./SpiderLegSolver.ts";
+import { solveSpiderLegs, SPIDER_STRIDE, spiderRigScale } from "./SpiderLegSolver.ts";
 
 /**
  * Procedural animation for the rigid-segment puppets.
@@ -506,7 +506,7 @@ export function animateSpider(
 ): void {
   const normalized = clamp(speed / SPIDER.speedOverdrive, 0, 1.3);
   const moving = !docked && speed > 0.001;
-  const cadence = moving ? TAU * speed / SPIDER_STRIDE : 0;
+  const cadence = moving ? TAU * speed / (SPIDER_STRIDE * spiderRigScale(rig)) : 0;
   rig.gaitPhase = (rig.gaitPhase + cadence * dt) % TAU;
   const t = rig.gaitPhase;
 

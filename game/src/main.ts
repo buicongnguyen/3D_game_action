@@ -29,7 +29,13 @@ boot.innerHTML = `
   <div class="boot-panel">
     <h1 class="boot-title">IRON MARCH</h1>
     <p class="boot-subtitle">Escort the Spider. Keep the convoy moving.</p>
-    <a class="boot-story-link" href="?mode=story">Play Homeward · four-chapter story</a>
+    <nav class="boot-mode-choice" aria-label="Choose game mode">
+      <button class="boot-march-button" type="button" disabled>
+        <strong>${mode === "salvageRush" ? "Salvage Rush" : "Marching"}</strong>
+        <span>${mode === "salvageRush" ? "Selected challenge" : "Default mode"} · Escort the Spider</span>
+      </button>
+      <a class="boot-story-link" href="?mode=story"><strong>Story</strong><span>Homeward · four-chapter adventure</span></a>
+    </nav>
     <div class="boot-bar"><div class="boot-bar-fill"></div></div>
     <p class="boot-label">Starting</p>
     <p class="boot-error" hidden></p>
@@ -118,39 +124,55 @@ async function main(): Promise<void> {
     return;
   }
 
-  bootLabel.textContent = "Press Cross, or any key, to begin";
+  bootLabel.textContent = "Choose a mode · Enter / Cross confirms";
   boot.classList.add("boot-ready");
+  const marchButton = boot.querySelector<HTMLButtonElement>(".boot-march-button")!;
+  const storyLink = boot.querySelector<HTMLAnchorElement>(".boot-story-link")!;
+  marchButton.disabled = false;
+  marchButton.focus({ preventScroll: true });
 
-  const begin = (event?: Event): void => {
-    if (event?.target instanceof Element && event.target.closest("a")) return;
-    window.removeEventListener("keydown", begin);
-    window.removeEventListener("pointerdown", begin);
-    window.removeEventListener("gamepadconnected", begin);
+  const begin = (): void => {
+    window.removeEventListener("keydown", chooseMode);
     cancelAnimationFrame(waitHandle);
     boot.remove();
     game.start();
   };
+  const chooseMode = (event: KeyboardEvent): void => {
+    if (event.repeat) return;
+    if (["ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp"].includes(event.key)) {
+      event.preventDefault();
+      (event.key === "ArrowRight" || event.key === "ArrowDown" ? storyLink : marchButton).focus();
+    } else if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      if (document.activeElement === storyLink) storyLink.click(); else begin();
+    }
+  };
+  marchButton.addEventListener("click", begin);
 
-  // A gamepad button press is not a DOM event, so the splash also polls for one.
+  // Only confirm starts a mode; connecting a pad or browsing must not launch it.
   let waitHandle = 0;
+  let lastDirection = 0, lastConfirm = false;
   const waitForGamepad = (): void => {
     const pads = navigator.getGamepads?.() ?? [];
     for (const pad of pads) {
       if (!pad) continue;
-      for (const button of pad.buttons) {
-        if (button.pressed) {
-          begin();
-          return;
-        }
+      const direction = pad.buttons[13]?.pressed || pad.buttons[15]?.pressed || pad.axes[0] > 0.5 || pad.axes[1] > 0.5 ? 1 :
+        pad.buttons[12]?.pressed || pad.buttons[14]?.pressed || pad.axes[0] < -0.5 || pad.axes[1] < -0.5 ? -1 : 0;
+      if (direction && direction !== lastDirection) (direction > 0 ? storyLink : marchButton).focus();
+      lastDirection = direction;
+      const confirm = !!pad.buttons[0]?.pressed;
+      if (confirm && !lastConfirm) {
+        if (document.activeElement === storyLink) storyLink.click(); else begin();
+        return;
       }
+      lastConfirm = confirm;
+      break;
     }
     waitHandle = requestAnimationFrame(waitForGamepad);
   };
   waitHandle = requestAnimationFrame(waitForGamepad);
 
-  window.addEventListener("keydown", begin);
-  window.addEventListener("pointerdown", begin);
-  window.addEventListener("gamepadconnected", begin);
+  window.addEventListener("keydown", chooseMode);
 }
 
 window.addEventListener("keydown", (event) => {

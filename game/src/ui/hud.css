@@ -8,6 +8,24 @@
 
 .boot-story-link { display: block; margin: 12px 0 18px; padding: 12px 16px; border: 1px solid #d8b26a; border-radius: 8px; color: #f5dc9d; text-decoration: none; pointer-events: auto; }
 .boot-story-link:hover, .boot-story-link:focus-visible { background: #d8b26a22; outline: 2px solid #d8b26a; }
+.boot-mode-choice { display: grid; gap: 10px; margin: 20px 0; text-align: left; }
+.boot-mode-choice a, .boot-mode-choice button { display: block; box-sizing: border-box; width: 100%; margin: 0; padding: 13px 16px; border: 1px solid #d8b26a; border-radius: 8px; font: inherit; text-align: left; text-decoration: none; pointer-events: auto; cursor: pointer; }
+.boot-mode-choice strong { display: block; font-size: 19px; }
+.boot-mode-choice span { display: block; margin-top: 4px; font-size: 12px; }
+.boot-march-button { background: #d8b26a; color: #211b12; }
+.boot-mode-choice button:focus-visible, .boot-mode-choice a:focus-visible { outline: 3px solid #f8e7b7; outline-offset: 3px; }
+.boot-march-button:disabled { opacity: .5; cursor: wait; }
+
+.boot-screen { position: fixed; inset: 0; z-index: 10000; display: flex; align-items: center; justify-content: center; box-sizing: border-box; padding: 20px; overflow-y: auto; pointer-events: auto; background: radial-gradient(ellipse at 50% 25%, #293b40, #10151b 75%); color: #e8e2d4; }
+.boot-panel { box-sizing: border-box; width: min(520px, 100%); margin: auto; padding: 28px; border: 1px solid #d8b26a77; border-radius: 16px; background: #10151bf2; box-shadow: 0 20px 80px #0006; }
+.boot-title { margin: 0 0 10px; font-size: clamp(25px, 6vw, 38px); letter-spacing: 4px; color: #d8b26a; }
+.boot-subtitle { margin: 0; color: #c0c6c9; line-height: 1.5; }
+.boot-label { font-size: 12px; color: #c0c6c9; margin: 12px 0 0; }
+.boot-bar { height: 4px; overflow: hidden; background: #293b40; border-radius: 3px; }
+.boot-bar-fill { height: 100%; width: 0; background: #d8b26a; }
+.boot-error { color: #e2604f; }
+@media (max-width: 600px) { .boot-screen { padding: 16px; } .boot-panel { padding: 22px; } }
+@media (max-height: 500px) and (min-width: 601px) { .boot-panel { width: min(640px, 100%); padding: 20px; } .boot-mode-choice { grid-template-columns: 1fr 1fr; margin: 14px 0; } .boot-title { font-size: 27px; } }
 
 :root {
   /* --- palette mirror: HUD ------------------------------------------------ */
