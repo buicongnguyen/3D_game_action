@@ -999,6 +999,7 @@ export class Game {
             { id: "resume", label: "Resume the march" },
             { id: "inventory", label: "Inventory & number guide" },
             { id: "settings", label: "Settings" },
+            { id: "mode.story", label: "Play Homeward Story Campaign" },
             {
               id: this.world.mode === "salvageRush" ? "mode.expedition" : "mode.salvageRush",
               label: this.world.mode === "salvageRush" ? "Start Expedition" : "Start Salvage Rush",
@@ -1152,6 +1153,13 @@ export class Game {
         else if (value === "restart") this.restart();
         else if (value === "mode.expedition") this.switchMode("expedition");
         else if (value === "mode.salvageRush") this.switchMode("salvageRush");
+        else if (value === "mode.story") {
+          const url = new URL(window.location.href);
+          url.searchParams.set("mode", "story");
+          url.searchParams.delete("capture");
+          url.searchParams.delete("perf");
+          window.location.assign(url.toString());
+        }
         else if (value === "settings") {
           // Pushed, not shown: `back()` then returns to pause rather than
           // dropping the player straight back into a march they paused.

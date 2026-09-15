@@ -29,6 +29,7 @@ boot.innerHTML = `
   <div class="boot-panel">
     <h1 class="boot-title">IRON MARCH</h1>
     <p class="boot-subtitle">Escort the Spider. Keep the convoy moving.</p>
+    <a class="boot-story-link" href="?mode=story">Play Homeward · four-chapter story</a>
     <div class="boot-bar"><div class="boot-bar-fill"></div></div>
     <p class="boot-label">Starting</p>
     <p class="boot-error" hidden></p>
@@ -120,7 +121,8 @@ async function main(): Promise<void> {
   bootLabel.textContent = "Press Cross, or any key, to begin";
   boot.classList.add("boot-ready");
 
-  const begin = (): void => {
+  const begin = (event?: Event): void => {
+    if (event?.target instanceof Element && event.target.closest("a")) return;
     window.removeEventListener("keydown", begin);
     window.removeEventListener("pointerdown", begin);
     window.removeEventListener("gamepadconnected", begin);

@@ -1,10 +1,13 @@
 /*
- * Marcha de Ferro - HUD, menus and overlays.
+ * Iron March - HUD, menus and overlays.
  *
  * Colour tokens mirror `HUD` and the feedback lanes in src/art/palette.ts.
  * When a value changes there it must change here too; nothing in this file may
  * invent a colour that the palette does not already authorise.
  */
+
+.boot-story-link { display: block; margin: 12px 0 18px; padding: 12px 16px; border: 1px solid #d8b26a; border-radius: 8px; color: #f5dc9d; text-decoration: none; pointer-events: auto; }
+.boot-story-link:hover, .boot-story-link:focus-visible { background: #d8b26a22; outline: 2px solid #d8b26a; }
 
 :root {
   /* --- palette mirror: HUD ------------------------------------------------ */

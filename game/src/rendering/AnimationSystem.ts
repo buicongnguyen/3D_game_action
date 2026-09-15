@@ -502,6 +502,7 @@ export function animateSpider(
   overdrive: boolean,
   docked: boolean,
   furnaceHeat: number,
+  groundHeight?: (x: number, z: number) => number,
 ): void {
   const normalized = clamp(speed / SPIDER.speedOverdrive, 0, 1.3);
   const moving = !docked && speed > 0.001;
@@ -516,7 +517,7 @@ export function animateSpider(
     restY(rig.body) + (docked ? -0.2 : Math.sin(t * 2) * 0.06 * gaitAmount), clamp(dt * 8, 0, 1));
   rig.body.rotation.z = docked ? 0 : Math.sin(t) * 0.015 * gaitAmount;
   rig.body.rotation.x = docked ? 0 : Math.sin(t * 2 + 1.1) * 0.012 * gaitAmount;
-  solveSpiderLegs(rig, dt, speed, moving);
+  solveSpiderLegs(rig, dt, speed, moving, groundHeight);
 
   // The furnace is the game's clearest state light: it breathes at march,
   // roars in overdrive, and dims when the tank is dry.

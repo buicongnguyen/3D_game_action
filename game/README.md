@@ -1,5 +1,15 @@
 # Iron March
 
+## Homeward story campaign
+
+Choose **Play Homeward** on the loading screen or in the Expedition pause menu, or open `?mode=story`. Four linked chapters cover hill-farm defense, maze rescue, the Silk Queen battle and escorting the Iron Spider home. Expedition and Salvage Rush remain available, with separate saves.
+
+Move with WASD, a controller left stick or the touch joystick. Weapons fire automatically. Select weapons with B or their on-screen buttons; use E / the action button to launch stones, free cows, open crates or repair. Select a turret and use the same action to deploy it. Space dodges. The pause menu offers chapter retry and a return to Expedition.
+
+See [campaign design](../docs/HOMEWARD_STORY_DESIGN.md), [implementation ledger](../docs/HOMEWARD_IMPLEMENTATION_PLAN.md) and [verification](../docs/HOMEWARD_VERIFICATION.md). Run `npm run verify`; with a preview server on port 4246, run `node scripts/story-check.mjs` for the Windows Edge browser checks.
+
+## Original Expedition
+
 A single-player, isometric, controller-first roguelite of logistical action
 and defense on the move. You play an engineer escorting a walking
 spider-fortress that never stops for long: run ahead, gather scrap and fuel,

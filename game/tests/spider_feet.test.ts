@@ -7,6 +7,19 @@ import { GameWorld } from "../src/game/GameWorld.ts";
 import { SpiderMovementSystem } from "../src/game/systems/SpiderMovementSystem.ts";
 
 describe("Spider physical foot contacts", () => {
+  it("plants all eight feet on Homeward's raised farm plateau", () => {
+    const materials = new MaterialLibrary();
+    const rig = buildSpider(materials); captureSpiderRest(rig);
+    const tip = new Vector3(); rig.root.position.set(0, 6, -2);
+    try {
+      for (let i = 0; i < 90; i++) animateSpider(rig, 1 / 60, 0, false, true, 1, () => 6);
+      rig.root.updateMatrixWorld(true);
+      for (const foot of rig.legFoot) {
+        tip.set(0, 0, 0.75).applyMatrix4(foot.matrixWorld);
+        expect(tip.y).toBeCloseTo(6, 4);
+      }
+    } finally { materials.dispose(); machineCache.dispose(); }
+  });
   it("keeps the feet above ground over the actual maze route", () => {
     const materials = new MaterialLibrary();
     const rig = buildSpider(materials);

@@ -6,7 +6,7 @@ const STANCE = 0.6;
 const TAU = Math.PI * 2;
 const states = new WeakMap<SpiderRig, {
   feet: { planted: Vector3; from: Vector3; target: Vector3; orientation: Quaternion; elapsed: number; duration: number; swinging: boolean; wasSwing: boolean }[];
-  x: number; z: number;
+  x: number; z: number; y: number;
 }>();
 const inverse = new Matrix4();
 const local = new Vector3();
@@ -20,7 +20,7 @@ function safeAcos(value: number): number {
 }
 
 /** World-space planted contacts and two-bone IK. Only presentation is changed. */
-export function solveSpiderLegs(rig: SpiderRig, dt: number, speed: number, moving: boolean): void {
+export function solveSpiderLegs(rig: SpiderRig, dt: number, speed: number, moving: boolean, groundHeight?: (x: number, z: number) => number): void {
   // Bare animation test rigs do not carry the builder's segment metadata.
   if (!rig.legs[0]?.userData.femurLength) return;
   rig.root.updateMatrixWorld(true);
@@ -28,12 +28,12 @@ export function solveSpiderLegs(rig: SpiderRig, dt: number, speed: number, movin
   rig.root.getWorldQuaternion(soleRotation);
   soleRotation.multiply(downRotation);
   let state = states.get(rig);
-  const reset = !state || Math.hypot(rig.root.position.x - state.x, rig.root.position.z - state.z) > 12;
+  const reset = !state || Math.hypot(rig.root.position.x - state.x, rig.root.position.z - state.z) > 12 || Math.abs(rig.root.position.y - state.y) > 1;
   if (!state || reset) {
-    state = { feet: [], x: rig.root.position.x, z: rig.root.position.z };
+    state = { feet: [], x: rig.root.position.x, z: rig.root.position.z, y: rig.root.position.y };
     for (const leg of rig.legs) {
       desired.set(leg.userData.restX, 0, leg.userData.restZ).applyMatrix4(rig.root.matrixWorld);
-      desired.y = 0;
+      desired.y = groundHeight?.(desired.x, desired.z) ?? 0;
       state.feet.push({ planted: desired.clone(), from: desired.clone(), target: desired.clone(), orientation: soleRotation.clone(),
         elapsed: 0, duration: 1, swinging: false, wasSwing: false });
     }
@@ -41,6 +41,7 @@ export function solveSpiderLegs(rig: SpiderRig, dt: number, speed: number, movin
   }
   state.x = rig.root.position.x;
   state.z = rig.root.position.z;
+  state.y = rig.root.position.y;
   let airborneGroup = -1;
   for (let i = 0; i < state.feet.length; i++) {
     if (state.feet[i].swinging) airborneGroup = ((i >> 1) + (i & 1)) & 1;
@@ -68,7 +69,7 @@ export function solveSpiderLegs(rig: SpiderRig, dt: number, speed: number, movin
       desired.set(leg.userData.restX, 0,
         leg.userData.restZ + (moving ? SPIDER_STRIDE * STANCE * 0.5 : 0))
         .applyMatrix4(rig.root.matrixWorld);
-      desired.y = 0;
+      desired.y = groundHeight?.(desired.x, desired.z) ?? 0;
       foot.elapsed += Math.max(0, dt);
       const progress = foot.elapsed / foot.duration;
       const t = progress >= 1 - 1e-8 ? 1 : progress;
