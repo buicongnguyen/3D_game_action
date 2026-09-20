@@ -1,0 +1,111 @@
+{
+  "captures": [
+    {
+      "file": "desktop-chapter-1.png",
+      "calls": 62,
+      "triangles": 129262
+    },
+    {
+      "file": "desktop-chapter-2.png",
+      "calls": 30,
+      "triangles": 70418
+    },
+    {
+      "file": "desktop-chapter-3.png",
+      "calls": 56,
+      "triangles": 52842
+    },
+    {
+      "file": "desktop-chapter-4.png",
+      "calls": 57,
+      "triangles": 78262
+    },
+    {
+      "file": "portrait-chapter-1.png",
+      "calls": 62,
+      "triangles": 129262
+    },
+    {
+      "file": "portrait-chapter-2.png",
+      "calls": 30,
+      "triangles": 70418
+    },
+    {
+      "file": "portrait-chapter-3.png",
+      "calls": 56,
+      "triangles": 52842
+    },
+    {
+      "file": "portrait-chapter-4.png",
+      "calls": 57,
+      "triangles": 78262
+    },
+    {
+      "file": "landscape-chapter-1.png",
+      "calls": 62,
+      "triangles": 129262
+    },
+    {
+      "file": "landscape-chapter-2.png",
+      "calls": 30,
+      "triangles": 70418
+    },
+    {
+      "file": "landscape-chapter-3.png",
+      "calls": 56,
+      "triangles": 52842
+    },
+    {
+      "file": "landscape-chapter-4.png",
+      "calls": 57,
+      "triangles": 78262
+    }
+  ],
+  "checks": [
+    "Real keyboard movement",
+    "Real touch joystick movement and release",
+    "Single touch/click action launches stone",
+    "Pause freezes simulation",
+    {
+      "completeCampaignTraversal": {
+        "safe": 6,
+        "rescued": 3
+      },
+      "note": "Scripted combat resolution; objective actions and full escort distance simulated"
+    },
+    "Reload restores chapter 4 and earned multishot, ready at briefing",
+    "Original loading screen offers working Story entry without resetting checkpoint",
+    {
+      "cosmeticEventFixture": {
+        "weapon": "rifle",
+        "active": 4
+      }
+    },
+    {
+      "cosmeticEventFixture": {
+        "weapon": "rocket",
+        "active": 9
+      }
+    },
+    {
+      "cosmeticEventFixture": {
+        "weapon": "laser",
+        "active": 3
+      }
+    },
+    {
+      "cosmeticEventFixture": {
+        "weapon": "flame",
+        "active": 3
+      }
+    }
+  ],
+  "performance": {
+    "steps": 600,
+    "medianMs": 0,
+    "p95Ms": 0.10000002384185791,
+    "maxMs": 0.20000004768371582,
+    "environment": "Headless Edge / SwiftShader; simulation CPU only, not physical-phone FPS"
+  },
+  "errors": []
+}

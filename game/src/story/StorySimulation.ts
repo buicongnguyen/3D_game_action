@@ -159,7 +159,7 @@ export class StorySimulation {
       s.progress.armorLevel++; s.player.maxHp += 15; s.player.hp = Math.min(s.player.maxHp, s.player.hp + 15);
       this.message(`Shell armor fitted: +15 maximum health. New stones are ${Math.round(s.progress.armorLevel * 15)}% larger.`);
     }
-    this.effect("blast", enemy, enemy, 0.3, enemy.kind === "queen" ? 6 : 1.1);
+    this.effect(enemy.kind === "queen" ? "blast" : "death", enemy, enemy, 0.3, enemy.kind === "queen" ? 6 : 1.1);
     if (enemy.kind === "queen") {
       s.bossDefeated = true; s.enemies.length = 0; s.effects = s.effects.filter(e => e.kind !== "web" && e.kind !== "warning");
       this.message("The Queen is defeated. Secure the cows at the gold cage.");
@@ -175,13 +175,13 @@ export class StorySimulation {
   }
   private receipt(text: string): void { this.state.receipt = text; this.state.receiptTime = 3; }
   private message(text: string): void { this.state.message = text; this.state.messageTime = 4; }
-  private effect(kind: StoryState["effects"][number]["kind"], p: Point, end: Point, life: number, radius: number): void {
+  private effect(kind: StoryState["effects"][number]["kind"], p: Point, end: Point, life: number, radius: number, weapon?: StoryWeapon): void {
     const effects = this.state.effects;
     if (effects.length >= STORY_LIMITS.effects) {
       const old = effects.findIndex(e => e.kind !== "web" && e.kind !== "warning");
       if (old < 0) return; effects.splice(old, 1);
     }
-    effects.push({ ...p, kind, toX: end.x, toZ: end.z, life, maxLife: life, radius });
+    effects.push({ ...p, kind, toX: end.x, toZ: end.z, life, maxLife: life, radius, weapon });
   }
   step(dt: number, input: StoryInput = IDLE_STORY_INPUT): void {
     if (!Number.isFinite(dt) || dt <= 0 || this.state.status !== "playing") return;
@@ -321,6 +321,7 @@ export class StorySimulation {
     }
     if (!target) return;
     p.heading = Math.atan2(target.x - p.x, target.z - p.z); p.cooldown = def.interval; p.heat += def.heat;
+    this.effect("muzzle", p, target, 0.16, 1, weapon);
     const damage = def.damage * (1 + s.progress.damageLevel * 0.2);
     if (weapon === "laser") {
       let end = { x: p.x + Math.sin(p.heading) * def.range, z: p.z + Math.cos(p.heading) * def.range };
@@ -357,7 +358,7 @@ export class StorySimulation {
         if (p.rocket) {
           for (const e of [...s.enemies]) if (distance(e, p) <= 5 + STORY_ENEMIES[e.kind].radius && clearLine(s.chapter, p, e)) this.hit(e, p.damage);
           this.effect("blast", p, p, 0.45, 5);
-        } else if (hit) this.hit(hit, p.damage);
+        } else if (hit) { this.hit(hit, p.damage); this.effect("impact", hit, hit, 0.2, 1); }
         s.projectiles.splice(i, 1);
       }
     }

@@ -89,6 +89,7 @@ export class VfxSystem {
   constructor(
     private readonly scene: Scene,
     private readonly forge: MeshForge,
+    private readonly groundHeight: (x: number, z: number) => number = () => 0,
   ) {
     this.scene.add(this.root);
     for (let i = CAPACITY - 1; i >= 0; i--) this.free.push(i);
@@ -209,6 +210,7 @@ export class VfxSystem {
     this.spawn(FLASH, x, y, z, heading, heavy ? 0.17 : 0.12, heavy ? 1.4 : 0.95, FEEDBACK.muzzle);
     this.spawn(FLASH, x, y, z, heading, heavy ? 0.12 : 0.09, heavy ? 0.8 : 0.55, FEEDBACK.muzzleCore);
     this.burst(x, y, z, heavy ? 9 : 5, 6.5, FEEDBACK.muzzle, heading, 0.5);
+    this.spawn(SMOKE, x, y, z, heading, heavy ? 0.55 : 0.35, heavy ? 0.65 : 0.35, 0xa6aaa4);
   }
 
   weaponFlash(x: number, y: number, z: number, heading: number, weapon: string): void {
@@ -243,13 +245,18 @@ export class VfxSystem {
   }
 
   explosion(x: number, z: number, radius: number): void {
-    this.spawn(EXPLOSION, x, 0.35, z, 0, 0.62, radius * 0.62, FEEDBACK.explosion);
-    this.spawn(EXPLOSION, x, 0.5, z, 0.7, 0.42, radius * 0.34, FEEDBACK.explosionCore);
+    const floor = this.groundHeight(x, z);
+    this.spawn(EXPLOSION, x, floor + 0.35, z, 0, 0.62, radius * 0.62, FEEDBACK.explosion);
+    this.spawn(EXPLOSION, x, floor + 0.5, z, 0.7, 0.42, radius * 0.34, FEEDBACK.explosionCore);
     // The expanding ring is what makes the damage radius legible after the
     // fact, so the player can learn the weapon rather than guess at it.
-    this.spawn(DUST, x, 0.08, z, 0, 0.55, radius, FEEDBACK.explosion);
-    this.spawn(SMOKE, x, 0.2, z, this.spin(), 1.25, Math.min(radius * 0.7, 4), 0x778486);
-    this.burst(x, 0.4, z, 26, 12, FEEDBACK.explosion, 0, 6.283);
+    this.spawn(DUST, x, floor + 0.08, z, 0, 0.55, radius, FEEDBACK.explosion);
+    for (let i = 0; i < 3; i++) {
+      const angle = i * 2.094 + this.spin(), offset = radius * 0.18;
+      this.spawn(SMOKE, x + Math.sin(angle) * offset, floor + 0.2 + i * 0.15,
+        z + Math.cos(angle) * offset, angle, 1.1 + i * 0.25, Math.min(radius * 0.38, 2), 0x707779);
+    }
+    this.burst(x, floor + 0.4, z, 26, 12, FEEDBACK.explosion, 0, 6.283);
   }
 
   /**
@@ -258,8 +265,9 @@ export class VfxSystem {
    * screen in white donuts and bury the combat it is meant to punctuate.
    */
   deathPoof(x: number, z: number, scale: number): void {
-    this.spawn(DUST, x, 0.1, z, 0, 0.26, 0.7 * scale, FEEDBACK.bloodBone);
-    this.burst(x, 0.5 * scale, z, 8, 4.5, FEEDBACK.bloodBone, 0, 6.283);
+    const floor = this.groundHeight(x, z);
+    this.spawn(DUST, x, floor + 0.1, z, 0, 0.26, 0.7 * scale, FEEDBACK.bloodBone);
+    this.burst(x, floor + 0.5 * scale, z, 8, 4.5, FEEDBACK.bloodBone, 0, 6.283);
   }
 
   pickupPop(x: number, z: number, fuel: boolean): void {
@@ -353,8 +361,9 @@ export class VfxSystem {
   // -------------------------------------------------------------------------
 
   update(dt: number): void {
+    if (!Number.isFinite(dt) || dt < 0) return;
     this.updateEffects(dt);
-    this.updateParticles(dt);
+    if (dt > 0) this.updateParticles(dt);
   }
 
   private updateEffects(dt: number): void {
@@ -397,7 +406,7 @@ export class VfxSystem {
           fade = (1 - t) * Math.min(1, t * 8);
           break;
         case DUST:
-          scale = this.size[i] * (0.25 + easeOutCubic(t) * 1.2);
+          scale = this.size[i] * (0.25 + easeOutCubic(t) * 0.75);
           // Rings read as a UI element if they hold their brightness, so they
           // start dim and fall away quickly. The shape carries the information;
           // the intensity would only compete with the combat underneath.
@@ -469,17 +478,19 @@ export class VfxSystem {
       this.particlePositions[base + 2] += this.particleVelocities[base + 2] * dt;
 
       // Bounce once off the ground, then stop; sliding debris looks wrong.
-      if (this.particlePositions[base + 1] < 0.05) {
-        this.particlePositions[base + 1] = 0.05;
+      const floor = this.groundHeight(this.particlePositions[base], this.particlePositions[base + 2]) + 0.05;
+      if (this.particlePositions[base + 1] < floor) {
+        this.particlePositions[base + 1] = floor;
         this.particleVelocities[base + 1] *= -0.32;
         this.particleVelocities[base] *= 0.55;
         this.particleVelocities[base + 2] *= 0.55;
       }
 
       const fade = clamp(this.particleLife[i] * 2.5, 0, 1);
-      this.particleColors[base] *= fade > 0.98 ? 1 : 0.97;
-      this.particleColors[base + 1] *= fade > 0.98 ? 1 : 0.97;
-      this.particleColors[base + 2] *= fade > 0.98 ? 1 : 0.97;
+      const decay = fade > 0.98 ? 1 : Math.pow(0.97, dt * 60);
+      this.particleColors[base] *= decay;
+      this.particleColors[base + 1] *= decay;
+      this.particleColors[base + 2] *= decay;
     }
 
     if (anyAlive) {
@@ -491,6 +502,17 @@ export class VfxSystem {
 
   get activeEffects(): number {
     return CAPACITY - this.free.length;
+  }
+
+  clear(): void {
+    this.life.fill(0); this.free.length = 0;
+    for (let i = CAPACITY - 1; i >= 0; i--) this.free.push(i);
+    this.particleLife.fill(0); this.particlePositions.fill(-1000); this.particleColors.fill(0); this.particleCursor = 0;
+    for (const batch of this.batches) batch.count = 0;
+    if (this.particles) {
+      this.particles.geometry.getAttribute("position").needsUpdate = true;
+      this.particles.geometry.getAttribute("color").needsUpdate = true;
+    }
   }
 
   dispose(): void {

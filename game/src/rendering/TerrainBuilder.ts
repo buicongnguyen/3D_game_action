@@ -16,6 +16,7 @@ import {
 } from "three";
 import { Random } from "../core/Random.ts";
 import { StaticInstanceCuller } from "./StaticInstanceCuller.ts";
+import { SurfaceDetail, surfaceUV } from "./SurfaceDetail.ts";
 import { angleDelta, clamp, smoothstep } from "../core/math.ts";
 import { ENV } from "../art/palette.ts";
 import { FEEDBACK } from "../art/palette.ts";
@@ -190,6 +191,8 @@ export class TerrainBuilder {
   readonly root = new Group();
 
   private ground: Mesh | null = null;
+  private readonly surfaces = new SurfaceDetail();
+  private readonly groundMaterial;
   private groundGrid: { positions: Float32Array; minX: number; minZ: number; cols: number; rows: number } | null = null;
   private backdrop: Mesh | null = null;
   private readonly instanced: InstancedMesh[] = [];
@@ -210,6 +213,7 @@ export class TerrainBuilder {
     parent: Object3D,
   ) {
     this.root.name = "terrain";
+    this.groundMaterial = forge.materials.surface.clone();
     parent.add(this.root);
   }
 
@@ -221,10 +225,12 @@ export class TerrainBuilder {
     if (!segment || !spline) return;
 
     const random = world.random.fork(hashString(segment.id));
+    this.groundMaterial.map = this.surfaces.get(segment.terrainStyle);
+    this.groundMaterial.needsUpdate = true;
 
     this.buildBackdrop(world, segment);
 
-    this.ground = new Mesh(this.buildGroundGeometry(world, segment), this.forge.materials.surface);
+    this.ground = new Mesh(this.buildGroundGeometry(world, segment), this.groundMaterial);
     this.ground.receiveShadow = true;
     this.ground.castShadow = false;
     this.ground.frustumCulled = false;
@@ -331,7 +337,7 @@ export class TerrainBuilder {
     }
     geometry.setAttribute("color", new BufferAttribute(colors, 3));
 
-    this.backdrop = new Mesh(geometry, this.forge.materials.surface);
+    this.backdrop = new Mesh(geometry, this.groundMaterial);
     this.backdrop.receiveShadow = false;
     this.backdrop.castShadow = false;
     this.backdrop.frustumCulled = false;
@@ -347,6 +353,7 @@ export class TerrainBuilder {
     spline.positionAt(mid, spline.length * 0.5);
     this.backdrop.position.set(mid.x, -0.06, mid.z);
     this.backdrop.scale.set(2400, 1, 2400);
+    surfaceUV(geometry, 2400, 2400, mid.x, mid.z);
     this.root.add(this.backdrop);
   }
 
@@ -455,6 +462,7 @@ export class TerrainBuilder {
     geometry.setIndex(new BufferAttribute(indices, 1));
     geometry.computeVertexNormals();
     geometry.computeBoundingSphere();
+    surfaceUV(geometry);
     this.groundGrid = { positions, minX, minZ, cols, rows };
     return geometry;
   }
@@ -933,6 +941,7 @@ export class TerrainBuilder {
   }
 
   dispose(): void {
+    this.groundMaterial.dispose(); this.surfaces.dispose();
     this.clear();
     this.signalMaterial.dispose();
     this.nestSignalMaterial.dispose();

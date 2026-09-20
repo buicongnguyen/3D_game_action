@@ -8,6 +8,9 @@ import { CHAPTERS, STORY_ENEMIES, type Chapter, type Point } from "./StoryData.t
 import { CELL, groundHeight, HILL_LAUNCH, HOME_LENGTH, homePoint, MAZE, MAZE_CRATES, MAZE_EXIT, MAZE_PEN, MAZE_SIZE, spiralPoint, SPIRAL_JUMP } from "./StoryMaps.ts";
 import type { StoryState } from "./StoryState.ts";
 import { MiniSpiderBatch, isMiniSpider } from "./MiniSpiderBatch.ts";
+import { SurfaceDetail, surfaceUV } from "../rendering/SurfaceDetail.ts";
+import { VfxSystem } from "../rendering/VfxSystem.ts";
+import { StoryEffectBridge } from "./StoryEffectBridge.ts";
 
 const UP = new Vector3(0, 1, 0);
 const tmpA = new Vector3(), tmpB = new Vector3(), tmpQ = new Quaternion();
@@ -63,6 +66,9 @@ export class StoryView {
   private terrainMaterials: Material[] = [];
   private focus = new Vector3();
   private first = true;
+  private surfaces = new SurfaceDetail();
+  private vfx!: VfxSystem;
+  private effects!: StoryEffectBridge;
   private readonly contactHeight = (x: number, z: number) => groundHeight(this.chapter || 1, x, z);
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new Renderer(canvas, { preserveDrawingBuffer: new URLSearchParams(location.search).has("storyCapture") });
@@ -74,6 +80,8 @@ export class StoryView {
   }
   async boot(): Promise<void> {
     this.forge.build(); await this.forge.loadBlenderLibrary();
+    this.vfx = new VfxSystem(this.renderer.scene, this.forge, this.contactHeight); this.vfx.prepare();
+    this.effects = new StoryEffectBridge(this.vfx, this.contactHeight);
     this.engineer = this.forge.createEngineer(); captureRigRest(this.engineer); this.actors.add(this.engineer.root);
     this.spider = this.forge.createSpider(); captureSpiderRest(this.spider); this.actors.add(this.spider.root);
     this.miniSpiders = new MiniSpiderBatch(this.actors, this.forge.materials);
@@ -94,7 +102,8 @@ export class StoryView {
     this.dynamic = [this.bodies, this.limbs, this.details, this.markers, this.beams, this.rocks, this.flames];
   }
   private terrainMesh(geometry: BufferGeometry, color: number): Mesh {
-    const material = new MeshStandardMaterial({ color, roughness: 1, side: DoubleSide });
+    surfaceUV(geometry);
+    const material = new MeshStandardMaterial({ color, roughness: 1, side: DoubleSide, map: this.surfaces.get("brown") });
     this.terrainMaterials.push(material); this.terrainGeometry.push(geometry);
     const mesh = new Mesh(geometry, material); this.terrain.add(mesh); return mesh;
   }
@@ -113,18 +122,26 @@ export class StoryView {
     for (const geo of this.terrainGeometry) geo.dispose(); this.terrainGeometry.length = 0;
     for (const material of this.terrainMaterials) material.dispose(); this.terrainMaterials.length = 0;
     this.terrain.clear(); this.chapter = chapter; this.first = true;
-    this.renderer.scene.background = new Color(chapter === 3 ? 0x667284 : 0xabc5b8);
+    this.renderer.scene.background = new Color([0, 0xbacbb4, 0x9bafb6, 0xaaa1a0, 0xd7c6a5][chapter]);
     const backdrop = new PlaneGeometry(500, 500); backdrop.rotateX(-Math.PI / 2); backdrop.translate(0, -0.08, 0);
-    this.terrainMesh(backdrop, CHAPTERS[chapter].color);
+    const baseColor = chapter === 3 ? 0x978d83 : CHAPTERS[chapter].color;
+    const backdropMesh = this.terrainMesh(backdrop, baseColor);
+    const backdropMaterial = backdropMesh.material as MeshStandardMaterial;
+    backdropMaterial.color.multiplyScalar(0.94);
+    backdropMaterial.map = this.surfaces.get(chapter === 3 ? "brown" : chapter === 2 ? "civil" : "flower");
     const centerZ = chapter === 4 ? -28 : 0;
     const ground = new PlaneGeometry(108, chapter === 4 ? 168 : 108, 100, chapter === 4 ? 140 : 100); ground.rotateX(-Math.PI / 2); ground.translate(0, 0, centerZ);
     const position = ground.getAttribute("position"), colors: number[] = [], color = new Color();
     for (let i = 0; i < position.count; i++) {
       const x = position.getX(i), z = position.getZ(i); position.setY(i, groundHeight(chapter, x, z));
-      color.setHex(CHAPTERS[chapter].color).multiplyScalar(0.9 + Math.sin(x * 0.42) * Math.cos(z * 0.53) * 0.07); colors.push(color.r, color.g, color.b);
+      const rim = Math.max(0, Math.min(1, Math.min(54 - Math.abs(x), (chapter === 4 ? 84 : 54) - Math.abs(z - centerZ)) / 8));
+      color.setHex(baseColor);
+      if (chapter === 4) color.lerp(new Color(0xb8a673), Math.max(0, Math.min(1, (28 - z) / 120)) * rim);
+      color.multiplyScalar(0.94 + Math.sin(x * 0.12) * Math.cos(z * 0.15) * 0.035 * rim); colors.push(color.r, color.g, color.b);
     }
     ground.setAttribute("color", new Float32BufferAttribute(colors, 3)); ground.computeVertexNormals();
-    const material = new MeshStandardMaterial({ vertexColors: true, roughness: 1 }); this.terrainMaterials.push(material); this.terrainGeometry.push(ground);
+    surfaceUV(ground);
+    const material = new MeshStandardMaterial({ vertexColors: true, roughness: 1, map: this.surfaces.get(chapter === 3 ? "brown" : chapter === 2 ? "civil" : "flower") }); this.terrainMaterials.push(material); this.terrainGeometry.push(ground);
     this.terrain.add(new Mesh(ground, material));
     if (chapter === 1) {
       this.ribbon(Array.from({ length: 301 }, (_, i) => spiralPoint(i / 300)), 1.8, chapter, 0xc7ad7d);
@@ -138,10 +155,13 @@ export class StoryView {
       const walls = new Instances(this.terrain, geo, mat, 225); this.terrainInstances.push(walls);
       for (let i = 0; i < MAZE.length; i++) if (MAZE[i]) walls.add((i % MAZE_SIZE - 7) * CELL, 1.05, (Math.floor(i / MAZE_SIZE) - 7) * CELL, 1, 1, 1, i % 3 ? 0x567464 : 0x698173);
       walls.finish();
+      const caps = new Instances(this.terrain, geo, mat, 225); this.terrainInstances.push(caps);
+      for (let i = 0; i < MAZE.length; i++) if (MAZE[i]) caps.add((i % MAZE_SIZE - 7) * CELL, 2.13, (Math.floor(i / MAZE_SIZE) - 7) * CELL, 1, 0.08, 1, i % 3 ? 0x859587 : 0x99a193);
+      caps.finish();
     }
     const trees = new Instances(this.terrain, this.forge.propGeometry("treeBroadleaf"), this.forge.materials.surface, 70);
     const rocks = new Instances(this.terrain, this.forge.propGeometry("rockB"), this.forge.materials.surface, 45);
-    const houses = new Instances(this.terrain, this.forge.propGeometry("house_cottage"), this.forge.materials.surface, 8);
+    const houses = new Instances(this.terrain, this.forge.propGeometry(chapter === 3 ? "house_foundry" : chapter === 4 ? "house_town" : "house_cottage"), this.forge.materials.surface, 8);
     this.terrainInstances.push(trees, rocks, houses);
     for (let i = 0; i < 64; i++) {
       let x: number, z: number;
@@ -154,11 +174,31 @@ export class StoryView {
     if (chapter === 1) houses.add(-7, groundHeight(1, -7, -5), -5, 1, 1, 1, 0xffe2af);
     if (chapter === 3) { houses.add(-19, 0, -18, 1.1, 1.1, 1.1, 0xd9bfc8); houses.add(21, 0, -15, 0.9, 0.9, 0.9, 0xc9c6dc); }
     if (chapter === 4) { houses.add(-13, 0, -88, 1.3, 1.3, 1.3, 0xffdfaf); houses.add(13, 0, -88, 1.1, 1.1, 1.1, 0xffd0b0); }
+    // Large decorative silhouettes stay beyond the playable boundary.
+    if (chapter === 3) for (let i = 0; i < 10; i++) {
+      const a = i * Math.PI * 2 / 10;
+      rocks.add(Math.cos(a) * 65, -0.05, Math.sin(a) * 65, 4, 3 + i % 3, 4, 0x9c9188, a);
+    }
+    if (chapter === 4) {
+      const river = new PlaneGeometry(7, 160); river.rotateX(-Math.PI / 2); river.translate(-49, 0.015, -28);
+      this.terrainMesh(river, 0x699caa);
+      for (let i = 0; i < 4; i++) houses.add(50, 0, -60 - i * 9, 1, 1, 1, i % 2 ? 0xd9cbb3 : 0xe2b99b);
+    }
+    if (chapter === 1) {
+      const flowers = new Instances(this.terrain, this.ownedGeometry[0], this.forge.materials.surface, 48);
+      this.terrainInstances.push(flowers);
+      for (let i = 0; i < 48; i++) {
+        const a = i * 2.39996, r = 7 + i % 5 * 0.4, x = Math.cos(a) * r, z = Math.sin(a) * r;
+        flowers.add(x, groundHeight(chapter, x, z) + 0.08, z, 0.13, 0.08, 0.13, i % 3 ? 0xe4ce97 : 0xbfa9bc);
+      }
+      flowers.finish();
+    }
     trees.finish(); rocks.finish(); houses.finish();
   }
   render(s: StoryState, dt: number, overview = false): void {
     if (!this.engineer) return;
     if (this.chapter !== s.chapter) this.build(s.chapter);
+    this.effects.update(s, dt);
     const p = s.player, m = s.machine;
     this.engineer.root.position.set(p.x, 0, p.z); this.engineer.root.rotation.y = p.heading;
     animateHumanoid(this.engineer, this.anim, dt, s.status === "playing" ? p.speed : 0, 6.5, false);
@@ -219,7 +259,8 @@ export class StoryView {
     }
     for (const effect of s.effects) {
       const h = groundHeight(s.chapter, effect.x, effect.z);
-      if (effect.kind === "blast" || effect.kind === "web") this.markers.add(effect.x, h + 0.13, effect.z, effect.radius, 1, effect.radius, effect.kind === "web" ? 0xdcc7e9 : 0xffb369);
+      if (["blast", "muzzle", "impact", "death"].includes(effect.kind)) continue;
+      if (effect.kind === "web") this.markers.add(effect.x, h + 0.13, effect.z, effect.radius, 1, effect.radius, 0xdcc7e9);
       else if (effect.kind === "flame") {
         const age = 1 - effect.life / effect.maxLife;
         for (let i = 0; i < 4; i++) {
@@ -311,6 +352,7 @@ export class StoryView {
     return { x: (point.x + 1) / 2 * this.renderer.viewportWidth, y: (1 - point.y) / 2 * this.renderer.viewportHeight };
   }
   dispose(): void {
+    this.vfx?.dispose(); this.surfaces.dispose();
     this.miniSpiders?.dispose();
     for (const batch of [...this.dynamic, ...this.terrainInstances]) batch.dispose();
     for (const geo of [...this.ownedGeometry, ...this.terrainGeometry]) geo.dispose();

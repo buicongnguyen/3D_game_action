@@ -179,6 +179,23 @@ try {
     })()`);
     console.log(JSON.stringify(report.miniRigCpu));
   }
+  if (process.argv.includes("--effects")) {
+    await send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
+    await send("Page.navigate", { url: `${base}?mode=story&storyCapture=1` }); await wait("window.__homeward?.ready");
+    for (const weapon of ["rifle", "rocket", "laser", "flame"]) {
+      const effects = await evaluate(`(() => {
+        const {sim,view}=window.__homeward, s=sim.state;
+        s.effects.length=0; view.vfx.clear();
+        const p=s.player;
+        s.effects.push({kind:'muzzle',x:p.x,z:p.z,toX:p.x,toZ:p.z-8,radius:1,life:.16,maxLife:.16,weapon:'${weapon}'});
+        s.effects.push({kind:'${weapon === "rocket" ? "blast" : "impact"}',x:p.x,z:p.z-8,toX:p.x,toZ:p.z-8,radius:3,life:.3,maxLife:.3});
+        view.first=true; view.render(s,.07,false);
+        return {weapon:'${weapon}',active:view.vfx.activeEffects,png:view.renderer.renderer.domElement.toDataURL('image/png').split(',')[1]};
+      })()`);
+      await writeFile(path.join(out,`combat-${weapon}.png`),Buffer.from(effects.png,"base64"));
+      report.checks.push({cosmeticEventFixture: {weapon:effects.weapon,active:effects.active}});
+    }
+  }
   if (report.errors.length) throw Error(report.errors.join("\n"));
   await writeFile(path.join(out, "report.json"), JSON.stringify(report, null, 2)); console.log(JSON.stringify(report.checks)); console.log(JSON.stringify(report.performance));
 } finally {

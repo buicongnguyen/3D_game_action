@@ -5,7 +5,7 @@ export interface StoryEnemy extends Point {
 }
 export interface StoryCow extends Point { name: string; hp: number; status: "safe" | "webbed" | "captured"; timer: number }
 export interface StoryPickup extends Point { id: number; kind: "shell" | "supply"; amount: number }
-export interface StoryEffect extends Point { kind: "shot" | "laser" | "flame" | "blast" | "web" | "warning"; toX: number; toZ: number; life: number; maxLife: number; radius: number }
+export interface StoryEffect extends Point { kind: "shot" | "laser" | "flame" | "blast" | "web" | "warning" | "muzzle" | "impact" | "death"; toX: number; toZ: number; life: number; maxLife: number; radius: number; weapon?: StoryWeapon }
 export interface StoryProjectile extends Point { dx: number; dz: number; life: number; damage: number; rocket: boolean; hit: number[] }
 export interface StoryStone { t: number; size: number; hits: number[] }
 export interface StoryTurret extends Point { cooldown: number }
