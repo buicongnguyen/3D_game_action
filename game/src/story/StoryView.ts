@@ -11,9 +11,10 @@ import { MiniSpiderBatch, isMiniSpider } from "./MiniSpiderBatch.ts";
 import { SurfaceDetail, surfaceUV } from "../rendering/SurfaceDetail.ts";
 import { VfxSystem } from "../rendering/VfxSystem.ts";
 import { StoryEffectBridge } from "./StoryEffectBridge.ts";
+import { StaticInstanceCuller } from "../rendering/StaticInstanceCuller.ts";
 
 const UP = new Vector3(0, 1, 0);
-const tmpA = new Vector3(), tmpB = new Vector3(), tmpQ = new Quaternion();
+const tmpA = new Vector3(), tmpB = new Vector3(), tmpEnd = new Vector3(), tmpQ = new Quaternion();
 class Instances {
   mesh: InstancedMesh;
   count = 0;
@@ -34,7 +35,14 @@ class Instances {
     tmpQ.setFromUnitVectors(UP, tmpB.copy(b).sub(a).normalize());
     this.add((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2, radius, length, radius, color, 0, tmpQ);
   }
-  finish(): void { this.mesh.count = this.count; this.mesh.instanceMatrix.needsUpdate = true; if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true; this.count = 0; }
+  finish(): void {
+    this.mesh.count = this.count;
+    if (this.count) {
+      this.mesh.instanceMatrix.clearUpdateRanges(); this.mesh.instanceMatrix.addUpdateRange(0, this.count * 16); this.mesh.instanceMatrix.needsUpdate = true;
+      if (this.mesh.instanceColor) { this.mesh.instanceColor.clearUpdateRanges(); this.mesh.instanceColor.addUpdateRange(0, this.count * 3); this.mesh.instanceColor.needsUpdate = true; }
+    }
+    this.count = 0;
+  }
   dispose(): void { this.mesh.dispose(); }
 }
 
@@ -58,6 +66,8 @@ export class StoryView {
   private beams!: Instances;
   private rocks!: Instances;
   private flames!: Instances;
+  private coins!: Instances;
+  private diamonds!: Instances;
   private dynamic: Instances[] = [];
   private terrainInstances: Instances[] = [];
   private ownedGeometry: BufferGeometry[] = [];
@@ -65,6 +75,10 @@ export class StoryView {
   private ownedMaterials: Material[] = [];
   private terrainMaterials: Material[] = [];
   private focus = new Vector3();
+  private cameraTarget = new Vector3();
+  private scenery = new StaticInstanceCuller(6);
+  private viewBounds = { x: 0, z: 0, radius: Infinity };
+  private projectionZoom = NaN;
   private first = true;
   private surfaces = new SurfaceDetail();
   private vfx!: VfxSystem;
@@ -75,7 +89,6 @@ export class StoryView {
     this.renderer.scene.add(this.root); this.root.add(this.terrain, this.actors);
     // Instanced contact and terrain shading provide the low-cost story baseline.
     this.renderer.renderer.shadowMap.enabled = false;
-    this.renderer.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
     this.renderer.scene.fog = null;
   }
   async boot(): Promise<void> {
@@ -99,7 +112,9 @@ export class StoryView {
     this.beams = new Instances(this.actors, cylinder, glow, 180);
     this.rocks = new Instances(this.actors, this.forge.propGeometry("rock"), this.forge.materials.surface, 10);
     this.flames = new Instances(this.actors, this.forge.effectGeometry("flame") ?? sphere, glow, 96);
-    this.dynamic = [this.bodies, this.limbs, this.details, this.markers, this.beams, this.rocks, this.flames];
+    this.coins = new Instances(this.actors, this.forge.pickupGeometry("scrap"), this.forge.materials.reward, 100);
+    this.diamonds = new Instances(this.actors, this.forge.pickupGeometry("repairKit"), this.forge.materials.reward, 100);
+    this.dynamic = [this.bodies, this.limbs, this.details, this.markers, this.beams, this.rocks, this.flames, this.coins, this.diamonds];
   }
   private terrainMesh(geometry: BufferGeometry, color: number): Mesh {
     surfaceUV(geometry);
@@ -118,6 +133,7 @@ export class StoryView {
     const geo = new BufferGeometry(); geo.setAttribute("position", new Float32BufferAttribute(vertices, 3)); geo.setIndex(indices); geo.computeVertexNormals(); this.terrainMesh(geo, color);
   }
   private build(chapter: Chapter): void {
+    this.scenery.clear();
     for (const instances of this.terrainInstances) instances.dispose(); this.terrainInstances.length = 0;
     for (const geo of this.terrainGeometry) geo.dispose(); this.terrainGeometry.length = 0;
     for (const material of this.terrainMaterials) material.dispose(); this.terrainMaterials.length = 0;
@@ -130,7 +146,8 @@ export class StoryView {
     backdropMaterial.color.multiplyScalar(0.94);
     backdropMaterial.map = this.surfaces.get(chapter === 3 ? "brown" : chapter === 2 ? "civil" : "flower");
     const centerZ = chapter === 4 ? -28 : 0;
-    const ground = new PlaneGeometry(108, chapter === 4 ? 168 : 108, 100, chapter === 4 ? 140 : 100); ground.rotateX(-Math.PI / 2); ground.translate(0, 0, centerZ);
+    // Preserve hill contacts exactly; flat chapters need only a sparse color grid.
+    const ground = new PlaneGeometry(108, chapter === 4 ? 168 : 108, chapter === 1 ? 100 : 16, chapter === 1 ? 100 : chapter === 4 ? 24 : 16); ground.rotateX(-Math.PI / 2); ground.translate(0, 0, centerZ);
     const position = ground.getAttribute("position"), colors: number[] = [], color = new Color();
     for (let i = 0; i < position.count; i++) {
       const x = position.getX(i), z = position.getZ(i); position.setY(i, groundHeight(chapter, x, z));
@@ -194,11 +211,23 @@ export class StoryView {
       flowers.finish();
     }
     trees.finish(); rocks.finish(); houses.finish();
+    for (const instances of this.terrainInstances) {
+      // Story forest dressing has no colliders. Keep every wall and building.
+      // Odd stride preserves both alternating roadsides in the home chapter.
+      const stride = instances === trees || instances === rocks ? this.renderer.quality.decorationStride : 1;
+      this.scenery.add(instances.mesh, stride);
+    }
   }
   render(s: StoryState, dt: number, overview = false): void {
     if (!this.engineer) return;
     if (this.chapter !== s.chapter) this.build(s.chapter);
     this.effects.update(s, dt);
+    const aspect = this.renderer.aspect;
+    const halfHeight = overview ? Math.max(s.chapter === 4 ? 69 : 43, 43 / aspect) : aspect < 0.8 ? 24 : aspect > 1.8 ? 20 : 24;
+    const halfWidth = halfHeight * aspect;
+    this.viewBounds.x = s.player.x; this.viewBounds.z = s.player.z;
+    const viewRadius = Math.hypot(halfWidth, halfHeight * 1.5) / this.camera.zoom;
+    this.viewBounds.radius = overview ? Infinity : viewRadius + 8;
     const p = s.player, m = s.machine;
     this.engineer.root.position.set(p.x, 0, p.z); this.engineer.root.rotation.y = p.heading;
     animateHumanoid(this.engineer, this.anim, dt, s.status === "playing" ? p.speed : 0, 6.5, false);
@@ -210,8 +239,8 @@ export class StoryView {
     this.spider.root.visible = s.chapter !== 2;
     this.markers.add(p.x, groundHeight(s.chapter, p.x, p.z) + 0.06, p.z, 1.15, 1, 1.15, p.invincible > 0 ? 0xffffff : 0x77ffff);
     if (s.chapter !== 2) this.markers.add(m.x, groundHeight(s.chapter, m.x, m.z) + 0.07, m.z, 5.5, 1, 5.5, 0x56ceb0);
-    this.miniSpiders.update(s.enemies, dt, s.chapter);
-    for (const e of s.enemies) this.enemy(s, e);
+    this.miniSpiders.update(s.enemies, dt, s.chapter, this.viewBounds);
+    for (const e of s.enemies) if (Math.hypot(e.x - s.player.x, e.z - s.player.z) < this.viewBounds.radius + 8) this.enemy(s, e);
     if (s.chapter === 1) {
       for (const [i, cow] of s.cows.entries()) if (cow.status !== "captured") {
         this.cow(cow.x, groundHeight(1, cow.x, cow.z), cow.z, i * 0.4, cow.status === "webbed");
@@ -249,13 +278,14 @@ export class StoryView {
       if (s.status === "victory") for (let i = 0; i < 9; i++) this.cow(-8 + i % 5 * 3, 0, -92 + Math.floor(i / 5) * 3, i * 0.2);
     }
     for (const drop of s.pickups) {
-      const y = groundHeight(s.chapter, drop.x, drop.z) + 0.45;
-      this.details.add(drop.x, y, drop.z, drop.kind === "supply" ? 1 : 0.45, drop.kind === "supply" ? 0.8 : 0.3, 0.6, drop.kind === "supply" ? 0x69cca9 : 0xe2c889, s.time * 0.8);
-      this.markers.add(drop.x, y - 0.4, drop.z, 0.6, 1, 0.6, drop.kind === "supply" ? 0x6eeac1 : 0xeacb87);
+      const floor = groundHeight(s.chapter, drop.x, drop.z), y = floor + 0.25 + Math.sin(s.time * 2.4 + drop.id) * 0.1;
+      const batch = drop.kind === "supply" ? this.diamonds : this.coins;
+      batch.add(drop.x, y, drop.z, 1, 1, 1, 0xffffff, s.time * 0.9 + drop.id);
+      this.markers.add(drop.x, floor + 0.06, drop.z, 0.6, 1, 0.6, drop.kind === "supply" ? 0x6eeac1 : 0xeacb87);
     }
     for (const projectile of s.projectiles) {
       const y = groundHeight(s.chapter, projectile.x, projectile.z) + 1.1;
-      this.beams.line(tmpA.set(projectile.x, y, projectile.z), new Vector3(projectile.x - projectile.dx * (projectile.rocket ? 0.8 : 1.2), y, projectile.z - projectile.dz * (projectile.rocket ? 0.8 : 1.2)), projectile.rocket ? 0.15 : 0.055, projectile.rocket ? 0xff9857 : 0xffe7a5);
+      this.beams.line(tmpA.set(projectile.x, y, projectile.z), tmpEnd.set(projectile.x - projectile.dx * (projectile.rocket ? 0.8 : 1.2), y, projectile.z - projectile.dz * (projectile.rocket ? 0.8 : 1.2)), projectile.rocket ? 0.15 : 0.055, projectile.rocket ? 0xff9857 : 0xffe7a5);
     }
     for (const effect of s.effects) {
       const h = groundHeight(s.chapter, effect.x, effect.z);
@@ -268,7 +298,7 @@ export class StoryView {
           const size = (0.4 + t * 0.65) * (1 - age * 0.5);
           this.flames.add(x, groundHeight(s.chapter, x, z) + 0.9 + age * 0.4, z, size, size, size * 1.6, i < 2 ? 0xffd17b : 0xff893c, Math.atan2(effect.toX - effect.x, effect.toZ - effect.z));
         }
-      } else this.beams.line(tmpA.set(effect.x, h + 1, effect.z), new Vector3(effect.toX, groundHeight(s.chapter, effect.toX, effect.toZ) + 1, effect.toZ), effect.radius, 0x77eeff);
+      } else this.beams.line(tmpA.set(effect.x, h + 1, effect.z), tmpEnd.set(effect.toX, groundHeight(s.chapter, effect.toX, effect.toZ) + 1, effect.toZ), effect.radius, 0x77eeff);
     }
     for (const turret of s.turrets) {
       this.details.add(turret.x, 0.45, turret.z, 1.4, 0.8, 1.4, 0x667f79);
@@ -276,15 +306,16 @@ export class StoryView {
       this.details.add(turret.x, 1.2, turret.z - 0.75, 0.25, 0.25, 1.3, 0x596264);
     }
     for (const batch of this.dynamic) batch.finish();
-    const aspect = this.renderer.aspect;
-    const halfHeight = overview ? Math.max(s.chapter === 4 ? 69 : 43, 43 / aspect) : aspect < 0.8 ? 24 : aspect > 1.8 ? 20 : 24;
-    const halfWidth = halfHeight * aspect;
-    this.camera.left = -halfWidth; this.camera.right = halfWidth; this.camera.top = halfHeight; this.camera.bottom = -halfHeight; this.camera.updateProjectionMatrix();
-    const target = new Vector3(overview ? 0 : p.x, overview ? 0 : groundHeight(s.chapter, p.x, p.z), overview ? (s.chapter === 4 ? -28 : 0) : p.z);
+    if (this.camera.right !== halfWidth || this.camera.top !== halfHeight || this.projectionZoom !== this.camera.zoom) {
+      this.projectionZoom = this.camera.zoom;
+      this.camera.left = -halfWidth; this.camera.right = halfWidth; this.camera.top = halfHeight; this.camera.bottom = -halfHeight; this.camera.updateProjectionMatrix();
+    }
+    const target = this.cameraTarget.set(overview ? 0 : p.x, overview ? 0 : groundHeight(s.chapter, p.x, p.z), overview ? (s.chapter === 4 ? -28 : 0) : p.z);
     if (this.first) { this.focus.copy(target); this.first = false; } else this.focus.lerp(target, 1 - Math.exp(-dt * 8));
     // North stays up: the maze entrance is screen-bottom-left and exit top-right.
     this.camera.position.set(this.focus.x, this.focus.y + 55, this.focus.z + 32);
     this.camera.lookAt(this.focus); this.camera.updateMatrixWorld();
+    this.scenery.update(this.focus.x, this.focus.z, viewRadius);
     this.renderer.updateShadowFocus(this.focus.x, this.focus.z); this.renderer.render(this.camera);
   }
   private cow(x: number, y: number, z: number, heading: number, webbed = false, size = 1): void {
@@ -314,13 +345,13 @@ export class StoryView {
       this.bodies.add(e.x, h + 1.92, e.z, 0.3, 0.34, 0.3, 0xefeddd);
       for (const side of [-1, 1]) {
         const swing = Math.sin(s.time * 5 + e.id) * side * 0.3;
-        this.limbs.line(tmpA.set(e.x + side * 0.22, h + 0.9, e.z), new Vector3(e.x + side * 0.25, h + 0.12, e.z + swing), 0.11, def.color);
-        this.limbs.line(tmpA.set(e.x + side * 0.4, h + 1.5, e.z), new Vector3(e.x + side * 0.55, h + 0.9, e.z + 0.2), 0.1, def.color);
+        this.limbs.line(tmpA.set(e.x + side * 0.22, h + 0.9, e.z), tmpEnd.set(e.x + side * 0.25, h + 0.12, e.z + swing), 0.11, def.color);
+        this.limbs.line(tmpA.set(e.x + side * 0.4, h + 1.5, e.z), tmpEnd.set(e.x + side * 0.55, h + 0.9, e.z + 0.2), 0.1, def.color);
       }
       this.bodies.add(e.x, h + 1.4, e.z + 0.25, 0.28, 0.22, 0.25, e.kind === "stitcher" ? 0xb463d8 : 0x8bc95d);
       if (e.kind === "stitcher") for (let i = 0; i < 4; i++) {
         const side = i % 2 ? 1 : -1;
-        this.limbs.line(tmpA.set(e.x, h + 1.4, e.z + 0.25), new Vector3(e.x + side * 0.65, h + 1.2 + Math.floor(i / 2) * 0.5, e.z + 0.4), 0.055, 0x7d4592);
+        this.limbs.line(tmpA.set(e.x, h + 1.4, e.z + 0.25), tmpEnd.set(e.x + side * 0.65, h + 1.2 + Math.floor(i / 2) * 0.5, e.z + 0.4), 0.055, 0x7d4592);
       }
     } else {
       this.bodies.add(e.x, h + 0.8 * scale, e.z, 0.7 * scale, 0.53 * scale, 0.96 * scale, def.color, e.heading);
@@ -332,8 +363,8 @@ export class StoryView {
         const stride = Math.sin(s.time * (e.kind === "queen" ? 1.5 : 7) + row * Math.PI + side) * 0.15;
         const kx = e.x + Math.sin(angle) * 1.18 * scale, kz = e.z + Math.cos(angle) * 1.18 * scale;
         const fx = e.x + Math.sin(angle + stride) * 1.8 * scale, fz = e.z + Math.cos(angle + stride) * 1.8 * scale;
-        this.limbs.line(tmpA.set(e.x, h + 0.65 * scale, e.z), new Vector3(kx, h + 1.2 * scale, kz), 0.075 * scale, def.color);
-        this.limbs.line(tmpA.set(kx, h + 1.2 * scale, kz), new Vector3(fx, groundHeight(s.chapter, fx, fz) + jump + 0.05, fz), 0.055 * scale, 0x423c43);
+        this.limbs.line(tmpA.set(e.x, h + 0.65 * scale, e.z), tmpEnd.set(kx, h + 1.2 * scale, kz), 0.075 * scale, def.color);
+        this.limbs.line(tmpA.set(kx, h + 1.2 * scale, kz), tmpEnd.set(fx, groundHeight(s.chapter, fx, fz) + jump + 0.05, fz), 0.055 * scale, 0x423c43);
       }
       if (e.kind === "queen") this.bodies.add(e.x, h + 1.3 * scale, e.z, 0.5, 0.4, 0.7, s.queenPhase === "open" ? 0xffd46d : 0x87467e);
       if (e.jump >= 1) { const landing = spiralPoint(e.jumpFrom + SPIRAL_JUMP); this.markers.add(landing.x, groundHeight(1, landing.x, landing.z) + 0.1, landing.z, 1.7, 1, 1.7, 0x66ffff); }
@@ -352,6 +383,7 @@ export class StoryView {
     return { x: (point.x + 1) / 2 * this.renderer.viewportWidth, y: (1 - point.y) / 2 * this.renderer.viewportHeight };
   }
   dispose(): void {
+    this.scenery.clear();
     this.vfx?.dispose(); this.surfaces.dispose();
     this.miniSpiders?.dispose();
     for (const batch of [...this.dynamic, ...this.terrainInstances]) batch.dispose();

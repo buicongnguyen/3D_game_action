@@ -365,7 +365,7 @@ export interface Pickup {
   lifetime: number;
   /** Set while being pulled toward the player by the magnet. */
   attracted: boolean;
-  /** Optional attraction radius for combat-earned loot; zero uses the normal magnet. */
+  /** Positive marks player-earned loot: auto-claim at range; zero uses only the normal magnet. */
   claimRadius: number;
   velocityX: number;
   velocityZ: number;

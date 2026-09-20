@@ -26,6 +26,9 @@ export class MiniSpiderBatch {
   readonly meshes: InstancedMesh[];
   private walkers = new Map<number, Walker>();
   private pool: Walker[] = [];
+  private living: StoryEnemy[] = [];
+  private ids = new Set<number>();
+  private counts = new Int32Array(4);
   private color = new Color();
   private white = new Color(0xffffff);
   private chapter: Chapter | 0 = 0;
@@ -56,14 +59,18 @@ export class MiniSpiderBatch {
     this.walkers.clear();
     for (const mesh of this.meshes) mesh.count = 0;
   }
-  update(enemies: readonly StoryEnemy[], dt: number, chapter: Chapter): void {
+  update(enemies: readonly StoryEnemy[], dt: number, chapter: Chapter, view?: { x: number; z: number; radius: number }): void {
     if (chapter !== this.chapter) { this.clear(); this.chapter = chapter; }
-    const living = enemies.filter(e => e.hp > 0 && isMiniSpider(e.kind)).slice(0, STORY_LIMITS.enemies);
-    const ids = new Set(living.map(e => e.id));
+    const living = this.living, ids = this.ids, counts = this.counts;
+    living.length = 0; ids.clear(); counts.fill(0);
+    for (const e of enemies) {
+      if (e.hp <= 0 || !isMiniSpider(e.kind) || living.length >= STORY_LIMITS.enemies) continue;
+      if (view && (e.x - view.x) ** 2 + (e.z - view.z) ** 2 > (view.radius + 3) ** 2) continue;
+      living.push(e); ids.add(e.id);
+    }
     for (const [id, walker] of this.walkers) if (!ids.has(id)) {
       resetSpiderLegs(walker.rig); this.pool.push(walker); this.walkers.delete(id);
     }
-    const counts = [0, 0, 0, 0];
     for (const e of living) {
       let walker = this.walkers.get(e.id);
       if (!walker) {
@@ -91,8 +98,10 @@ export class MiniSpiderBatch {
       }
     }
     for (let i = 0; i < 4; i++) {
-      const mesh = this.meshes[i]; mesh.count = counts[i]; mesh.instanceMatrix.needsUpdate = true;
-      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      const mesh = this.meshes[i]; mesh.count = counts[i];
+      if (!mesh.count) continue;
+      mesh.instanceMatrix.clearUpdateRanges(); mesh.instanceMatrix.addUpdateRange(0, mesh.count * 16); mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) { mesh.instanceColor.clearUpdateRanges(); mesh.instanceColor.addUpdateRange(0, mesh.count * 3); mesh.instanceColor.needsUpdate = true; }
     }
   }
   dispose(): void {

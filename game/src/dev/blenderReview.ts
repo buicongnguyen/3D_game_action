@@ -75,3 +75,15 @@ export function setupBlenderEffects(game: Game, world: GameWorld): void {
   const update = vfx.update.bind(vfx);
   vfx.update = () => update(0); // Freeze this review moment, not the live game.
 }
+
+export function setupRewardModels(game: Game, world: GameWorld): void {
+  const { root, forge } = stage(game, world, 13);
+  const kinds = ["scrap", "fuel", "cylinder", "repairKit", "shockMine", "armorPlate", "weaponPart"];
+  const names = ["Gold coin / Scrap", "Amber / Fuel reserve", "Cyan / Pressure", "Green / Repair kit", "Blue / Shock mine", "Silver-blue / Armor", "Purple / Weapon parts"];
+  kinds.forEach((kind, i) => {
+    const x = (i % 4 - 1.5) * 6, z = (Math.floor(i / 4) - 0.5) * 9;
+    const mesh = new Mesh(forge.pickupGeometry(kind), forge.materials.reward);
+    mesh.position.set(x, 0, z); mesh.rotation.y = -0.35; mesh.scale.setScalar(2.5); root.add(mesh);
+    label(root, names[i], x, z + 3.3, 5.8);
+  });
+}

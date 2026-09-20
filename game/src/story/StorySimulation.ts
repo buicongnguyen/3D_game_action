@@ -149,9 +149,10 @@ export class StorySimulation {
     const e: StoryEnemy = { ...p, id: this.nextId++, kind, hp: def.hp, maxHp: def.hp, heading: 0, cooldown: 0.5, path, jumped: false, jump: 0, jumpFrom: 0, burn: 0, burnDps: 0 };
     s.enemies.push(e); return e;
   }
-  hit(enemy: StoryEnemy, damage: number): void {
+  hit(enemy: StoryEnemy, damage: number, playerCredit = false): void {
     const s = this.state;
-    if (enemy.hp <= 0 || !s.enemies.includes(enemy)) return;
+    if (!Number.isFinite(damage) || damage <= 0 || enemy.hp <= 0 || !s.enemies.includes(enemy)) return;
+    if (playerCredit) enemy.playerLootCredit = true;
     enemy.hp -= damage * (enemy.kind === "queen" && s.queenPhase !== "open" ? 0.45 : 1);
     if (enemy.hp > 0) return;
     s.enemies.splice(s.enemies.indexOf(enemy), 1); s.killed++;
@@ -163,7 +164,11 @@ export class StorySimulation {
     if (enemy.kind === "queen") {
       s.bossDefeated = true; s.enemies.length = 0; s.effects = s.effects.filter(e => e.kind !== "web" && e.kind !== "warning");
       this.message("The Queen is defeated. Secure the cows at the gold cage.");
-    } else this.pickup("shell", enemy, enemy.kind === "shellback" || enemy.kind === "stitcher" ? 2 : 1);
+    } else {
+      const amount = enemy.kind === "shellback" || enemy.kind === "stitcher" ? 2 : 1;
+      if (enemy.playerLootCredit && distance(enemy, s.player) > 3.2) this.awardPickup("shell", amount, true);
+      else this.pickup("shell", enemy, amount);
+    }
   }
   private pickup(kind: "shell" | "supply", p: Point, amount: number): void {
     if (this.state.pickups.length >= STORY_LIMITS.pickups) {
@@ -224,11 +229,18 @@ export class StorySimulation {
     for (let i = s.pickups.length - 1; i >= 0; i--) {
       const drop = s.pickups[i];
       if (distance(drop, s.player) > 3.2 || !clearLine(s.chapter, drop, s.player)) continue;
-      s.progress.shells = Math.min(10000, s.progress.shells + drop.amount);
-      if (drop.kind === "supply") { s.machine.fuel = Math.min(100, s.machine.fuel + 20); s.player.hp = Math.min(s.player.maxHp, s.player.hp + 20); this.receipt(`Supply cache: +${drop.amount} parts · +20 fuel · +20 health`); }
-      else this.receipt(`+${drop.amount} shell part${drop.amount === 1 ? "" : "s"} · ${s.progress.shells} stored`);
+      this.awardPickup(drop.kind, drop.amount);
       s.pickups.splice(i, 1);
     }
+  }
+  private awardPickup(kind: "shell" | "supply", amount: number, remote = false): void {
+    const s = this.state, gained = Math.min(amount, 10000 - s.progress.shells);
+    s.progress.shells += gained;
+    if (kind === "supply") {
+      const fuel = Math.min(20, 100 - s.machine.fuel), health = Math.min(20, s.player.maxHp - s.player.hp);
+      s.machine.fuel += fuel; s.player.hp += health;
+      this.receipt(`Supply diamond: +${gained} parts · +${Math.round(fuel * 10) / 10} fuel · +${Math.round(health * 10) / 10} health`);
+    } else this.receipt(`${remote ? "Auto-collected · " : "Gold coin · "}+${gained} shell part${gained === 1 ? "" : "s"} · ${s.progress.shells} stored`);
   }
   private direct(dt: number): void {
     const s = this.state; s.spawnClock -= dt;
@@ -329,13 +341,13 @@ export class StorySimulation {
         const q = { x: p.x + Math.sin(p.heading) * d, z: p.z + Math.cos(p.heading) * d };
         if (blocked(s.chapter, q.x, q.z, 0.04)) { end = q; break; }
       }
-      for (const e of [...s.enemies]) if (segmentDistance(p, end, e) <= STORY_ENEMIES[e.kind].radius + 0.2 && clearLine(s.chapter, p, e)) this.hit(e, damage);
+      for (const e of [...s.enemies]) if (segmentDistance(p, end, e) <= STORY_ENEMIES[e.kind].radius + 0.2 && clearLine(s.chapter, p, e)) this.hit(e, damage, true);
       this.effect("laser", p, end, 0.16, 0.12);
     } else if (weapon === "flame") {
       for (const e of [...s.enemies]) {
         const factor = storyFlameExposure(p, p.heading, e);
         if (!factor || !clearLine(s.chapter, p, e)) continue;
-        this.hit(e, damage * factor); if (e.hp > 0) { e.burn = 2; e.burnDps = Math.max(e.burnDps, 12 * factor * (1 + s.progress.damageLevel * 0.2)); }
+        this.hit(e, damage * factor, true); if (e.hp > 0) { e.burn = 2; e.burnDps = Math.max(e.burnDps, 12 * factor * (1 + s.progress.damageLevel * 0.2)); }
       }
       s.effects = s.effects.filter(e => e.kind !== "web" || storyFlameExposure(p, p.heading, e) === 0);
       for (let i = -2; i <= 2; i++) { const a = p.heading + i * 0.22; this.effect("flame", p, { x: p.x + Math.sin(a) * 9, z: p.z + Math.cos(a) * 9 }, 0.22, 0.7); }
@@ -356,9 +368,9 @@ export class StorySimulation {
       const hit = wall ? undefined : s.enemies.filter(e => e.hp > 0 && segmentDistance(old, p, e) <= STORY_ENEMIES[e.kind].radius + 0.15).sort((a, b) => distance(a, old) - distance(b, old))[0];
       if (hit || wall || p.life <= 0) {
         if (p.rocket) {
-          for (const e of [...s.enemies]) if (distance(e, p) <= 5 + STORY_ENEMIES[e.kind].radius && clearLine(s.chapter, p, e)) this.hit(e, p.damage);
+          for (const e of [...s.enemies]) if (distance(e, p) <= 5 + STORY_ENEMIES[e.kind].radius && clearLine(s.chapter, p, e)) this.hit(e, p.damage, true);
           this.effect("blast", p, p, 0.45, 5);
-        } else if (hit) { this.hit(hit, p.damage); this.effect("impact", hit, hit, 0.2, 1); }
+        } else if (hit) { this.hit(hit, p.damage, true); this.effect("impact", hit, hit, 0.2, 1); }
         s.projectiles.splice(i, 1);
       }
     }

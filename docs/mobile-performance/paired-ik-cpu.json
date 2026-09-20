@@ -1,0 +1,12 @@
+{
+  "method": "Paired Node/Vitest CPU-only baseline (5353de9 SpiderLegSolver) versus updated solver, alternating run order in one process; 48 rigs, 100 warm-up frames, 300 timed frames per run; solve and final matrix update; excludes GPU and instance upload. Temporary comparison fixtures removed after measurement.",
+  "miniMsPerFrame": {
+    "baseline": [0.803619, 1.097166, 0.951842, 0.800564],
+    "updated": [0.512486, 0.660488, 0.531100, 0.519913]
+  },
+  "heroMsPerFrame": {
+    "baseline": [0.972547, 0.910511, 1.049228, 0.992287],
+    "updated": [0.664650, 0.543054, 0.608120, 0.579624]
+  },
+  "caveat": "Synthetic local CPU comparison, not physical-device FPS. Separate headless browser p95 timings increased under varying software-renderer load; do not infer an end-to-end CPU or FPS improvement from this microbenchmark. Regression tests separately enforce the reduced transform count and correct foot contacts."
+}

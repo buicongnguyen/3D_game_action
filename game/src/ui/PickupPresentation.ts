@@ -3,14 +3,14 @@ import type { GameWorld } from "../game/GameWorld.ts";
 import type { ScreenData } from "./Screens.ts";
 
 export const PICKUP_INFO: Record<PickupKind, { name: string; icon: string; effect: string }> = {
-  scrap: { name: "Scrap", icon: "⚙", effect: "Build machines and buy workshop upgrades." },
-  fuel: { name: "Fuel reserve", icon: "◆", effect: "Stored fuel, not tank fuel. Refuel beside the Spider." },
-  cylinder: { name: "Pressure canisters", icon: "◎", effect: "Stored in the rack. Power or recharge machines." },
-  pressureCanister: { name: "Pressure canisters", icon: "◎", effect: "Stored in the rack. Power or recharge machines." },
-  repairKit: { name: "Repair kits", icon: "+", effect: "Repair case. Use item heals you or a nearby machine by up to 45%." },
-  shockMine: { name: "Shock mines", icon: "✹", effect: "Blue round mine. Place it free with Use item." },
-  armorPlate: { name: "Armor plates", icon: "▰", effect: "Blue-gray plate. Use item beside Spider: +25 current and max core HP." },
-  weaponPart: { name: "Weapon parts", icon: "⚒", effect: "Every 3 parts automatically multiply gun damage by 1.08." },
+  scrap: { name: "Scrap", icon: "●", effect: "Gold coin. Build machines and buy workshop upgrades." },
+  fuel: { name: "Fuel reserve", icon: "◆", effect: "Amber diamond. Stored fuel, not tank fuel. Refuel beside the Spider." },
+  cylinder: { name: "Pressure canisters", icon: "◆", effect: "Cyan diamond. Stored in the rack. Power or recharge machines." },
+  pressureCanister: { name: "Pressure canisters", icon: "◆", effect: "Cyan diamond. Stored in the rack. Power or recharge machines." },
+  repairKit: { name: "Repair kits", icon: "+", effect: "Green diamond. Use item heals you or a nearby machine by up to 45%." },
+  shockMine: { name: "Shock mines", icon: "✹", effect: "Blue diamond. Place it free with Use item." },
+  armorPlate: { name: "Armor plates", icon: "▰", effect: "Silver-blue diamond. Use item beside Spider: +25 current and max core HP." },
+  weaponPart: { name: "Weapon parts", icon: "◆", effect: "Purple diamond. Every 3 parts automatically multiply gun damage by 1.08." },
 };
 
 /** Never round an unearned fraction up to a spendable unit. */
@@ -46,7 +46,7 @@ export function inventoryScreenData(world: GameWorld): ScreenData {
   return {
     eyebrow: "Inventory · game paused",
     title: "Know your supplies",
-    subtitle: "Collected items are stored here. Picking up fuel or a repair kit does not instantly refill a health or fuel bar. Scroll / swipe / D-pad up and down to read more.",
+    subtitle: "Gold coins hold Scrap; colored diamonds hold supplies. Distant loot from enemies you damage is auto-collected, including laser and long-range hits. Map supplies still require approaching them. Picking up fuel or a repair kit does not instantly refill a health or fuel bar. Scroll / swipe / D-pad up and down to read more.",
     facts: balances.map(([kind, amount]) => ({
       label: `${PICKUP_INFO[kind].icon} ${PICKUP_INFO[kind].name} · ${resourceAmount(amount)}${kind === "weaponPart" ? " collected this run" : " available"}`,
       detail: kind === "weaponPart" ? `${partsProgress(amount)}. Parts are counted, not lost when a boost is earned.` : PICKUP_INFO[kind].effect,

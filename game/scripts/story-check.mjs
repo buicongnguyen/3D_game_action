@@ -6,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 const base = process.argv.find(a => a.startsWith("--url="))?.slice(6) ?? "http://127.0.0.1:4246/";
 const out = path.resolve(process.argv.find(a => a.startsWith("--out="))?.slice(6) ?? "../docs/homeward-review");
+const mobileReview = process.argv.includes("--mobile-quality");
 const browser = ["C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe", "C:/Program Files/Microsoft/Edge/Application/msedge.exe"].find(existsSync);
 if (!browser) throw Error("Edge not found");
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -40,8 +41,12 @@ try {
   };
   const wait = async expression => { for (let i = 0; i < 150; i++) { if (await evaluate(expression).catch(() => false)) return; await delay(150); } throw Error(`Timed out: ${expression}\n${JSON.stringify(report.errors)}\n${await evaluate('document.body.innerText')}`); };
   await send("Runtime.enable"); await send("Page.enable"); await mkdir(out, { recursive: true });
+  if (mobileReview) {
+    await send("Network.setUserAgentOverride", {userAgent:"Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/133.0.0.0 Mobile Safari/537.36"});
+    await send("Emulation.setTouchEmulationEnabled", {enabled:true,maxTouchPoints:5});
+  }
   for (const [label, width, height] of [["desktop", 1280, 720], ["portrait", 390, 844], ["landscape", 844, 390]]) {
-    await send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false });
+    await send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: mobileReview ? 3 : 1, mobile: mobileReview });
     for (const chapter of [1, 2, 3, 4]) {
       await send("Page.navigate", { url: `${base}?mode=story&storyCapture=${chapter}` });
       await wait(`window.__homeward?.ready && window.__homeward.sim.state.chapter === ${chapter}`);
@@ -52,7 +57,9 @@ try {
         assert(rect.left >= 0 && rect.right <= innerWidth && rect.bottom <= innerHeight, 'Action button outside viewport');
         assert(document.documentElement.scrollWidth <= innerWidth, 'Horizontal page overflow');
         assert(window.__homeward.view.forge.blenderAssetCount > 0, 'Blender assets not loaded');
-        return {calls:window.__homeward.view.renderer.info.calls, triangles:window.__homeward.view.renderer.info.triangles};
+        const renderer = window.__homeward.view.renderer;
+        if (${mobileReview}) { assert(renderer.quality.name === 'mobile', 'Mobile profile not auto-detected'); assert(renderer.info.pixelRatio <= 1.25, 'Phone DPR cap lost'); }
+        return {calls:renderer.info.calls, triangles:renderer.info.triangles,quality:renderer.quality.name,pixelRatio:renderer.info.pixelRatio};
       })()`);
       const screenshot = await send("Page.captureScreenshot", { format: "png" });
       const file = `${label}-chapter-${chapter}.png`; await writeFile(path.join(out, file), Buffer.from(screenshot.data, "base64"));
@@ -195,6 +202,19 @@ try {
       await writeFile(path.join(out,`combat-${weapon}.png`),Buffer.from(effects.png,"base64"));
       report.checks.push({cosmeticEventFixture: {weapon:effects.weapon,active:effects.active}});
     }
+  }
+  if (process.argv.includes("--rewards")) {
+    await send("Emulation.setDeviceMetricsOverride", {width:1280,height:720,deviceScaleFactor:1,mobile:false});
+    await send("Page.navigate", {url:`${base}?mode=story&storyCapture=1`}); await wait("window.__homeward?.ready");
+    const result = await evaluate(`(() => {
+      const {sim,view}=window.__homeward,s=sim.state,p=s.player;
+      s.pickups=[{id:901,kind:'shell',x:p.x+4,z:p.z,amount:1},{id:902,kind:'supply',x:p.x+7,z:p.z,amount:15}];
+      view.first=true; view.render(s,0,false);
+      return {coins:view.coins.mesh.count,diamonds:view.diamonds.mesh.count,png:view.renderer.renderer.domElement.toDataURL('image/png').split(',')[1]};
+    })()`);
+    if (result.coins !== 1 || result.diamonds !== 1) throw Error('Story reward instance mismatch');
+    await writeFile(path.join(out,'story-rewards.png'),Buffer.from(result.png,'base64'));
+    report.checks.push('Story renders one gold coin and one supply diamond using shared reward geometry');
   }
   if (report.errors.length) throw Error(report.errors.join("\n"));
   await writeFile(path.join(out, "report.json"), JSON.stringify(report, null, 2)); console.log(JSON.stringify(report.checks)); console.log(JSON.stringify(report.performance));

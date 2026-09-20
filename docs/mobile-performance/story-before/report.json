@@ -1,0 +1,94 @@
+{
+  "captures": [
+    {
+      "file": "desktop-chapter-1.png",
+      "calls": 62,
+      "triangles": 129262
+    },
+    {
+      "file": "desktop-chapter-2.png",
+      "calls": 30,
+      "triangles": 70418
+    },
+    {
+      "file": "desktop-chapter-3.png",
+      "calls": 56,
+      "triangles": 52842
+    },
+    {
+      "file": "desktop-chapter-4.png",
+      "calls": 58,
+      "triangles": 78430
+    },
+    {
+      "file": "portrait-chapter-1.png",
+      "calls": 62,
+      "triangles": 129262
+    },
+    {
+      "file": "portrait-chapter-2.png",
+      "calls": 30,
+      "triangles": 70418
+    },
+    {
+      "file": "portrait-chapter-3.png",
+      "calls": 56,
+      "triangles": 52842
+    },
+    {
+      "file": "portrait-chapter-4.png",
+      "calls": 58,
+      "triangles": 78430
+    },
+    {
+      "file": "landscape-chapter-1.png",
+      "calls": 62,
+      "triangles": 129262
+    },
+    {
+      "file": "landscape-chapter-2.png",
+      "calls": 30,
+      "triangles": 70418
+    },
+    {
+      "file": "landscape-chapter-3.png",
+      "calls": 56,
+      "triangles": 52842
+    },
+    {
+      "file": "landscape-chapter-4.png",
+      "calls": 58,
+      "triangles": 78430
+    }
+  ],
+  "checks": [
+    "Real keyboard movement",
+    "Real touch joystick movement and release",
+    "Single touch/click action launches stone",
+    "Pause freezes simulation",
+    {
+      "completeCampaignTraversal": {
+        "safe": 6,
+        "rescued": 3
+      },
+      "note": "Scripted combat resolution; objective actions and full escort distance simulated"
+    },
+    "Reload restores chapter 4 and earned multishot, ready at briefing",
+    "Original loading screen offers working Story entry without resetting checkpoint"
+  ],
+  "performance": {
+    "steps": 600,
+    "medianMs": 0,
+    "p95Ms": 0.10000002384185791,
+    "maxMs": 0.3999999761581421,
+    "environment": "Headless Edge / SwiftShader; simulation CPU only, not physical-phone FPS"
+  },
+  "errors": [],
+  "miniRigCpu": {
+    "walkers": 48,
+    "batches": 4,
+    "p95Ms": 1.2999999523162842,
+    "maxMs": 2,
+    "note": "CPU joint solving and instance updates only; not end-to-end GPU FPS"
+  }
+}

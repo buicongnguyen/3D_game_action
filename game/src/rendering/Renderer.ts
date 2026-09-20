@@ -12,7 +12,8 @@ import {
   WebGLRenderer,
   type Camera,
 } from "three";
-import { CAMERA, PERFORMANCE } from "../data/balance.ts";
+import { PERFORMANCE } from "../data/balance.ts";
+import { AdaptiveResolution, detectQuality, drawingRatio } from "./RenderQuality.ts";
 import { ENV, LIGHT, TRAIL_ACCENT, TRAIL_FOG } from "../art/palette.ts";
 
 /**
@@ -30,6 +31,8 @@ import { ENV, LIGHT, TRAIL_ACCENT, TRAIL_FOG } from "../art/palette.ts";
  * costs no HUD space.
  */
 export class Renderer {
+  readonly quality = detectQuality();
+  private resolution = new AdaptiveResolution();
   readonly renderer: WebGLRenderer;
   readonly scene = new Scene();
   readonly sun: DirectionalLight;
@@ -55,7 +58,7 @@ export class Renderer {
   ) {
     this.renderer = new WebGLRenderer({
       canvas,
-      antialias: true,
+      antialias: this.quality.antialias,
       powerPreference: "high-performance",
       stencil: false,
       // Off in play: the browser is free to discard the back buffer after
@@ -74,7 +77,7 @@ export class Renderer {
     // the trees by hue alone.
     this.renderer.toneMapping = NeutralToneMapping;
     this.renderer.toneMappingExposure = LIGHT.toneMappingExposure;
-    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.enabled = this.quality.shadows;
     // PCFSoftShadowMap is deprecated in three 0.185 and silently falls back to
     // this anyway, with a console warning. Asking for it directly keeps the
     // console clean and makes the actual filter explicit.
@@ -89,7 +92,7 @@ export class Renderer {
 
     this.sun = new DirectionalLight(LIGHT.sunColor, LIGHT.sunIntensity);
     this.sun.position.set(...LIGHT.sunPosition);
-    this.sun.castShadow = true;
+    this.sun.castShadow = this.quality.shadows;
     this.sun.shadow.mapSize.set(LIGHT.shadowMapSize, LIGHT.shadowMapSize);
     this.sun.shadow.bias = LIGHT.shadowBias;
     this.sun.shadow.normalBias = LIGHT.shadowNormalBias;
@@ -133,7 +136,7 @@ export class Renderer {
     const parent = this.canvas.parentElement;
     const width = Math.max(1, parent?.clientWidth ?? window.innerWidth);
     const height = Math.max(1, parent?.clientHeight ?? window.innerHeight);
-    const dpr = Math.min(window.devicePixelRatio || 1, CAMERA.maxDevicePixelRatio);
+    const dpr = drawingRatio(width, height, window.devicePixelRatio, this.quality, this.resolution.scale);
     // Resizing reallocates and clears the drawing buffer, so a no-op resize is
     // not free: it throws away a frame that may be the one about to be read.
     if (width === this.width && height === this.height && dpr === this.appliedPixelRatio) return;
@@ -141,15 +144,18 @@ export class Renderer {
     this.width = width;
     this.height = height;
     this.appliedPixelRatio = dpr;
-    // Capping DPR at 1.5 is the single biggest fill-rate lever on an integrated
-    // GPU; a 2x retina buffer costs nearly twice the pixels for no readable gain
-    // at this camera distance.
+    // Bound both DPR and total pixels: retina phones and large PC monitors
+    // otherwise spend most of their GPU budget drawing unreadable detail.
     this.renderer.setPixelRatio(dpr);
     this.renderer.setSize(width, height, false);
     this.onResized?.();
   };
 
   private appliedPixelRatio = 0;
+
+  trackFrame(dt: number): void {
+    if (this.resolution.sample(dt)) this.applySize();
+  }
 
   get aspect(): number {
     return this.width / this.height;
@@ -251,6 +257,9 @@ export class Renderer {
       textures: memory.textures,
       programs: this.renderer.info.programs?.length ?? 0,
       budgetMs: PERFORMANCE.frameBudgetMs,
+      quality: this.quality.name,
+      pixelRatio: this.appliedPixelRatio,
+      resolutionScale: this.resolution.scale,
     };
   }
 

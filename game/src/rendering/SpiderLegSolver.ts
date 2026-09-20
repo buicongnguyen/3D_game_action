@@ -16,6 +16,7 @@ const parentRotation = new Quaternion();
 const soleRotation = new Quaternion();
 const downRotation = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 2);
 const worldScale = new Vector3();
+const decomposedPosition = new Vector3();
 export function spiderRigScale(rig: SpiderRig): number {
   return Math.max(0.001, rig.root.getWorldScale(worldScale).x);
 }
@@ -29,7 +30,9 @@ function safeAcos(value: number): number {
 export function solveSpiderLegs(rig: SpiderRig, dt: number, speed: number, moving: boolean, groundHeight?: (x: number, z: number) => number): void {
   // Bare animation test rigs do not carry the builder's segment metadata.
   if (!rig.legs[0]?.userData.femurLength) return;
-  rig.root.updateMatrixWorld(true);
+  // Only the body transform is needed before solving. Traversing every old
+  // limb here, then each parent chain twice per leg, duplicated most IK work.
+  rig.body.updateWorldMatrix(true, false);
   const scale = spiderRigScale(rig);
   inverse.copy(rig.body.matrixWorld).invert();
   rig.root.getWorldQuaternion(soleRotation);
@@ -102,8 +105,10 @@ export function solveSpiderLegs(rig: SpiderRig, dt: number, speed: number, movin
     rig.legUpper[i].rotation.x = Math.atan2(-local.y, horizontal)
       - safeAcos((a * a + distance * distance - b * b) / (2 * a * distance));
     rig.legLower[i].rotation.x = Math.PI - safeAcos((a * a + b * b - distance * distance) / (2 * a * b));
-    rig.legLower[i].updateWorldMatrix(true, false);
-    rig.legLower[i].getWorldQuaternion(parentRotation);
+    leg.updateWorldMatrix(false, false);
+    rig.legUpper[i].updateWorldMatrix(false, false);
+    rig.legLower[i].updateWorldMatrix(false, false);
+    rig.legLower[i].matrixWorld.decompose(decomposedPosition, parentRotation, worldScale);
     rig.legFoot[i].quaternion.copy(parentRotation.invert().multiply(foot.orientation));
   }
 }

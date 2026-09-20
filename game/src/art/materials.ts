@@ -1,7 +1,7 @@
 /**
  * The shared material set.
  *
- * There are exactly two lit materials in the whole game and both are
+ * Terrain, cheap distant surfaces and reward tokens share lit materials that are
  * vertex-coloured, because colour lives in the geometry. Everything else is an
  * unlit basic material for glow, VFX and placement ghosts, cached per colour so
  * a hundred muzzle flashes cost one material.
@@ -29,6 +29,8 @@ export class MaterialLibrary {
   readonly surface: MeshStandardMaterial;
   /** Same but cheaper shading, for distant instanced props. */
   readonly surfaceCheap: MeshLambertMaterial;
+  /** Shared opaque coin/gem finish; brighter highlights without per-drop materials. */
+  readonly reward = new MeshStandardMaterial({ vertexColors: true, roughness: 0.32, metalness: 0.08, flatShading: true });
 
   private readonly emissiveCache = new Map<number, MeshBasicMaterial>();
   private readonly additiveCache = new Map<number, MeshBasicMaterial>();
@@ -153,7 +155,7 @@ export class MaterialLibrary {
   /** Live material count, for the debug overlay. */
   get count(): number {
     return (
-      2 +
+      3 +
       this.emissiveCache.size +
       this.additiveCache.size +
       this.ringDecalCache.size +
@@ -165,6 +167,7 @@ export class MaterialLibrary {
   dispose(): void {
     this.surface.dispose();
     this.surfaceCheap.dispose();
+    this.reward.dispose();
     for (const material of this.emissiveCache.values()) material.dispose();
     for (const material of this.additiveCache.values()) material.dispose();
     for (const material of this.ringDecalCache.values()) material.dispose();

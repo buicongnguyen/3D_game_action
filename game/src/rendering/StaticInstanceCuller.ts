@@ -2,12 +2,13 @@ import { DynamicDrawUsage, type InstancedMesh } from "three";
 
 /** Compact static scenery without changing the authored layout or navigation. */
 export class StaticInstanceCuller {
-  private readonly entries: { mesh: InstancedMesh; matrices: Float32Array; colors: Float32Array | null; count: number; extent: number }[] = [];
+  private readonly entries: { mesh: InstancedMesh; matrices: Float32Array; colors: Float32Array | null; count: number; extent: number; stride: number }[] = [];
   private x = Infinity;
   private z = Infinity;
   private radius = -1;
 
-  add(mesh: InstancedMesh): void {
+  constructor(private padding = 18) {}
+  add(mesh: InstancedMesh, stride = 1): void {
     mesh.geometry.computeBoundingSphere();
     let maxScale = 1;
     const matrices = new Float32Array(mesh.instanceMatrix.array.slice(0, mesh.count * 16));
@@ -19,7 +20,7 @@ export class StaticInstanceCuller {
     const sphere = mesh.geometry.boundingSphere!;
     this.entries.push({ mesh, matrices,
       colors: mesh.instanceColor ? new Float32Array(mesh.instanceColor.array.slice(0, mesh.count * 3)) : null,
-      count: mesh.count, extent: (sphere.radius + sphere.center.length()) * maxScale });
+      count: mesh.count, extent: (sphere.radius + sphere.center.length()) * maxScale, stride: Math.max(1, Math.floor(stride)) });
     mesh.instanceMatrix.setUsage(DynamicDrawUsage);
     mesh.instanceColor?.setUsage(DynamicDrawUsage);
     this.radius = -1;
@@ -33,11 +34,11 @@ export class StaticInstanceCuller {
     for (const entry of this.entries) {
       const { mesh, matrices, colors } = entry;
       // Includes camera motion between rebuilds and off-screen shadow casters.
-      const reachSq = (radius + entry.extent + 18) ** 2;
+      const reachSq = (radius + entry.extent + this.padding) ** 2;
       const target = mesh.instanceMatrix.array;
       const targetColors = mesh.instanceColor?.array;
       let count = 0;
-      for (let i = 0; i < entry.count; i++) {
+      for (let i = 0; i < entry.count; i += entry.stride) {
         const source = i * 16;
         if ((matrices[source + 12] - x) ** 2 + (matrices[source + 14] - z) ** 2 > reachSq) continue;
         for (let n = 0; n < 16; n++) target[count * 16 + n] = matrices[source + n];

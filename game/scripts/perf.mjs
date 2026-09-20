@@ -49,7 +49,7 @@ async function main() {
   const args = {
     url: "http://localhost:4210",
     out: path.resolve(process.cwd(), "../docs/perf.json"),
-    port: 9223,
+    port: 10000 + Math.floor(Math.random() * 20000),
     timeout: 900000,
   };
   // Both `--out=x` and `--out x`, and an unknown flag is an error rather than a
@@ -79,7 +79,8 @@ async function main() {
     process.exit(1);
   }
 
-  const probeUrl = `${args.url}?perf=1`;
+  const probe = new URL(args.url); probe.searchParams.set("perf", "1");
+  const probeUrl = probe.toString();
   const port = args.port;
   const profile = await mkdtemp(path.join(os.tmpdir(), "marcha-perf-"));
   const flags = [
@@ -107,7 +108,7 @@ async function main() {
   const child = spawn(browser, flags, { windowsHide: true, stdio: "ignore" });
   let payload;
   try {
-    const target = await waitForTarget(port, 30000);
+    const target = await waitForTarget(port, 30000, probeUrl);
     payload = await readReport(target.webSocketDebuggerUrl, args.timeout);
   } finally {
     child.kill();
@@ -234,7 +235,7 @@ function printPoolTable(rows, samples) {
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Waits for the browser to open its protocol port and load the probe page. */
-async function waitForTarget(port, timeoutMs) {
+async function waitForTarget(port, timeoutMs, probeUrl) {
   const deadline = Date.now() + timeoutMs;
   let lastError = "no page target";
   while (Date.now() < deadline) {
@@ -243,7 +244,7 @@ async function waitForTarget(port, timeoutMs) {
       if (response.ok) {
         const targets = await response.json();
         const page = targets.find(
-          (entry) => entry.type === "page" && entry.webSocketDebuggerUrl && entry.url.includes("perf=1"),
+          (entry) => entry.type === "page" && entry.webSocketDebuggerUrl && entry.url === probeUrl,
         );
         if (page) return page;
         lastError = `targets: ${targets.map((t) => `${t.type} ${t.url}`).join(", ") || "none"}`;
@@ -312,6 +313,7 @@ async function readReport(wsUrl, timeoutMs) {
       await delay(500);
     }
   } finally {
+    await send("Browser.close", {}).catch(() => {});
     socket.close();
   }
   throw new Error(

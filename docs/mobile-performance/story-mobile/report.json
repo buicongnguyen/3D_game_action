@@ -1,0 +1,111 @@
+{
+  "captures": [
+    {
+      "file": "desktop-chapter-1.png",
+      "calls": 62,
+      "triangles": 112210,
+      "quality": "mobile",
+      "pixelRatio": 0.8715208609729954
+    },
+    {
+      "file": "desktop-chapter-2.png",
+      "calls": 30,
+      "triangles": 33878,
+      "quality": "mobile",
+      "pixelRatio": 0.8715208609729954
+    },
+    {
+      "file": "desktop-chapter-3.png",
+      "calls": 56,
+      "triangles": 25570,
+      "quality": "mobile",
+      "pixelRatio": 0.8715208609729954
+    },
+    {
+      "file": "desktop-chapter-4.png",
+      "calls": 58,
+      "triangles": 34146,
+      "quality": "mobile",
+      "pixelRatio": 0.8715208609729954
+    },
+    {
+      "file": "portrait-chapter-1.png",
+      "calls": 62,
+      "triangles": 112210,
+      "quality": "mobile",
+      "pixelRatio": 1.25
+    },
+    {
+      "file": "portrait-chapter-2.png",
+      "calls": 30,
+      "triangles": 33878,
+      "quality": "mobile",
+      "pixelRatio": 1.25
+    },
+    {
+      "file": "portrait-chapter-3.png",
+      "calls": 56,
+      "triangles": 25570,
+      "quality": "mobile",
+      "pixelRatio": 1.25
+    },
+    {
+      "file": "portrait-chapter-4.png",
+      "calls": 58,
+      "triangles": 34146,
+      "quality": "mobile",
+      "pixelRatio": 1.25
+    },
+    {
+      "file": "landscape-chapter-1.png",
+      "calls": 62,
+      "triangles": 112210,
+      "quality": "mobile",
+      "pixelRatio": 1.25
+    },
+    {
+      "file": "landscape-chapter-2.png",
+      "calls": 30,
+      "triangles": 33878,
+      "quality": "mobile",
+      "pixelRatio": 1.25
+    },
+    {
+      "file": "landscape-chapter-3.png",
+      "calls": 56,
+      "triangles": 25570,
+      "quality": "mobile",
+      "pixelRatio": 1.25
+    },
+    {
+      "file": "landscape-chapter-4.png",
+      "calls": 58,
+      "triangles": 34146,
+      "quality": "mobile",
+      "pixelRatio": 1.25
+    }
+  ],
+  "checks": [
+    "Real keyboard movement",
+    "Real touch joystick movement and release",
+    "Single touch/click action launches stone",
+    "Pause freezes simulation",
+    {
+      "completeCampaignTraversal": {
+        "safe": 6,
+        "rescued": 3
+      },
+      "note": "Scripted combat resolution; objective actions and full escort distance simulated"
+    },
+    "Reload restores chapter 4 and earned multishot, ready at briefing",
+    "Original loading screen offers working Story entry without resetting checkpoint"
+  ],
+  "performance": {
+    "steps": 600,
+    "medianMs": 0,
+    "p95Ms": 0.10000002384185791,
+    "maxMs": 0.3999999761581421,
+    "environment": "Headless Edge / SwiftShader; simulation CPU only, not physical-phone FPS"
+  },
+  "errors": []
+}

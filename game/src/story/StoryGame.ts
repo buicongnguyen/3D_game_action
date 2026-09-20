@@ -168,6 +168,7 @@ export class StoryGame {
     this.audio.setListener(this.sim.state.player.x, this.sim.state.player.z);
     this.audio.setTension(this.sim.state.enemies.length > 8 ? "SWARM" : this.sim.state.enemies.length ? "PROBING" : "QUIET", false);
     if (!this.paused && this.sim.state.status === "playing") this.audio.update(dt);
+    if (!this.paused && this.sim.state.status === "playing") this.view.renderer.trackFrame(dt);
     this.view.render(this.sim.state, this.paused || this.sim.state.status !== "playing" ? 0 : dt, this.overview);
     this.hudClock += dt; if (this.hudClock >= 0.1) { this.updateHud(); this.hudClock = 0; }
     this.frame = requestAnimationFrame(this.render);

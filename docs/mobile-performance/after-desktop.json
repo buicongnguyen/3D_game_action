@@ -1,0 +1,513 @@
+{
+  "seed": 3836056703,
+  "viewport": [
+    1896,
+    941
+  ],
+  "devicePixelRatio": 1,
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/152.0.0.0 Safari/537.36 Edg/152.0.0.0",
+  "softwareRenderer": true,
+  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+  "quality": "desktop",
+  "drawingPixelRatio": 1,
+  "clockResolutionMs": 0.09999990463256836,
+  "samples": 12,
+  "results": [
+    {
+      "id": "stage-1-departure",
+      "label": "Stage 1 · Departure Road",
+      "enemies": 16,
+      "enemiesPeak": 16,
+      "projectiles": 4,
+      "pickups": 0,
+      "structures": 0,
+      "poolExhaustions": 0,
+      "pools": [
+        {
+          "id": "enemies",
+          "capacity": 260,
+          "active": 16,
+          "peak": 16,
+          "peakSampled": false,
+          "exhaustions": 0,
+          "saturatedFrames": 0
+        },
+        {
+          "id": "projectiles",
+          "capacity": 420,
+          "active": 4,
+          "peak": 5,
+          "peakSampled": false,
+          "exhaustions": 0,
+          "saturatedFrames": 0
+        },
+        {
+          "id": "pickups",
+          "capacity": 220,
+          "active": 0,
+          "peak": 0,
+          "peakSampled": false,
+          "exhaustions": 0,
+          "saturatedFrames": 0
+        },
+        {
+          "id": "vfx",
+          "capacity": 180,
+          "active": 1,
+          "peak": 1,
+          "peakSampled": true,
+          "exhaustions": null,
+          "saturatedFrames": 0
+        }
+      ],
+      "drawCalls": 127,
+      "triangles": 161838,
+      "meshes": 100,
+      "shadowCasters": 65,
+      "frameMsP50": 2.399999976158142,
+      "frameMsP95": 15.699999928474426,
+      "frameMsWorst": 15.699999928474426,
+      "simMsP50": 0.10000002384185791,
+      "simMsP95": 0.20000004768371582,
+      "simMsMean": 0.11666666467984517,
+      "frameMsMean": 4.058333327372869,
+      "renderMsMean": 3.9416666626930232,
+      "trail": 6.4249999999999945,
+      "trailState": "QUIET"
+    },
+    {
+      "id": "stage-2-settlement",
+      "label": "Stage 2 · Broken Settlement",
+      "enemies": 36,
+      "enemiesPeak": 36,
+      "projectiles": 1,
+      "pickups": 30,
+      "structures": 2,
+      "poolExhaustions": 0,
+      "pools": [
+        {
+          "id": "enemies",
+          "capacity": 260,
+          "active": 36,
+          "peak": 36,
+          "peakSampled": false,
+          "exhaustions": 0,
+          "saturatedFrames": 0
+        },
+        {
+          "id": "projectiles",
+          "capacity": 420,
+          "active": 1,
+          "peak": 3,
+          "peakSampled": false,
+          "exhaustions": 0,
+          "saturatedFrames": 0
+        },
+        {
+          "id": "pickups",
+          "capacity": 220,
+          "active": 30,
+          "peak": 30,
+          "peakSampled": false,
+          "exhaustions": 0,
+          "saturatedFrames": 0
+        },
+        {
+          "id": "vfx",
+          "capacity": 180,
+          "active": 2,
+          "peak": 2,
+          "peakSampled": true,
+          "exhaustions": null,
+          "saturatedFrames": 0
+        }
+      ],
+      "drawCalls": 146,
+      "triangles": 264316,
+      "meshes": 106,
+      "shadowCasters": 65,
+      "frameMsP50": 2.5,
+      "frameMsP95": 7.799999952316284,
+      "frameMsWorst": 7.799999952316284,
+      "simMsP50": 0.20000004768371582,
+      "simMsP95": 0.3999999761581421,
+      "simMsMean": 0.19166667262713113,
+      "frameMsMean": 2.891666660706202,
+      "renderMsMean": 2.699999988079071,
+      "trail": 49.83500000000015,
+      "trailState": "PROBING"
+    },
+    {
+      "id": "stage-3-flooded",
+      "label": "Stage 3 · Flooded Works",
+      "enemies": 63,
+      "enemiesPeak": 63,
+      "projectiles": 0,
+      "pickups": 28,
+      "structures": 2,
+      "poolExhaustions": 0,
+      "pools": [
+        {
+          "id": "enemies",
+          "capacity": 260,
+          "active": 63,
+          "peak": 63,
+          "peakSampled": false,
+          "exhaustions": 0,
+          "saturatedFrames": 0
+        },
+        {
+          "id": "projectiles",
+          "capacity": 420,
+          "active": 0,
+          "peak": 0,
+          "peakSampled": false,
+          "exhaustions": 0,
+          "saturatedFrames": 0
+        },
+        {
+          "id": "pickups",
+          "capacity": 220,
+          "active": 28,
+          "peak": 28,
+          "peakSampled": false,
+          "exhaustions": 0,
+          "saturatedFrames": 0
+        },
+        {
+          "id": "vfx",
+          "capacity": 180,
+          "active": 0,
+          "peak": 0,
+          "peakSampled": true,
+          "exhaustions": null,
+          "saturatedFrames": 0
+        }
+      ],
+      "drawCalls": 139,
+      "triangles": 431738,
+      "meshes": 106,
+      "shadowCasters": 66,
+      "frameMsP50": 3,
+      "frameMsP95": 9.100000023841858,
+      "frameMsWorst": 9.100000023841858,
+      "simMsP50": 0.3999999761581421,
+      "simMsP95": 1.7000000476837158,
+      "simMsMean": 0.26666667064030963,
+      "frameMsMean": 3.600000003973643,
+      "renderMsMean": 3.333333333333333,
+      "trail": 65.48499999999973,
+      "trailState": "SWARM"
+    },
+    {
+      "id": "stage-4-maze",
+      "label": "Stage 4 · Rust Maze",
+      "enemies": 103,
+      "enemiesPeak": 103,
+      "projectiles": 2,
+      "pickups": 40,
+      "structures": 3,
+      "poolExhaustions": 0,
+      "pools": [
+        {
+          "id": "enemies",
+          "capacity": 260,
+          "active": 103,
+          "peak": 103,
+          "peakSampled": false,
+          "exhaustions": 0,
+          "saturatedFrames": 0
+        },
+        {
+          "id": "projectiles",
+          "capacity": 420,
+          "active": 2,
+          "peak": 2,
+          "peakSampled": false,
+          "exhaustions": 0,
+          "saturatedFrames": 0
+        },
+        {
+          "id": "pickups",
+          "capacity": 220,
+          "active": 40,
+          "peak": 42,
+          "peakSampled": false,
+          "exhaustions": 0,
+          "saturatedFrames": 0
+        },
+        {
+          "id": "vfx",
+          "capacity": 180,
+          "active": 11,
+          "peak": 12,
+          "peakSampled": true,
+          "exhaustions": null,
+          "saturatedFrames": 0
+        }
+      ],
+      "drawCalls": 151,
+      "triangles": 385524,
+      "meshes": 109,
+      "shadowCasters": 67,
+      "frameMsP50": 3.399999976158142,
+      "frameMsP95": 12.899999976158142,
+      "frameMsWorst": 12.899999976158142,
+      "simMsP50": 0.2999999523162842,
+      "simMsP95": 1.7000000476837158,
+      "simMsMean": 0.20833333333333334,
+      "frameMsMean": 4.225000003973643,
+      "renderMsMean": 4.01666667064031,
+      "trail": 84.50499999999968,
+      "trailState": "HEAVY"
+    },
+    {
+      "id": "stage-5-gate",
+      "label": "Stage 5 · The Last Gate",
+      "enemies": 156,
+      "enemiesPeak": 156,
+      "projectiles": 0,
+      "pickups": 15,
+      "structures": 6,
+      "poolExhaustions": 0,
+      "pools": [
+        {
+          "id": "enemies",
+          "capacity": 260,
+          "active": 156,
+          "peak": 156,
+          "peakSampled": false,
+          "exhaustions": 0,
+          "saturatedFrames": 0
+        },
+        {
+          "id": "projectiles",
+          "capacity": 420,
+          "active": 0,
+          "peak": 3,
+          "peakSampled": false,
+          "exhaustions": 0,
+          "saturatedFrames": 0
+        },
+        {
+          "id": "pickups",
+          "capacity": 220,
+          "active": 15,
+          "peak": 15,
+          "peakSampled": false,
+          "exhaustions": 0,
+          "saturatedFrames": 0
+        },
+        {
+          "id": "vfx",
+          "capacity": 180,
+          "active": 9,
+          "peak": 10,
+          "peakSampled": true,
+          "exhaustions": null,
+          "saturatedFrames": 0
+        }
+      ],
+      "drawCalls": 160,
+      "triangles": 383052,
+      "meshes": 117,
+      "shadowCasters": 66,
+      "frameMsP50": 2.4000000953674316,
+      "frameMsP95": 12.5,
+      "frameMsWorst": 12.5,
+      "simMsP50": 0.5,
+      "simMsP95": 0.6000000238418579,
+      "simMsMean": 0.6333333353201548,
+      "frameMsMean": 3.3083333373069763,
+      "renderMsMean": 2.6750000019868216,
+      "trail": 100,
+      "trailState": "PURSUIT"
+    },
+    {
+      "id": "combat-100",
+      "label": "Normal combat, 100 enemies",
+      "enemies": 108,
+      "enemiesPeak": 108,
+      "projectiles": 1,
+      "pickups": 41,
+      "structures": 3,
+      "poolExhaustions": 0,
+      "pools": [
+        {
+          "id": "enemies",
+          "capacity": 260,
+          "active": 108,
+          "peak": 108,
+          "peakSampled": false,
+          "exhaustions": 0,
+          "saturatedFrames": 0
+        },
+        {
+          "id": "projectiles",
+          "capacity": 420,
+          "active": 1,
+          "peak": 4,
+          "peakSampled": false,
+          "exhaustions": 0,
+          "saturatedFrames": 0
+        },
+        {
+          "id": "pickups",
+          "capacity": 220,
+          "active": 41,
+          "peak": 41,
+          "peakSampled": false,
+          "exhaustions": 0,
+          "saturatedFrames": 0
+        },
+        {
+          "id": "vfx",
+          "capacity": 180,
+          "active": 14,
+          "peak": 14,
+          "peakSampled": true,
+          "exhaustions": null,
+          "saturatedFrames": 0
+        }
+      ],
+      "drawCalls": 153,
+      "triangles": 390976,
+      "meshes": 109,
+      "shadowCasters": 67,
+      "frameMsP50": 3.399999976158142,
+      "frameMsP95": 10.699999928474426,
+      "frameMsWorst": 10.699999928474426,
+      "simMsP50": 0.30000007152557373,
+      "simMsP95": 2.1999999284744263,
+      "simMsMean": 0.15833333134651184,
+      "frameMsMean": 4.791666666666667,
+      "renderMsMean": 4.633333335320155,
+      "trail": 80.43499999999969,
+      "trailState": "HEAVY"
+    },
+    {
+      "id": "stress-200",
+      "label": "Stress test, 200 enemies",
+      "enemies": 209,
+      "enemiesPeak": 209,
+      "projectiles": 0,
+      "pickups": 0,
+      "structures": 0,
+      "poolExhaustions": 0,
+      "pools": [
+        {
+          "id": "enemies",
+          "capacity": 260,
+          "active": 209,
+          "peak": 209,
+          "peakSampled": false,
+          "exhaustions": 0,
+          "saturatedFrames": 0
+        },
+        {
+          "id": "projectiles",
+          "capacity": 420,
+          "active": 0,
+          "peak": 0,
+          "peakSampled": false,
+          "exhaustions": 0,
+          "saturatedFrames": 0
+        },
+        {
+          "id": "pickups",
+          "capacity": 220,
+          "active": 0,
+          "peak": 0,
+          "peakSampled": false,
+          "exhaustions": 0,
+          "saturatedFrames": 0
+        },
+        {
+          "id": "vfx",
+          "capacity": 180,
+          "active": 3,
+          "peak": 3,
+          "peakSampled": true,
+          "exhaustions": null,
+          "saturatedFrames": 0
+        }
+      ],
+      "drawCalls": 132,
+      "triangles": 400646,
+      "meshes": 103,
+      "shadowCasters": 67,
+      "frameMsP50": 3.5999999046325684,
+      "frameMsP95": 8.700000047683716,
+      "frameMsWorst": 8.700000047683716,
+      "simMsP50": 0.2999999523162842,
+      "simMsP95": 1.4000000953674316,
+      "simMsMean": 0.20000000794728598,
+      "frameMsMean": 3.8333333333333335,
+      "renderMsMean": 3.6333333253860474,
+      "trail": 100,
+      "trailState": "PURSUIT"
+    },
+    {
+      "id": "pursuit-full",
+      "label": "Pursuit with structures, projectiles, VFX and HUD",
+      "enemies": 154,
+      "enemiesPeak": 154,
+      "projectiles": 1,
+      "pickups": 0,
+      "structures": 6,
+      "poolExhaustions": 0,
+      "pools": [
+        {
+          "id": "enemies",
+          "capacity": 260,
+          "active": 154,
+          "peak": 154,
+          "peakSampled": false,
+          "exhaustions": 0,
+          "saturatedFrames": 0
+        },
+        {
+          "id": "projectiles",
+          "capacity": 420,
+          "active": 1,
+          "peak": 3,
+          "peakSampled": false,
+          "exhaustions": 0,
+          "saturatedFrames": 0
+        },
+        {
+          "id": "pickups",
+          "capacity": 220,
+          "active": 0,
+          "peak": 0,
+          "peakSampled": false,
+          "exhaustions": 0,
+          "saturatedFrames": 0
+        },
+        {
+          "id": "vfx",
+          "capacity": 180,
+          "active": 7,
+          "peak": 8,
+          "peakSampled": true,
+          "exhaustions": null,
+          "saturatedFrames": 0
+        }
+      ],
+      "drawCalls": 150,
+      "triangles": 389416,
+      "meshes": 117,
+      "shadowCasters": 67,
+      "frameMsP50": 3.3000000715255737,
+      "frameMsP95": 10.700000047683716,
+      "frameMsWorst": 10.700000047683716,
+      "simMsP50": 0.30000007152557373,
+      "simMsP95": 4,
+      "simMsMean": 0.3583333392937978,
+      "frameMsMean": 4.508333325386047,
+      "renderMsMean": 4.14999998609225,
+      "trail": 100,
+      "trailState": "PURSUIT"
+    }
+  ]
+}

@@ -800,6 +800,13 @@ export class InteractionSystem {
 
       const activeRadius = Math.max(magnetRadius, pickup.claimRadius);
       const d = distSq(pickup.x, pickup.z, player.x, player.z);
+      // Player-earned loot is guaranteed even beyond the former 32 m magnet.
+      // Keep the source position for salvage objectives; do not move the player
+      // or sweep up unrelated authored supplies. Nearby drops still fly in.
+      if (pickup.claimRadius > 0 && d > magnetRadius * magnetRadius) {
+        this.consumePickup(world, i);
+        continue;
+      }
       if (d > activeRadius * activeRadius) {
         pickup.attracted = false;
         continue;
@@ -815,8 +822,9 @@ export class InteractionSystem {
       // Accelerate as it closes, so collection reads as a satisfying snap
       // rather than a slow drift.
       const pull = PLAYER.magnetSpeed * (1 + (1 - clamp(distance / activeRadius, 0, 1)) * 1.5);
-      pickup.x += ((player.x - pickup.x) / distance) * pull * dt;
-      pickup.z += ((player.z - pickup.z) / distance) * pull * dt;
+      const travel = Math.min(distance, pull * dt);
+      pickup.x += ((player.x - pickup.x) / distance) * travel;
+      pickup.z += ((player.z - pickup.z) / distance) * travel;
     }
   }
 

@@ -18,6 +18,7 @@ import type { BufferGeometry, Object3D } from "three";
 import { Random } from "../core/Random.ts";
 import { BlenderLibrary, BLENDER_IDS } from "./BlenderLibrary.ts";
 import { MaterialLibrary } from "./materials.ts";
+import { buildRewardGeometry } from "./rewards.ts";
 import { merge, place, vertexCount } from "./geometry.ts";
 import {
   buildEngineer,
@@ -412,13 +413,14 @@ export class MeshForge {
   /**
    * Pickups are drawn as instanced meshes rather than as individual Groups, so
    * the render layer needs one merged geometry per kind instead of a prototype
-   * hierarchy. Merging is done once and cached; a field of eighty scrap piles
+   * hierarchy. Geometry is built once and cached; a field of eighty gold coins
    * then costs one draw call.
    */
   pickupGeometry(kind: string): BufferGeometry {
     const cached = this.mergedCache.get(`pickup:${kind}`);
     if (cached) return cached;
-    const merged = flattenToGeometry(this.createPickup(kind, false));
+    const merged = ["scrap", "fuel", "cylinder", "pressureCanister", "repairKit", "shockMine", "armorPlate", "weaponPart"].includes(kind)
+      ? buildRewardGeometry(kind) : flattenToGeometry(this.createPickup(kind, false));
     this.mergedCache.set(`pickup:${kind}`, merged);
     return merged;
   }

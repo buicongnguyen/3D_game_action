@@ -2,6 +2,7 @@ import type { Chapter, Point, StoryEnemyKind, StoryWeapon } from "./StoryData.ts
 export interface StoryEnemy extends Point {
   id: number; kind: StoryEnemyKind; hp: number; maxHp: number; heading: number; cooldown: number;
   path: number; jumped: boolean; jump: number; jumpFrom: number; burn: number; burnDps: number;
+  playerLootCredit?: boolean;
 }
 export interface StoryCow extends Point { name: string; hp: number; status: "safe" | "webbed" | "captured"; timer: number }
 export interface StoryPickup extends Point { id: number; kind: "shell" | "supply"; amount: number }

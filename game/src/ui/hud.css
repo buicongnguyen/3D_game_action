@@ -199,6 +199,11 @@ body {
   );
 }
 
+/* Do not repeatedly blur the animated canvas underneath touch-device HUDs. */
+@media (pointer: coarse) {
+  .panel__body { backdrop-filter: none; background: rgba(16, 21, 27, 0.94); }
+}
+
 /* Rivet row along the top inside edge. */
 .panel__body::before {
   content: "";

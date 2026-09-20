@@ -17,6 +17,7 @@ import {
 import { Random } from "../core/Random.ts";
 import { StaticInstanceCuller } from "./StaticInstanceCuller.ts";
 import { SurfaceDetail, surfaceUV } from "./SurfaceDetail.ts";
+import { DESKTOP_QUALITY, type RenderQuality } from "./RenderQuality.ts";
 import { angleDelta, clamp, smoothstep } from "../core/math.ts";
 import { ENV } from "../art/palette.ts";
 import { FEEDBACK } from "../art/palette.ts";
@@ -187,7 +188,7 @@ const GROUND_GRID_STEP = 6;
 const HALF_WIDTH = 155;
 
 export class TerrainBuilder {
-  readonly sceneryVisibility = new StaticInstanceCuller();
+  readonly sceneryVisibility: StaticInstanceCuller;
   readonly root = new Group();
 
   private ground: Mesh | null = null;
@@ -211,8 +212,10 @@ export class TerrainBuilder {
   constructor(
     private readonly forge: MeshForge,
     parent: Object3D,
+    private readonly quality: RenderQuality = DESKTOP_QUALITY,
   ) {
     this.root.name = "terrain";
+    this.sceneryVisibility = new StaticInstanceCuller(quality.shadows ? 18 : 6);
     this.groundMaterial = forge.materials.surface.clone();
     parent.add(this.root);
   }
@@ -534,7 +537,7 @@ export class TerrainBuilder {
       const targetCount = maze && heavyNatural ? Math.ceil(styledCount * 0.22) : styledCount;
       if (targetCount <= 0) continue;
 
-      const mesh = new InstancedMesh(geometry, this.forge.materials.surface, targetCount);
+      const mesh = new InstancedMesh(geometry, type.blocks === 0 && this.quality.name === "mobile" ? this.forge.materials.surfaceCheap : this.forge.materials.surface, targetCount);
       // Only silhouette-scale props cast. A grass tuft's shadow is invisible at
       // this camera height but still costs a full extra pass over its instances.
       mesh.castShadow = type.blocks >= 1;
@@ -629,7 +632,7 @@ export class TerrainBuilder {
       mesh.count = placed;
       mesh.instanceMatrix.needsUpdate = true;
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-      this.sceneryVisibility.add(mesh);
+      this.sceneryVisibility.add(mesh, type.blocks === 0 ? this.quality.decorationStride : 1);
       this.instanced.push(mesh);
       this.root.add(mesh);
     }

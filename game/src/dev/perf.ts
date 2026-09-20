@@ -95,6 +95,8 @@ export interface PerformanceReport {
   /** True when the WebGL backend is a software rasteriser. */
   softwareRenderer: boolean;
   renderer: string;
+  quality: string;
+  drawingPixelRatio: number;
   /**
    * Smallest non-zero step this browser's clock will report, in milliseconds.
    * Anything faster than this cannot be measured one sample at a time, which is
@@ -462,6 +464,8 @@ export function runPerformanceSuite(game: Game): PerformanceReport {
     userAgent: navigator.userAgent,
     softwareRenderer: /swiftshader|llvmpipe|software/i.test(gl),
     renderer: gl,
+    quality: game.debugApi.frame().quality,
+    drawingPixelRatio: game.debugApi.frame().pixelRatio,
     clockResolutionMs: measureClockResolution(),
     samples: SAMPLES,
     results,

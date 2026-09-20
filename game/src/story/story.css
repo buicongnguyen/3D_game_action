@@ -24,3 +24,4 @@
 @media(max-width:600px){.homeward-weapon-info{bottom:237px;width:85%;font-size:9px}.homeward-receipt{bottom:270px}}
 @media(max-height:500px) and (min-width:601px){.homeward-weapon-info{bottom:74px;font-size:9px}.homeward-receipt{bottom:101px}}
 @media(prefers-reduced-motion:reduce){.homeward *{scroll-behavior:auto}}
+@media(pointer:coarse){.homeward-modal-host:has(.homeward-panel){backdrop-filter:none}}

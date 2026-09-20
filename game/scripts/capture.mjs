@@ -24,6 +24,7 @@ import path from "node:path";
 import process from "node:process";
 
 const CAPTURE_IDS = [
+  "reward-models",
   "roam-warning", "roam-far",
   "blender-models", "blender-effects",
   "pickups", "inventory",
@@ -146,6 +147,8 @@ async function capture(session, args, id) {
   await waitForScene(session, id, args.budget * (HEAVY_CAPTURES.has(id) ? 8 : 4));
   const assetCount = await evaluate(session, "window.__ironMarch.blenderAssetCount()");
   if (assetCount !== (args.art === "blender" ? 34 : 0)) throw new Error(`Unexpected loaded asset count: ${assetCount}`);
+  const frame = await evaluate(session, "window.__ironMarch.frame()");
+  if (new URL(args.url).searchParams.get("quality") === "low" && frame.quality !== "mobile") throw new Error("Low-detail profile was not applied");
 
   const shot = await session.send("Page.captureScreenshot", {
     format: "png",
@@ -280,11 +283,11 @@ async function capture(session, args, id) {
     })()`);
     if (checks !== 'passed') throw new Error('Engagement UI checks failed');
   }
-  return { id, file, bytes: buffer.length };
+  return { id, file, bytes: buffer.length, quality: frame.quality, pixelRatio: frame.pixelRatio, calls: frame.calls, triangles: frame.triangles };
 }
 
 function sceneUrl(args, id) {
-  return `${args.url}?capture=${encodeURIComponent(id)}&seed=IRONMARCH`;
+  const url = new URL(args.url); url.searchParams.set("capture", id); url.searchParams.set("seed", "IRONMARCH"); return url.toString();
 }
 
 async function assertServing(url) {

@@ -19,6 +19,7 @@ import {
 } from "three";
 import { clamp, distSq, lerp } from "../core/math.ts";
 import { DIRECTOR, PERFORMANCE, PLAYER, SPIDER, STRUCTURES } from "../data/balance.ts";
+import { DESKTOP_QUALITY, type RenderQuality } from "./RenderQuality.ts";
 import { ENEMY_COLORS, FEEDBACK, PLAYER_COLORS } from "../art/palette.ts";
 import { getArchetype } from "../data/enemies.ts";
 import { getBlueprint, getStructureConfig } from "../data/structures.ts";
@@ -117,9 +118,8 @@ interface StructureVisual {
  * count, when each of those meshes was its own draw call; since the horde moved
  * into a `BatchedMesh` the whole articulated horde is one call whatever its
  * size, so what it now buys is per-frame matrix work and batch instances. See
- * `PERFORMANCE.maxFullAnimationEnemies` for where the number comes from.
+ * `RenderQuality.maxAnimatedEnemies` for the mobile/desktop limits.
  */
-const PUPPET_BUDGET = PERFORMANCE.maxFullAnimationEnemies;
 
 /** Instance slots reserved in the horde batch: one per limb of every puppet. */
 const MAX_PARTS_PER_RIG = 14;
@@ -252,9 +252,10 @@ export class WorldView {
   constructor(
     private readonly scene: Scene,
     private readonly forge: MeshForge,
+    private readonly quality: RenderQuality = DESKTOP_QUALITY,
   ) {
     this.scene.add(this.root);
-    this.terrain = new TerrainBuilder(forge, this.root);
+    this.terrain = new TerrainBuilder(forge, this.root, quality);
   }
 
   setVfx(vfx: VfxSystem): void {
@@ -301,7 +302,7 @@ export class WorldView {
     // undersized (silent dropped limbs) nor wastefully large.
     this.hordeBatch = new HordeBatch(
       this.forge.materials.surface,
-      PUPPET_BUDGET * MAX_PARTS_PER_RIG,
+      this.quality.maxAnimatedEnemies * MAX_PARTS_PER_RIG,
       HORDE_BATCH_VERTICES,
       HORDE_BATCH_INDICES,
     );
@@ -324,10 +325,10 @@ export class WorldView {
       this.impostorStates.push(createImpostorState(slot / DIRECTOR.enemyPoolCapacity));
     }
 
-    for (let i = 0; i < PUPPET_BUDGET; i++) {
+    for (let i = 0; i < this.quality.maxAnimatedEnemies; i++) {
       this.enemyVisuals.push({
         rig: null,
-        state: createPuppetState(i / PUPPET_BUDGET),
+        state: createPuppetState(i / this.quality.maxAnimatedEnemies),
         enemyId: -1,
         slot: -1,
         batchIds: [],
@@ -496,7 +497,7 @@ export class WorldView {
       if (!geometry) continue;
       const mesh = new InstancedMesh(
         geometry,
-        this.forge.materials.surface,
+        this.forge.materials.reward,
         PERFORMANCE.pickupPoolCapacity,
       );
       mesh.castShadow = true;
@@ -508,7 +509,7 @@ export class WorldView {
       this.root.add(mesh);
     }
 
-    // A glow disc under every pickup, coloured by resource. A scrap pile is a
+    // A glow disc under every pickup, coloured by resource. A reward is a
     // ten-pixel prop at this camera height and reviewers could not find them
     // at all; the disc is what makes "there is something to collect over
     // there" answerable across the frame. One draw call for every pickup.
@@ -1489,12 +1490,11 @@ export class WorldView {
       const index = mesh.count;
       if (index >= mesh.instanceMatrix.count) continue;
 
-      const bob = Math.sin(this.clock * 2.4 + pickup.phase * 6.283) * 0.035;
-      this.position.set(pickup.x, 0.14 + bob, pickup.z);
-      this.quaternion.setFromAxisAngle(UP, this.clock * 0.35 + pickup.phase * 6.283);
+      const bob = Math.sin(this.clock * 2.4 + pickup.phase * 6.283) * 0.1;
+      this.position.set(pickup.x, 0.3 + bob, pickup.z);
+      this.quaternion.setFromAxisAngle(UP, this.clock * 0.9 + pickup.phase * 6.283);
       const pop = pickup.attracted ? 1.18 : 1;
-      // Consumables deliberately keep different profiles even at gameplay
-      // camera height: low/wide plate, squat mine, tall parts, boxed kit.
+      // Different gem cuts and colors preserve resource identities.
       const profile = pickupProfile(pickup.kind);
       this.scale.set(profile[0] * pop, profile[1] * pop, profile[2] * pop);
       this.matrix.compose(this.position, this.quaternion, this.scale);
@@ -1749,7 +1749,8 @@ function pickupProfile(kind: PickupKind): readonly [number, number, number] {
 
 function pickupGlowColor(kind: PickupKind): number {
   switch (kind) {
-    case "fuel":
+    case "fuel": return 0xffbd45;
+    case "cylinder":
     case "pressureCanister": return FEEDBACK.fuel;
     case "repairKit": return 0x65e87b;
     case "shockMine": return 0x72cfff;

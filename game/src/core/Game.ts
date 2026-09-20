@@ -172,7 +172,7 @@ export class Game {
 
     this.renderer = new Renderer(canvas, options);
     this.camera = new CameraController(this.renderer);
-    this.view = new WorldView(this.renderer.scene, this.forge);
+    this.view = new WorldView(this.renderer.scene, this.forge, this.renderer.quality);
     this.vfx = new VfxSystem(this.renderer.scene, this.forge);
     this.view.setVfx(this.vfx);
 
@@ -1304,6 +1304,7 @@ export class Game {
 
   private render(alpha: number, dt: number): void {
     const world = this.world;
+    if (!world.paused) this.renderer.trackFrame(dt);
 
     this.camera.update(world, dt, this.recenterRequested);
     this.recenterRequested = false;
@@ -1508,6 +1509,9 @@ export class Game {
         worst: this.loop.worstFrameMs(),
         calls: this.renderer.info.calls,
         triangles: this.renderer.info.triangles,
+        quality: this.renderer.info.quality,
+        pixelRatio: this.renderer.info.pixelRatio,
+        resolutionScale: this.renderer.info.resolutionScale,
       }),
       resetFrameStats: () => this.loop.resetStats(),
       toggleDebug: () => this.toggleDebug(),

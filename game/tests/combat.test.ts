@@ -671,10 +671,10 @@ describe("personal weapon", () => {
     expect(world.stats.damageByStructures).toBe(10);
   });
 
-  it("pulls distant scrap back when the player tagged the enemy before it died", () => {
+  it("collects scrap beyond 32 m when the player tagged the enemy before it died", () => {
     const rig = createRig(20260820);
     const world = rig.world;
-    const enemy = spawnEnemy(world, "golem", world.player.x, world.player.z + 22);
+    const enemy = spawnEnemy(world, "golem", world.player.x, world.player.z + 80);
     rig.damage.applyToEnemy(world, enemy, {
       amount: 1, source: "player.weapon", originX: world.player.x,
       originZ: world.player.z, knockback: 0, critical: false,

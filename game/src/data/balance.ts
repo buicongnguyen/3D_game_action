@@ -516,12 +516,12 @@ export const NAVIGATION = {
 
 export const PERFORMANCE = {
   /**
-   * Maximum enemies rendered with individually animated puppets, and - because
-   * the two must agree or an articulated enemy would steer at a quarter rate -
-   * the cap on full-rate LOD in `EnemyNavigationSystem`.
+   * Cap on full-rate LOD in `EnemyNavigationSystem`. RenderQuality uses a
+   * smaller puppet budget (64 desktop / 32 mobile), so every articulated enemy
+   * is eligible for full-rate steering without changing mobile gameplay.
    *
-   * 96 keeps the closest, most readable enemies articulated while leaving
-   * headroom for the full normal horde. Distant enemies retain animated
+   * 96 keeps nearby steering responsive while leaving headroom for the normal
+   * horde. Distant enemies retain animated
    * impostor motion but avoid the mesh, matrix and full-rate steering costs.
    */
   maxFullAnimationEnemies: 96,

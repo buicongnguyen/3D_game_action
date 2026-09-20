@@ -201,7 +201,10 @@ describe("Story checkpoint isolation", () => {
     const sim = chapter(3); sim.state.enemies.length = 0; sim.state.bossDefeated = true;
     Object.assign(sim.state.player, {x:0,z:0}); sim.selectWeapon("rocket");
     sim.spawn("broodling", {x:0,z:4}); sim.spawn("broodling", {x:1,z:4});
-    step(sim,0.5); expect(sim.state.killed).toBe(2); expect(sim.state.enemies).toHaveLength(0); expect(sim.state.pickups).toHaveLength(2);
+    const before = sim.state.progress.shells;
+    step(sim,0.5); expect(sim.state.killed).toBe(2); expect(sim.state.enemies).toHaveLength(0); expect(sim.state.pickups).toHaveLength(0);
+    expect(sim.state.progress.shells).toBe(before + 2);
+    step(sim,0.5); expect(sim.state.progress.shells).toBe(before + 2);
   });
   it("round-trips chapter checkpoints using only the new key", () => {
     const values = new Map<string, string>(); values.set("marchaDeFerro.save.v1", "original");

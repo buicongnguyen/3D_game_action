@@ -2,7 +2,7 @@ import type { Game } from "../core/Game.ts";
 import type { GameWorld } from "../game/GameWorld.ts";
 import { SPIDER, STRUCTURES, TRAIL } from "../data/balance.ts";
 import { setupAssetReview } from "./assetReview.ts";
-import { setupBlenderModels, setupBlenderEffects } from "./blenderReview.ts";
+import { setupBlenderModels, setupBlenderEffects, setupRewardModels } from "./blenderReview.ts";
 import { chooseOperation } from "../game/systems/CampaignSystem.ts";
 import type { InteractionSystem } from "../game/systems/InteractionSystem.ts";
 
@@ -78,6 +78,7 @@ function stationPlayer(world: GameWorld, aheadMetres: number, lateral: number): 
 }
 
 export const CAPTURES: CaptureScenario[] = [
+  { id: "reward-models", label: "Shared coin and diamond pickup models", settle: 0, setup: setupRewardModels },
   { id: "roam-warning", label: "Advisory distance warning with free movement", settle: 0.1, setup: (game, world) => {
     game.debugApi.teleportSpider(25); stationPlayer(world, 40, 3);
     world.player.carry = { kind: "cylinder" };

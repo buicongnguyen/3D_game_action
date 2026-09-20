@@ -1,0 +1,118 @@
+{
+  "captures": [
+    {
+      "file": "desktop-chapter-1.png",
+      "calls": 62,
+      "triangles": 129262,
+      "quality": "desktop",
+      "pixelRatio": 1
+    },
+    {
+      "file": "desktop-chapter-2.png",
+      "calls": 30,
+      "triangles": 50930,
+      "quality": "desktop",
+      "pixelRatio": 1
+    },
+    {
+      "file": "desktop-chapter-3.png",
+      "calls": 56,
+      "triangles": 33354,
+      "quality": "desktop",
+      "pixelRatio": 1
+    },
+    {
+      "file": "desktop-chapter-4.png",
+      "calls": 58,
+      "triangles": 51198,
+      "quality": "desktop",
+      "pixelRatio": 1
+    },
+    {
+      "file": "portrait-chapter-1.png",
+      "calls": 62,
+      "triangles": 129262,
+      "quality": "desktop",
+      "pixelRatio": 1
+    },
+    {
+      "file": "portrait-chapter-2.png",
+      "calls": 30,
+      "triangles": 50930,
+      "quality": "desktop",
+      "pixelRatio": 1
+    },
+    {
+      "file": "portrait-chapter-3.png",
+      "calls": 56,
+      "triangles": 33354,
+      "quality": "desktop",
+      "pixelRatio": 1
+    },
+    {
+      "file": "portrait-chapter-4.png",
+      "calls": 58,
+      "triangles": 51198,
+      "quality": "desktop",
+      "pixelRatio": 1
+    },
+    {
+      "file": "landscape-chapter-1.png",
+      "calls": 62,
+      "triangles": 129262,
+      "quality": "desktop",
+      "pixelRatio": 1
+    },
+    {
+      "file": "landscape-chapter-2.png",
+      "calls": 30,
+      "triangles": 50930,
+      "quality": "desktop",
+      "pixelRatio": 1
+    },
+    {
+      "file": "landscape-chapter-3.png",
+      "calls": 56,
+      "triangles": 33354,
+      "quality": "desktop",
+      "pixelRatio": 1
+    },
+    {
+      "file": "landscape-chapter-4.png",
+      "calls": 58,
+      "triangles": 51198,
+      "quality": "desktop",
+      "pixelRatio": 1
+    }
+  ],
+  "checks": [
+    "Real keyboard movement",
+    "Real touch joystick movement and release",
+    "Single touch/click action launches stone",
+    "Pause freezes simulation",
+    {
+      "completeCampaignTraversal": {
+        "safe": 6,
+        "rescued": 3
+      },
+      "note": "Scripted combat resolution; objective actions and full escort distance simulated"
+    },
+    "Reload restores chapter 4 and earned multishot, ready at briefing",
+    "Original loading screen offers working Story entry without resetting checkpoint"
+  ],
+  "performance": {
+    "steps": 600,
+    "medianMs": 0,
+    "p95Ms": 0.10000002384185791,
+    "maxMs": 0.40000009536743164,
+    "environment": "Headless Edge / SwiftShader; simulation CPU only, not physical-phone FPS"
+  },
+  "errors": [],
+  "miniRigCpu": {
+    "walkers": 48,
+    "batches": 4,
+    "p95Ms": 2.600000023841858,
+    "maxMs": 3,
+    "note": "CPU joint solving and instance updates only; not end-to-end GPU FPS"
+  }
+}
